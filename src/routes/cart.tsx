@@ -36,7 +36,7 @@ function CartPage() {
             {items.map((item) => (
               <li key={item.variantId} className="flex gap-4 rounded-2xl border border-border bg-card p-4">
                 <img
-                  src={item.product.node.featuredImage?.url ?? ""}
+                  src={item.product.node.images.edges[0]?.node.url ?? ""}
                   alt={item.product.node.title}
                   className="h-24 w-24 rounded-xl object-cover"
                 />
