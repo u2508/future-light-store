@@ -10,11 +10,19 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as ShopRouteImport } from './routes/shop'
+import { Route as CollectionsHandleRouteImport } from './routes/collections.$handle'
+import { Route as ProductsHandleRouteImport } from './routes/products.$handle'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShopRoute = ShopRouteImport.update({
@@ -22,31 +30,60 @@ const ShopRoute = ShopRouteImport.update({
   path: '/shop',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CollectionsHandleRoute = CollectionsHandleRouteImport.update({
+  id: '/collections/$handle',
+  path: '/collections/$handle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsHandleRoute = ProductsHandleRouteImport.update({
+  id: '/products/$handle',
+  path: '/products/$handle',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/search': typeof SearchRoute
   '/shop': typeof ShopRoute
+  '/collections/$handle': typeof CollectionsHandleRoute
+  '/products/$handle': typeof ProductsHandleRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/search': typeof SearchRoute
   '/shop': typeof ShopRoute
+  '/collections/$handle': typeof CollectionsHandleRoute
+  '/products/$handle': typeof ProductsHandleRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/search': typeof SearchRoute
   '/shop': typeof ShopRoute
+  '/collections/$handle': typeof CollectionsHandleRoute
+  '/products/$handle': typeof ProductsHandleRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/shop'
+  fullPaths:
+    '/' | '/search' | '/shop' | '/collections/$handle' | '/products/$handle'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/shop'
-  id: '__root__' | '/' | '/shop'
+  to: '/' | '/search' | '/shop' | '/collections/$handle' | '/products/$handle'
+  id:
+    | '__root__'
+    | '/'
+    | '/search'
+    | '/shop'
+    | '/collections/$handle'
+    | '/products/$handle'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SearchRoute: typeof SearchRoute
   ShopRoute: typeof ShopRoute
+  CollectionsHandleRoute: typeof CollectionsHandleRoute
+  ProductsHandleRoute: typeof ProductsHandleRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +95,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shop': {
       id: '/shop'
       path: '/shop'
@@ -65,12 +109,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShopRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/collections/$handle': {
+      id: '/collections/$handle'
+      path: '/collections/$handle'
+      fullPath: '/collections/$handle'
+      preLoaderRoute: typeof CollectionsHandleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/$handle': {
+      id: '/products/$handle'
+      path: '/products/$handle'
+      fullPath: '/products/$handle'
+      preLoaderRoute: typeof ProductsHandleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SearchRoute: SearchRoute,
   ShopRoute: ShopRoute,
+  CollectionsHandleRoute: CollectionsHandleRoute,
+  ProductsHandleRoute: ProductsHandleRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
