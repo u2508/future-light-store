@@ -12,7 +12,10 @@ export interface ShopifyVariant {
   price: { amount: string; currencyCode: string };
   compareAtPrice: { amount: string; currencyCode: string } | null;
   availableForSale: boolean;
-  quantityAvailable: number | null;
+  // Storefront API only exposes inventory quantities when the token has
+  // unauthenticated_read_product_inventory. Availability remains usable
+  // without that optional scope.
+  quantityAvailable?: number | null;
   selectedOptions: Array<{ name: string; value: string }>;
 }
 
@@ -56,7 +59,6 @@ export const PRODUCT_FRAGMENT = `
         price { amount currencyCode }
         compareAtPrice { amount currencyCode }
         availableForSale
-        quantityAvailable
         selectedOptions { name value }
       }
     }

@@ -37,7 +37,7 @@ function ShopPage() {
   const search = Route.useSearch();
   const { data: products = [], isLoading, isError } = useQuery({
     queryKey: ["products", "all"],
-    queryFn: () => fetchProducts(100),
+    queryFn: () => fetchProducts(99),
     staleTime: 5 * 60 * 1000,
   });
 

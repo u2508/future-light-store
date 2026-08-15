@@ -52,7 +52,7 @@ export function PredictiveSearch({
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products", "all"],
-    queryFn: () => fetchProducts(100),
+    queryFn: () => fetchProducts(99),
     staleTime: 5 * 60 * 1000,
   });
   const { data: collections = [] } = useQuery({

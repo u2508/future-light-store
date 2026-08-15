@@ -18,7 +18,7 @@ export const Route = createFileRoute("/offers")({
 function OffersPage() {
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products", "all"],
-    queryFn: () => fetchProducts(100),
+    queryFn: () => fetchProducts(99),
     staleTime: 5 * 60 * 1000,
   });
 
