@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
-import { fetchProducts } from "@/lib/shopify";
+import { fetchProducts, isShopifyConfigured } from "@/lib/shopify";
 import { CollectionBrowser } from "@/components/vs/CollectionBrowser";
 
 const searchSchema = z.object({
@@ -49,7 +49,7 @@ function ShopPage() {
       description="Every product in the VS catalog, live from Shopify."
       products={products}
       isLoading={isLoading}
-      isError={isError}
+      isError={isError || !isShopifyConfigured}
       routeTo="/shop"
       search={search}
     />
