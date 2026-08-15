@@ -130,7 +130,10 @@ export async function storefrontApiRequest(query: string, variables: Record<stri
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
   const data = await response.json();
-  if (data.errors) {
+  const hasUsableData =
+    data.data &&
+    Object.values(data.data).some((value: unknown) => value !== null && value !== undefined);
+  if (data.errors && !hasUsableData) {
     throw new Error(
       `Error calling Shopify: ${data.errors.map((e: { message: string }) => e.message).join(", ")}`,
     );
