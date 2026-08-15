@@ -1,9 +1,10 @@
 import { toast } from "sonner";
 
-export const SHOPIFY_API_VERSION = "2025-07";
-export const SHOPIFY_STORE_PERMANENT_DOMAIN = "vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
+export const SHOPIFY_API_VERSION = import.meta.env.VITE_SHOPIFY_API_VERSION ?? "2025-07";
+export const SHOPIFY_STORE_PERMANENT_DOMAIN =
+  import.meta.env.VITE_SHOPIFY_STORE_DOMAIN ?? "vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
 export const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
-export const SHOPIFY_STOREFRONT_TOKEN = "d626836dfe1d36fca502a84b70a6b092";
+export const SHOPIFY_STOREFRONT_TOKEN = import.meta.env.VITE_SHOPIFY_STOREFRONT_TOKEN ?? "";
 
 export interface ShopifyVariant {
   id: string;
@@ -128,7 +129,9 @@ export async function storefrontApiRequest(query: string, variables: Record<stri
 
   const data = await response.json();
   if (data.errors) {
-    throw new Error(`Error calling Shopify: ${data.errors.map((e: { message: string }) => e.message).join(", ")}`);
+    throw new Error(
+      `Error calling Shopify: ${data.errors.map((e: { message: string }) => e.message).join(", ")}`,
+    );
   }
   return data;
 }

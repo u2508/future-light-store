@@ -24,7 +24,9 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
   const off = discountPercent(price.amount, compareAt);
   const singleVariant = variants.length === 1;
   const soldOut = !n.availableForSale;
-  const lowStock = variants.some((v) => v.quantityAvailable !== null && v.quantityAvailable > 0 && v.quantityAvailable <= 5);
+  const lowStock = variants.some(
+    (v) => v.quantityAvailable !== null && v.quantityAvailable > 0 && v.quantityAvailable <= 5,
+  );
 
   const quickAdd = async () => {
     if (soldOut) return;
@@ -57,19 +59,28 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
               />
             ) : (
-              <div className="grid h-full w-full place-items-center text-xs text-muted-foreground">No image</div>
+              <div className="grid h-full w-full place-items-center text-xs text-muted-foreground">
+                No image
+              </div>
             )}
           </Link>
 
           <button
             onClick={() => {
               const added = toggleWishlist(product);
-              toast(added ? "Saved to wishlist" : "Removed from wishlist", { position: "top-center" });
+              toast(added ? "Saved to wishlist" : "Removed from wishlist", {
+                position: "top-center",
+              });
             }}
             aria-label={wishlisted ? "Remove from wishlist" : "Save to wishlist"}
             className="absolute left-3 top-3 grid h-9 w-9 place-items-center rounded-full border border-border bg-card/90 backdrop-blur transition-colors hover:border-signal"
           >
-            <Heart className={cn("h-4 w-4", wishlisted ? "fill-signal text-signal" : "text-muted-foreground")} />
+            <Heart
+              className={cn(
+                "h-4 w-4",
+                wishlisted ? "fill-signal text-signal" : "text-muted-foreground",
+              )}
+            />
           </button>
 
           {off > 0 && (
@@ -94,14 +105,22 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
         </div>
 
         <div className="flex flex-1 flex-col gap-2 p-4">
-          <Link to="/products/$handle" params={{ handle: n.handle }} className="line-clamp-2 text-sm font-medium hover:text-primary">
+          <Link
+            to="/products/$handle"
+            params={{ handle: n.handle }}
+            className="line-clamp-2 text-sm font-medium hover:text-primary"
+          >
             {n.title}
           </Link>
           <div className="mt-auto flex items-end justify-between gap-2">
             <div>
-              <p className="font-display text-lg font-bold">{formatMoney(price.amount, price.currencyCode)}</p>
+              <p className="font-display text-lg font-bold">
+                {formatMoney(price.amount, price.currencyCode)}
+              </p>
               {off > 0 && compareAt && (
-                <p className="text-xs text-muted-foreground line-through">{formatMoney(compareAt, price.currencyCode)}</p>
+                <p className="text-xs text-muted-foreground line-through">
+                  {formatMoney(compareAt, price.currencyCode)}
+                </p>
               )}
             </div>
             <button
@@ -110,7 +129,11 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
               aria-label={singleVariant ? "Add to bag" : "Choose options"}
               className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
             >
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ShoppingBag className="h-4 w-4" />
+              )}
             </button>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -150,7 +173,7 @@ export function EmptyProducts({ message = "No products found" }: { message?: str
       <ShoppingBag className="h-8 w-8 text-muted-foreground" />
       <p className="font-display text-lg font-semibold">{message}</p>
       <p className="max-w-sm text-sm text-muted-foreground">
-        Your catalog is empty. Tell the chat what product you want and at what price, and it will be created in Shopify.
+        We’re loading the next catalog drop. Check back soon.
       </p>
     </div>
   );

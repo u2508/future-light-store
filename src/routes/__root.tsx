@@ -10,11 +10,11 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Header } from "@/components/vs/Header";
 import { Footer } from "@/components/vs/Footer";
 import { Toaster } from "@/components/ui/sonner";
 import { useCartSync } from "@/hooks/useCartSync";
+import { initializeTikTokPixel } from "@/lib/tiktok";
 
 function NotFoundComponent() {
   return (
@@ -41,14 +41,13 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="font-display text-xl font-semibold tracking-tight text-foreground">This page didn't load</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-foreground">
+          This page didn't load
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
@@ -82,7 +81,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "VS Store — Future-facing marketplace" },
       {
         name: "description",
-        content: "VS Store: precision search, transparent pricing and tracked fulfilment across every category.",
+        content:
+          "VS Store: precision search, transparent pricing and tracked fulfilment across every category.",
       },
       { property: "og:site_name", content: "VS Store" },
       { property: "og:type", content: "website" },
@@ -135,6 +135,10 @@ function StoreLayout() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    initializeTikTokPixel();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

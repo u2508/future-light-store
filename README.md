@@ -1,6 +1,6 @@
 # VS Future Store
 
-Lovable-ready product plan: VS
+Standalone product plan: VS
 
 Product concept
 
@@ -16,7 +16,7 @@ Meesho’s price-led browsing and social-friendly discovery
 
 The experience should feel like a beautiful future-facing marketplace, not a cyberpunk dashboard: polished white surfaces, black typography, cobalt blue actions, and controlled red alerts.
 
-Reference only: SALT live storefront. Reusable Salt patterns include the layered header/search, category navigation, curated product shelves, wishlist, account/orders, trust signals, and protected finance workspace. Do not copy Salt branding, assets, copy, layout exactly, or domain behavior. A Playwright reference capture is available at [live-salt-home-reference.png] ATTEACHED HERE AS REFERENCE
+Reference only: an established premium commerce storefront. Reusable patterns include the layered header/search, category navigation, curated product shelves, wishlist, account/orders, trust signals, and protected finance workspace. Do not copy another brand’s identity, assets, copy, layout exactly, or domain behavior.
 
 Brand rules
 
@@ -24,13 +24,13 @@ Public brand name: VS or final approved VS store name.
 
 Do not display:
 
-“VS Polymers” in customer-facing merchandising
+The registered entity name in customer-facing merchandising
 
-Polymer, industrial, chemical, or manufacturing imagery
+Industrial, chemical, or manufacturing imagery
 
-SALT logos, colors, copy, assets, handles, domains, or product names
+Reference-brand logos, colors, copy, assets, handles, domains, or product names
 
-Lovable logos, badges, default favicon, default metadata, or “Powered by Lovable”
+Builder logos, badges, default favicons, default metadata, or builder attribution
 
 If required legally, the registered entity can appear only in the legal footer, terms, invoices, or business contact information.
 
@@ -188,7 +188,7 @@ URL-persistent search state
 
 Debounced requests and cached search results
 
-The Salt repo’s reusable search reference is [search-intelligence.ts](/Users/mac/Library/CloudStorage/OneDrive-Personal/codes/projects/web/SALT ONLINE STORE/salt-shine-enhancer/src/lib/search-intelligence.ts), but VS should use its own data model and brand vocabulary.
+The reference storefront’s reusable search behavior is conceptual only; VS uses its own data model and brand vocabulary.
 
 Collection filtering and Liquid parity
 
@@ -228,7 +228,7 @@ Example:
 
 /collections/shoes?min_price=1000&max_price=5000&availability=in-stock&tag=running&sort=price-asc
 
-If Shopify Liquid output is required, create a parallel Liquid collection scaffold using Shopify’s native product filters and URL parameters. If Lovable is the primary frontend, React should remain the main experience and Liquid should maintain behavioral parity.
+If Shopify Liquid output is required, create a parallel Liquid collection scaffold using Shopify’s native product filters and URL parameters. React remains the main experience and Liquid maintains behavioral parity.
 
 Shopify’s product query supports pagination, search, sorting, filters, variants, prices, inventory, tags, and product availability, making it suitable for this contract. Shopify product query documentation
 
@@ -262,7 +262,7 @@ Confirmation toast and mini-cart update
 
 For single-variant products, add to bag immediately. For multi-variant products, require a valid variant before adding.
 
-Use the reusable behavior patterns from [cart.tsx](/Users/mac/Library/CloudStorage/OneDrive-Personal/codes/projects/web/SALT ONLINE STORE/salt-shine-enhancer/src/lib/cart.tsx) and [wishlist.tsx](/Users/mac/Library/CloudStorage/OneDrive-Personal/codes/projects/web/SALT ONLINE STORE/salt-shine-enhancer/src/lib/wishlist.tsx), but rename all storage keys, events, classes, and product types for VS.
+Use the reusable behavior patterns already present in this repository, while keeping all storage keys, events, classes, and product types specific to VS.
 
 Commerce essentials to add
 
@@ -357,19 +357,21 @@ Orders needing attention
 Recommended calculation model:
 
 Gross sales
+
 - discounts
 - refunds and returns
 - chargeback losses
-= net sales
+  = net sales
 
 Net sales
+
 - product cost
 - payment fees
 - campaign spend
 - subscription costs
 - shipping/fulfillment costs
 - other operating expenses
-= operating profit or loss
+  = operating profit or loss
 
 Refunds and chargebacks must remain separate ledger categories so the system does not double-count deductions.
 
@@ -405,7 +407,7 @@ Reconciliation exceptions
 
 Audit history
 
-Use [FinancePage.tsx](/Users/mac/Library/CloudStorage/OneDrive-Personal/codes/projects/web/SALT ONLINE STORE/salt-shine-enhancer/src/pages/FinancePage.tsx) and [finance-types.ts](/Users/mac/Library/CloudStorage/OneDrive-Personal/codes/projects/web/SALT ONLINE STORE/salt-shine-enhancer/src/lib/finance-types.ts) as conceptual references only.
+Use the finance requirements in this brief as conceptual guidance only; keep the implementation specific to VS.
 
 Shopify’s order query supports reporting, filtering, order status, financial status, and chargeback status. Shopify orders documentation
 
@@ -416,16 +418,16 @@ Do not expose Shopify Admin API tokens in the browser.
 Recommended architecture:
 
 React/Vite storefront
-        |
-        v
+|
+v
 Supabase Auth + Edge Functions
-        |
-        +--> Shopify Storefront API
-        +--> Shopify Admin GraphQL API
-        +--> Shopify webhooks
-        +--> MCP agent tool layer
-        |
-        v
+|
++--> Shopify Storefront API
++--> Shopify Admin GraphQL API
++--> Shopify webhooks
++--> MCP agent tool layer
+|
+v
 Supabase Postgres finance ledger
 
 MVP agent tools should be read-only:
@@ -524,11 +526,11 @@ Apply Row Level Security to every private table. Store Shopify credentials only 
 
 Shopify inventory is location-aware and includes SKU, tracking, unit cost, and inventory levels. Shopify inventory documentation
 
-Recommended Lovable implementation phases
+Recommended VS Store implementation phases
 
 Phase 1: Brand and foundation
 
-Remove all Lovable and Salt traces
+Remove all reference-brand and builder traces
 
 Establish VS tokens, logo, favicon, metadata, and copy system
 
@@ -610,9 +612,9 @@ Final metadata and branding sweep
 
 Definition of done
 
-The Lovable build is complete when:
+The VS Store build is complete when:
 
-No Lovable, Salt, or polymer branding appears in the UI, HTML, metadata, assets, favicon, or source configuration.
+No reference-brand, builder, or industrial-entity branding appears in the UI, HTML, metadata, assets, favicon, or source configuration.
 
 Product data comes from Shopify or an explicitly isolated demo mode.
 
@@ -640,19 +642,9 @@ Desktop and mobile purchase flows pass browser validation.
 
 The final visual result feels premium, clean, rich, and distinctly VS.
 
-Next, use this as the Lovable master brief and provide the final VS store name, Shopify store domain, currency, and timezone before implementation begins.
-
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://future-light-store.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/b45b367e-26f7-4a14-b725-cffb442a3b9f).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+Use this as the VS Store implementation brief. The current store domain is
+`vs-future-store-0jl2t-jxu6tnr3.myshopify.com`, with USD as the initial storefront
+currency and Asia/Kolkata as the operating timezone.
 
 ## Development
 
