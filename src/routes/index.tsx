@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ShieldCheck, Truck, RotateCcw, Sparkles } from "lucide-react";
 import heroImage from "@/assets/vs-hero.jpg";
