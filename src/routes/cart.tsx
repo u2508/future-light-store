@@ -83,13 +83,13 @@ function CartPage() {
               <span className="font-display text-lg font-bold">{formatMoney(String(subtotal), currency)}</span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">Taxes and shipping calculated at checkout.</p>
-            <a
-              href={checkoutUrl ?? "#"}
-              aria-disabled={!checkoutUrl || isLoading}
-              className="mt-4 block rounded-xl bg-primary py-3 text-center text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+            <button
+              onClick={() => checkoutUrl && window.open(checkoutUrl, "_blank")}
+              disabled={!checkoutUrl || isLoading}
+              className="mt-4 block w-full rounded-xl bg-primary py-3 text-center text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               Checkout
-            </a>
+            </button>
           </aside>
         </div>
       )}
