@@ -21,11 +21,13 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const { data: products = [], isLoading } = useQuery({
+  const hydrated = useHydrated();
+  const { data: products = [], isLoading: queryLoading } = useQuery({
     queryKey: ["products", "all"],
     queryFn: () => fetchProducts(99),
     staleTime: 5 * 60 * 1000,
   });
+  const isLoading = !hydrated || queryLoading;
 
   const offers = products.filter(
     (p) =>
