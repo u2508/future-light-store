@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ShieldCheck, Truck, RotateCcw, Sparkles } from "lucide-react";
 import heroImage from "@/assets/vs-hero.jpg";
@@ -21,11 +21,13 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const { data: products = [], isLoading } = useQuery({
+  const hydrated = useHydrated();
+  const { data: products = [], isLoading: queryLoading } = useQuery({
     queryKey: ["products", "all"],
     queryFn: () => fetchProducts(99),
     staleTime: 5 * 60 * 1000,
   });
+  const isLoading = !hydrated || queryLoading;
 
   const offers = products.filter(
     (p) =>
