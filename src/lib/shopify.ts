@@ -4,7 +4,7 @@ export const SHOPIFY_API_VERSION = import.meta.env['VITE_SHOPIFY_API_VERSION'] ?
 export const SHOPIFY_STORE_PERMANENT_DOMAIN =
   import.meta.env['VITE_SHOPIFY_STORE_DOMAIN'] ?? "vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
 export const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
-export const SHOPIFY_STOREFRONT_TOKEN = import.meta.env['VITE_SHOPIFY_STOREFRONT_TOKEN'] ?? "";
+export const SHOPIFY_STOREFRONT_TOKEN = import.meta.env['VITE_SHOPIFY_STOREFRONT_TOKEN'] ?? "118a9674830bd4a996a85941636904e4";
 export const isShopifyConfigured = Boolean(SHOPIFY_STOREFRONT_TOKEN);
 
 export interface ShopifyVariant {
