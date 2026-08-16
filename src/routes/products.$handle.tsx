@@ -40,9 +40,13 @@ function ProductPage() {
     if (product) {
       pushRecent(product.handle);
       const variants = product.variants.edges.map((e) => e.node);
-      if (variants.length === 1) setSelectedId(variants[0]?.id ?? null);
+      const preferred = variants.find((v) => v.availableForSale) ?? variants[0];
+      setSelectedId((current) =>
+        current && variants.some((v) => v.id === current) ? current : (preferred?.id ?? null),
+      );
     }
   }, [product, pushRecent]);
+
 
   if (isLoading) {
     return (
