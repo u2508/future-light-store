@@ -25,5 +25,9 @@ const csrfMiddleware = createCsrfMiddleware({
 });
 
 export const startInstance = createStart(() => ({
+  // The Lovable Cloudflare runtime currently fails before rendering the SSR
+  // response. Keep the storefront available and let the browser load Shopify
+  // data after the client shell hydrates.
+  defaultSsr: false,
   requestMiddleware: [errorMiddleware, csrfMiddleware],
 }));
