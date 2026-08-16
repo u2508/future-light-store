@@ -1,10 +1,10 @@
 import { toast } from "sonner";
 
-export const SHOPIFY_API_VERSION = import.meta.env.VITE_SHOPIFY_API_VERSION ?? "2025-07";
+export const SHOPIFY_API_VERSION = import.meta.env['VITE_SHOPIFY_API_VERSION'] ?? "2025-07";
 export const SHOPIFY_STORE_PERMANENT_DOMAIN =
-  import.meta.env.VITE_SHOPIFY_STORE_DOMAIN ?? "vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
+  import.meta.env['VITE_SHOPIFY_STORE_DOMAIN'] ?? "vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
 export const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
-export const SHOPIFY_STOREFRONT_TOKEN = import.meta.env.VITE_SHOPIFY_STOREFRONT_TOKEN ?? "";
+export const SHOPIFY_STOREFRONT_TOKEN = import.meta.env['VITE_SHOPIFY_STOREFRONT_TOKEN'] ?? "";
 export const isShopifyConfigured = Boolean(SHOPIFY_STOREFRONT_TOKEN);
 
 export interface ShopifyVariant {

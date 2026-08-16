@@ -25,7 +25,7 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
   const singleVariant = variants.length === 1;
   const soldOut = !n.availableForSale;
   const lowStock = variants.some(
-    (v) => v.quantityAvailable !== null && v.quantityAvailable > 0 && v.quantityAvailable <= 5,
+    (v) => v.quantityAvailable != null && v.quantityAvailable > 0 && v.quantityAvailable <= 5,
   );
 
   const quickAdd = async () => {
