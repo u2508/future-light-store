@@ -8,6 +8,7 @@ import { useWishlistStore } from "@/stores/wishlistStore";
 
 const NAV = [
   { label: "Shop all", to: "/shop" as const },
+  { label: "Collections", to: "/collections" as const },
   { label: "New arrivals", to: "/shop" as const, search: { sort: "newest" } },
   { label: "Best sellers", to: "/shop" as const, search: { sort: "best-selling" } },
   { label: "Offers", to: "/offers" as const },
