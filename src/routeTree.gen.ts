@@ -20,6 +20,9 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as ShopRouteImport } from './routes/shop'
 import { Route as TrackOrderRouteImport } from './routes/track-order'
 import { Route as WishlistRouteImport } from './routes/wishlist'
+import { Route as AdminFinanceRouteImport } from './routes/admin.finance'
+import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
+import { Route as CollectionsIndexRouteImport } from './routes/collections.index'
 import { Route as CollectionsHandleRouteImport } from './routes/collections.$handle'
 import { Route as PoliciesSlugRouteImport } from './routes/policies.$slug'
 import { Route as ProductsHandleRouteImport } from './routes/products.$handle'
@@ -79,6 +82,21 @@ const WishlistRoute = WishlistRouteImport.update({
   path: '/wishlist',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminFinanceRoute = AdminFinanceRouteImport.update({
+  id: '/admin/finance',
+  path: '/admin/finance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminOrdersRoute = AdminOrdersRouteImport.update({
+  id: '/admin/orders',
+  path: '/admin/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollectionsIndexRoute = CollectionsIndexRouteImport.update({
+  id: '/collections/',
+  path: '/collections/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CollectionsHandleRoute = CollectionsHandleRouteImport.update({
   id: '/collections/$handle',
   path: '/collections/$handle',
@@ -107,9 +125,12 @@ export interface FileRoutesByFullPath {
   '/shop': typeof ShopRoute
   '/track-order': typeof TrackOrderRoute
   '/wishlist': typeof WishlistRoute
+  '/admin/finance': typeof AdminFinanceRoute
+  '/admin/orders': typeof AdminOrdersRoute
   '/collections/$handle': typeof CollectionsHandleRoute
   '/policies/$slug': typeof PoliciesSlugRoute
   '/products/$handle': typeof ProductsHandleRoute
+  '/collections/': typeof CollectionsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -123,9 +144,12 @@ export interface FileRoutesByTo {
   '/shop': typeof ShopRoute
   '/track-order': typeof TrackOrderRoute
   '/wishlist': typeof WishlistRoute
+  '/admin/finance': typeof AdminFinanceRoute
+  '/admin/orders': typeof AdminOrdersRoute
   '/collections/$handle': typeof CollectionsHandleRoute
   '/policies/$slug': typeof PoliciesSlugRoute
   '/products/$handle': typeof ProductsHandleRoute
+  '/collections': typeof CollectionsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -140,9 +164,12 @@ export interface FileRoutesById {
   '/shop': typeof ShopRoute
   '/track-order': typeof TrackOrderRoute
   '/wishlist': typeof WishlistRoute
+  '/admin/finance': typeof AdminFinanceRoute
+  '/admin/orders': typeof AdminOrdersRoute
   '/collections/$handle': typeof CollectionsHandleRoute
   '/policies/$slug': typeof PoliciesSlugRoute
   '/products/$handle': typeof ProductsHandleRoute
+  '/collections/': typeof CollectionsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -158,9 +185,12 @@ export interface FileRouteTypes {
     | '/shop'
     | '/track-order'
     | '/wishlist'
+    | '/admin/finance'
+    | '/admin/orders'
     | '/collections/$handle'
     | '/policies/$slug'
     | '/products/$handle'
+    | '/collections/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -174,9 +204,12 @@ export interface FileRouteTypes {
     | '/shop'
     | '/track-order'
     | '/wishlist'
+    | '/admin/finance'
+    | '/admin/orders'
     | '/collections/$handle'
     | '/policies/$slug'
     | '/products/$handle'
+    | '/collections'
   id:
     | '__root__'
     | '/'
@@ -190,9 +223,12 @@ export interface FileRouteTypes {
     | '/shop'
     | '/track-order'
     | '/wishlist'
+    | '/admin/finance'
+    | '/admin/orders'
     | '/collections/$handle'
     | '/policies/$slug'
     | '/products/$handle'
+    | '/collections/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -207,9 +243,12 @@ export interface RootRouteChildren {
   ShopRoute: typeof ShopRoute
   TrackOrderRoute: typeof TrackOrderRoute
   WishlistRoute: typeof WishlistRoute
+  AdminFinanceRoute: typeof AdminFinanceRoute
+  AdminOrdersRoute: typeof AdminOrdersRoute
   CollectionsHandleRoute: typeof CollectionsHandleRoute
   PoliciesSlugRoute: typeof PoliciesSlugRoute
   ProductsHandleRoute: typeof ProductsHandleRoute
+  CollectionsIndexRoute: typeof CollectionsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -291,6 +330,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WishlistRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/finance': {
+      id: '/admin/finance'
+      path: '/admin/finance'
+      fullPath: '/admin/finance'
+      preLoaderRoute: typeof AdminFinanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/orders': {
+      id: '/admin/orders'
+      path: '/admin/orders'
+      fullPath: '/admin/orders'
+      preLoaderRoute: typeof AdminOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/collections/': {
+      id: '/collections/'
+      path: '/collections'
+      fullPath: '/collections/'
+      preLoaderRoute: typeof CollectionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/collections/$handle': {
       id: '/collections/$handle'
       path: '/collections/$handle'
@@ -327,9 +387,12 @@ const rootRouteChildren: RootRouteChildren = {
   ShopRoute: ShopRoute,
   TrackOrderRoute: TrackOrderRoute,
   WishlistRoute: WishlistRoute,
+  AdminFinanceRoute: AdminFinanceRoute,
+  AdminOrdersRoute: AdminOrdersRoute,
   CollectionsHandleRoute: CollectionsHandleRoute,
   PoliciesSlugRoute: PoliciesSlugRoute,
   ProductsHandleRoute: ProductsHandleRoute,
+  CollectionsIndexRoute: CollectionsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
