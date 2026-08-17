@@ -4,8 +4,11 @@ export const ADMIN_API_VERSION = "2025-07";
 export const ADMIN_GRAPHQL_URL = `https://${SHOP_DOMAIN}/admin/api/${ADMIN_API_VERSION}/graphql.json`;
 
 export function adminToken(): string {
-  const token = Deno.env.get("SHOPIFY_ACCESS_TOKEN");
-  if (!token) throw new Error("Missing SHOPIFY_ACCESS_TOKEN");
+  // A custom-app token (with read_orders / read_all_orders) takes priority over
+  // the connector token, which cannot read protected customer data.
+  const token =
+    Deno.env.get("SHOPIFY_ADMIN_ACCESS_TOKEN") ?? Deno.env.get("SHOPIFY_ACCESS_TOKEN");
+  if (!token) throw new Error("Missing SHOPIFY_ADMIN_ACCESS_TOKEN");
   return token;
 }
 
