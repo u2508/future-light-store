@@ -17,6 +17,11 @@ dist-ssr
 *.local
 .playwright-cli/
 
+# Generated catalog, release manifests, and local Shopify readbacks
+output/*
+!output/.gitkeep
+public/data/*
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

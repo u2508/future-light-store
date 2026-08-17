@@ -1,0 +1,17 @@
+{
+  "approvalId": "future-light-store-merges-approved-2026-08-17",
+  "approved": true,
+  "approvedAt": "2026-08-17T06:41:25Z",
+  "approvedBy": "Future Light Store owner (explicit Codex authorization)",
+  "approvalSource": "Explicit Future Light Store owner authorization in Codex on 2026-08-17",
+  "scope": {
+    "sourceCollections": [],
+    "targetCollections": {},
+    "taxonomySafety": "Only products with matching controlled taxonomy evidence receive a canonical tag. Unrelated products are not forced into a target collection.",
+    "merchandisingSafety": "Union collection membership only after canonical identity is unambiguous and live-readback succeeds.",
+    "sourceHandling": "Preserve source collections until canonical membership and redirects are verified.",
+    "productPublications": "Do not mutate product sales-channel publications.",
+    "existingTags": "Preserve existing tags; only add missing controlled target tags where evidence supports them.",
+    "redirects": "Create and verify redirects before retiring a public collection URL."
+  }
+}

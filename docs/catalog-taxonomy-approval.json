@@ -1,0 +1,23 @@
+{
+  "approvalId": "future-light-store-taxonomy-approved-2026-08-17",
+  "approved": true,
+  "approvedAt": "2026-08-17T06:41:25Z",
+  "approvedBy": "Future Light Store owner (explicit Codex authorization)",
+  "approvalSource": "Explicit Future Light Store owner authorization in Codex on 2026-08-17",
+  "taxonomyVersion": "2026-08-06.1",
+  "scope": {
+    "existingShopifyTags": "preserve-unmanaged-exactly",
+    "managedTags": "exact replacement within checked-in salt managed namespaces",
+    "taxonomyClassification": "deterministic checked-in taxonomy first; guarded local image evidence only for opaque products; auditable release-boundary guess only if the release would otherwise fail",
+    "seo": "product-specific SEO and metafields required for every active Shopify product; generic, duplicate, or evidence-free content blocks release; prices preserved",
+    "salesChannel": "publish every active product to every available sales channel only after all release tasks verify; never change draft or archived status",
+    "categoriesAndMetafields": "classification and product-specific merchandising metafields plus controlled collection tags approved for every active Shopify product; no Shopify product category writes",
+    "existingCollections": "repair canonical title, handle, exact source condition, and exact membership for every checked-in governed collection",
+    "newCollections": "approved only for missing canonical collections in the checked-in governance registry",
+    "collectionHandleMigrations": "approved only for explicitly checked-in legacy handle mappings with redirects",
+    "collectionMergesOrArchives": "not approved",
+    "zeroImageProducts": "delete only after a fresh live Shopify image read confirms zero product images",
+    "prices": "preserve product and variant prices; collection price conditions may be repaired exactly",
+    "variants": "mapping and readback only; never mutate price or compare-at price"
+  }
+}

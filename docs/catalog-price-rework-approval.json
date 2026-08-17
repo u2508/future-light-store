@@ -1,0 +1,20 @@
+{
+  "approvalId": "future-light-store-price-approved-2026-08-17",
+  "approved": true,
+  "approvedAt": "2026-08-17T06:41:25Z",
+  "approvedBy": "Future Light Store owner (explicit Codex authorization)",
+  "approvalSource": "Explicit Future Light Store owner authorization in Codex on 2026-08-17",
+  "scope": {
+    "products": "all Shopify products and variants",
+    "threshold": 35,
+    "strategyId": "tiered-multiplier-2026-08-03-v1",
+    "multiplierPolicy": {
+      "under20": "linearly scale from 2.00x at the low end toward 1.80x as price approaches $20",
+      "20To35": "linearly scale from 1.70x at $20 toward 1.40x as price approaches $35"
+    },
+    "formula": "multiply each current variant price below $35 by the tiered multiplier determined by its current price",
+    "compareAtPrices": "multiply existing compare-at prices by the same variant multiplier; preserve absence",
+    "variantPrices": "preserve independent variant pricing; never flatten quality, size, color, or bundle prices",
+    "status": "do not change product status or sales-channel inclusion"
+  }
+}

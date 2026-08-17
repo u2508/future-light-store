@@ -1,0 +1,21 @@
+{
+  "approvalId": "future-light-store-collections-approved-2026-08-17",
+  "approved": true,
+  "approvedAt": "2026-08-17T06:41:25Z",
+  "approvedBy": "Future Light Store owner (explicit Codex authorization)",
+  "approvalSource": "Explicit Future Light Store owner authorization in Codex on 2026-08-17",
+  "taxonomyVersion": "2026-08-06.1",
+  "collectionPlanVersion": "2026-08-06.1-collections.3",
+  "governanceVersion": "2026-08-10.3",
+  "scope": {
+    "managedCollections": "create or repair only canonical collections in the checked-in full-catalog governance registry",
+    "controlledRuleTags": "exactly one canonical simple collection tag condition per semantic collection, except approved union rules for gifts and trending-finds",
+    "existingTags": "preserve unmanaged tags exactly; exact-replace checked-in canonical managed tags",
+    "onlineStorePublication": "publish newly created canonical collections to Online Store; preserve existing publication state",
+    "legacyHandleRedirects": "redirect only explicitly checked-in legacy handles when reusing their collection record",
+    "legacyMergesOrArchives": "not approved",
+    "priceCollections": "repair exact variant-price conditions and verify exact live membership",
+    "collectionlessProducts": "forbidden; every active product must be verified in at least one live collection",
+    "specialCollections": "Creator Essentials must contain at least 500 products and Anime Collectables at least 1000 products across the full catalog"
+  }
+}

@@ -1,0 +1,75 @@
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import {
+  DEFAULT_PRODUCT_SEARCH_SHARD_MAX_BYTES,
+  isProductSearchManifest,
+  mergeProductSearchShardPayloads,
+  splitProductSearchPayload,
+} from "../src/lib/product-search-shards.js";
+
+const PRODUCT_SEARCH_SHARD_FILE_PATTERN = /^product-search-\d{4}\.json$/;
+
+export async function readProductSearchPayload(dataDir) {
+  const resolvedDataDir = resolve(dataDir);
+  const manifestPath = resolve(resolvedDataDir, "product-search.json");
+  const payload = JSON.parse(await readFile(manifestPath, "utf8"));
+
+  if (!isProductSearchManifest(payload)) {
+    if (Array.isArray(payload?.products)) {
+      return payload;
+    }
+
+    throw new Error(`Product search manifest contains no products or shards: ${manifestPath}`);
+  }
+
+  const shardEntries = Array.isArray(payload.shards) ? payload.shards : [];
+  if (!shardEntries.length) {
+    throw new Error(`Product search manifest contains no shard entries: ${manifestPath}`);
+  }
+
+  const shardPayloads = await Promise.all(
+    shardEntries.map(async (entry) => {
+      const file = String(entry?.file || entry?.path || "").replace(/^.*\//, "");
+      if (!PRODUCT_SEARCH_SHARD_FILE_PATTERN.test(file)) {
+        throw new Error(`Invalid product search shard filename: ${file}`);
+      }
+
+      return JSON.parse(await readFile(resolve(resolvedDataDir, file), "utf8"));
+    }),
+  );
+
+  const merged = mergeProductSearchShardPayloads(payload, shardPayloads);
+  if (!merged.products.length) {
+    throw new Error(`Product search shards are empty: ${manifestPath}`);
+  }
+
+  return merged;
+}
+
+export async function writeProductSearchPayload(
+  dataDir,
+  payload,
+  { maxBytes = Number(process.env.SALT_PRODUCT_SEARCH_SHARD_MAX_BYTES) || DEFAULT_PRODUCT_SEARCH_SHARD_MAX_BYTES } = {},
+) {
+  const resolvedDataDir = resolve(dataDir);
+  await mkdir(resolvedDataDir, { recursive: true });
+
+  const { manifest, shards } = splitProductSearchPayload(payload, maxBytes);
+  const nextShardFiles = new Set(manifest.shards.map((entry) => entry.file));
+  const existingFiles = await readdir(resolvedDataDir);
+  const staleShardFiles = existingFiles.filter(
+    (file) => PRODUCT_SEARCH_SHARD_FILE_PATTERN.test(file) && !nextShardFiles.has(file),
+  );
+
+  await Promise.all(
+    shards.map((shard, index) =>
+      writeFile(resolve(resolvedDataDir, manifest.shards[index].file), shard.serialized, "utf8"),
+    ),
+  );
+
+  // Publish the manifest last so readers never discover a new shard list before every file exists.
+  await writeFile(resolve(resolvedDataDir, "product-search.json"), JSON.stringify(manifest), "utf8");
+  await Promise.all(staleShardFiles.map((file) => rm(resolve(resolvedDataDir, file), { force: true })));
+
+  return manifest;
+}
