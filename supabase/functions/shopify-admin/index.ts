@@ -219,6 +219,58 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "register_webhooks") {
+      const callbackUrl = `${SUPABASE_URL}/functions/v1/shopify-webhook`;
+      const topics = [
+        "ORDERS_CREATE",
+        "ORDERS_UPDATED",
+        "ORDERS_PAID",
+        "ORDERS_CANCELLED",
+        "ORDERS_FULFILLED",
+        "REFUNDS_CREATE",
+        "DISPUTES_CREATE",
+        "DISPUTES_UPDATE",
+      ];
+      const results: Array<{ topic: string; ok: boolean; message?: string }> = [];
+      for (const topic of topics) {
+        try {
+          const res: {
+            webhookSubscriptionCreate: {
+              userErrors: Array<{ message: string }>;
+              webhookSubscription: { id: string } | null;
+            };
+          } = await adminGraphql(
+            `mutation Create($topic: WebhookSubscriptionTopic!, $sub: WebhookSubscriptionInput!) {
+              webhookSubscriptionCreate(topic: $topic, webhookSubscription: $sub) {
+                webhookSubscription { id }
+                userErrors { message }
+              }
+            }`,
+            { topic, sub: { callbackUrl, format: "JSON" } },
+          );
+          const errs = res.webhookSubscriptionCreate?.userErrors ?? [];
+          const already = errs.some((e) => /already/i.test(e.message));
+          results.push({
+            topic,
+            ok: Boolean(res.webhookSubscriptionCreate?.webhookSubscription) || already,
+            message: errs.map((e) => e.message).join(", ") || undefined,
+          });
+        } catch (e) {
+          results.push({ topic, ok: false, message: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      return json({ callbackUrl, results });
+    }
+
+    if (action === "webhook_events") {
+      const { data: events } = await service
+        .from("shopify_webhook_events")
+        .select("id, topic, shopify_id, status, error, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      return json({ events: events ?? [] });
+    }
+
     return json({ error: `Unknown action: ${action}` }, 400);
   } catch (error) {
     console.error("shopify-admin error", error);
