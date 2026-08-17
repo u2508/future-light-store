@@ -1,15 +1,63 @@
-export const SHOP_DOMAIN =
-  Deno.env.get("SHOPIFY_SHOP_DOMAIN") ?? "vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
-export const ADMIN_API_VERSION = "2025-07";
+export const SHOP_DOMAIN = Deno.env.get("SHOPIFY_SHOP_DOMAIN") ?? "vs-store-us.myshopify.com";
+export const ADMIN_API_VERSION = Deno.env.get("SHOPIFY_API_VERSION") ?? "2026-07";
 export const ADMIN_GRAPHQL_URL = `https://${SHOP_DOMAIN}/admin/api/${ADMIN_API_VERSION}/graphql.json`;
 
-export function adminToken(): string {
-  // A custom-app token (with read_orders / read_all_orders) takes priority over
-  // the connector token, which cannot read protected customer data.
-  const token =
+type TokenCache = { accessToken: string; expiresAt: number };
+
+let tokenCache: TokenCache | null = null;
+let tokenRequest: Promise<string> | null = null;
+
+async function requestClientCredentialsToken(): Promise<string> {
+  const clientId = Deno.env.get("SHOPIFY_CLIENT_ID");
+  const clientSecret = Deno.env.get("SHOPIFY_CLIENT_SECRET");
+  if (!clientId || !clientSecret) {
+    throw new Error("Missing SHOPIFY_CLIENT_ID or SHOPIFY_CLIENT_SECRET");
+  }
+
+  const response = await fetch(`https://${SHOP_DOMAIN}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  });
+  const payload = (await response.json().catch(() => ({}))) as {
+    access_token?: string;
+    expires_in?: number;
+  };
+
+  if (!response.ok || !payload.access_token) {
+    throw new Error(`Shopify Admin token exchange failed (${response.status})`);
+  }
+
+  const expiresIn = Number(payload.expires_in ?? 86_399);
+  tokenCache = {
+    accessToken: payload.access_token,
+    expiresAt: Date.now() + Math.max(expiresIn - 300, 60) * 1000,
+  };
+  return payload.access_token;
+}
+
+export async function adminToken(): Promise<string> {
+  // Dev Dashboard apps issue short-lived tokens. Prefer the refreshable
+  // client-credentials flow whenever its server-only secrets are configured.
+  if (Deno.env.get("SHOPIFY_CLIENT_ID") && Deno.env.get("SHOPIFY_CLIENT_SECRET")) {
+    if (tokenCache && tokenCache.expiresAt > Date.now()) return tokenCache.accessToken;
+    if (!tokenRequest) {
+      tokenRequest = requestClientCredentialsToken().finally(() => {
+        tokenRequest = null;
+      });
+    }
+    return tokenRequest;
+  }
+
+  // Temporary compatibility path for an explicitly configured static token.
+  const staticToken =
     Deno.env.get("SHOPIFY_ADMIN_ACCESS_TOKEN") ?? Deno.env.get("SHOPIFY_ACCESS_TOKEN");
-  if (!token) throw new Error("Missing SHOPIFY_ADMIN_ACCESS_TOKEN");
-  return token;
+  if (!staticToken) throw new Error("Missing Shopify Admin credentials");
+  return staticToken;
 }
 
 export async function adminGraphql<T = unknown>(
@@ -20,7 +68,7 @@ export async function adminGraphql<T = unknown>(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Shopify-Access-Token": adminToken(),
+      "X-Shopify-Access-Token": await adminToken(),
     },
     body: JSON.stringify({ query, variables }),
   });
@@ -107,7 +155,11 @@ export interface AdminOrder {
       originalTotalSet: { shopMoney: { amount: string } };
       discountedTotalSet: { shopMoney: { amount: string } };
       image: { url: string } | null;
-      variant: { id: string; title: string; inventoryItem?: { unitCost?: { amount: string } | null } } | null;
+      variant: {
+        id: string;
+        title: string;
+        inventoryItem?: { unitCost?: { amount: string } | null };
+      } | null;
     }>;
   };
   fulfillments: Array<{
