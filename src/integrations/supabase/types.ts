@@ -65,15 +65,174 @@ export type Database = {
         }
         Relationships: []
       }
+      shopify_orders: {
+        Row: {
+          cancelled_at: string | null
+          currency: string
+          email: string | null
+          financial_status: string | null
+          fulfillment_status: string | null
+          fulfillments: Json
+          id: string
+          line_items: Json
+          name: string | null
+          order_number: string | null
+          processed_at: string | null
+          raw: Json
+          subtotal_price: number
+          total_discounts: number
+          total_price: number
+          total_refunded: number
+          total_shipping: number
+          total_tax: number
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          currency?: string
+          email?: string | null
+          financial_status?: string | null
+          fulfillment_status?: string | null
+          fulfillments?: Json
+          id: string
+          line_items?: Json
+          name?: string | null
+          order_number?: string | null
+          processed_at?: string | null
+          raw?: Json
+          subtotal_price?: number
+          total_discounts?: number
+          total_price?: number
+          total_refunded?: number
+          total_shipping?: number
+          total_tax?: number
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          currency?: string
+          email?: string | null
+          financial_status?: string | null
+          fulfillment_status?: string | null
+          fulfillments?: Json
+          id?: string
+          line_items?: Json
+          name?: string | null
+          order_number?: string | null
+          processed_at?: string | null
+          raw?: Json
+          subtotal_price?: number
+          total_discounts?: number
+          total_price?: number
+          total_refunded?: number
+          total_shipping?: number
+          total_tax?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shopify_refunds: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          id: string
+          kind: string
+          order_id: string | null
+          processed_at: string | null
+          raw: Json
+          reason: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id: string
+          kind?: string
+          order_id?: string | null
+          processed_at?: string | null
+          raw?: Json
+          reason?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          kind?: string
+          order_id?: string | null
+          processed_at?: string | null
+          raw?: Json
+          reason?: string | null
+        }
+        Relationships: []
+      }
+      shopify_webhook_events: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          payload: Json
+          shopify_id: string | null
+          status: string
+          topic: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          payload?: Json
+          shopify_id?: string | null
+          status?: string
+          topic: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          payload?: Json
+          shopify_id?: string | null
+          status?: string
+          topic?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "staff" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -200,6 +359,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "staff", "user"],
+    },
   },
 } as const
