@@ -73,9 +73,10 @@ export const PRODUCT_FRAGMENT = `
 `;
 
 export const STOREFRONT_QUERY = `
-  query GetProducts($first: Int!, $query: String) {
-    products(first: $first, query: $query) {
+  query GetProducts($first: Int!, $after: String, $query: String) {
+    products(first: $first, after: $after, query: $query) {
       edges { node { ${PRODUCT_FRAGMENT} } }
+      pageInfo { hasNextPage endCursor }
     }
   }
 `;
@@ -137,8 +138,34 @@ export async function storefrontApiRequest(query: string, variables: Record<stri
 }
 
 export async function fetchProducts(first = 50, query?: string): Promise<ShopifyProduct[]> {
-  const data = await storefrontApiRequest(STOREFRONT_QUERY, { first, query: query ?? null });
+  const data = await storefrontApiRequest(STOREFRONT_QUERY, { first, after: null, query: query ?? null });
   return data?.data?.products?.edges ?? [];
+}
+
+/**
+ * Load the complete public catalog for the Shop all browser. Shopify caps a
+ * single Storefront API connection at 250 products, so continue through the
+ * cursor until the connection is exhausted.
+ */
+export async function fetchAllProducts(query?: string): Promise<ShopifyProduct[]> {
+  const products: ShopifyProduct[] = [];
+  const pageSize = 250;
+  let after: string | null = null;
+  let hasNextPage = true;
+
+  while (hasNextPage) {
+    const data = await storefrontApiRequest(STOREFRONT_QUERY, {
+      first: pageSize,
+      after,
+      query: query ?? null,
+    });
+    const connection = data?.data?.products;
+    products.push(...(connection?.edges ?? []));
+    hasNextPage = Boolean(connection?.pageInfo?.hasNextPage && connection?.pageInfo?.endCursor);
+    after = connection?.pageInfo?.endCursor ?? null;
+  }
+
+  return products;
 }
 
 export async function fetchProduct(handle: string): Promise<ShopifyProductNode | null> {

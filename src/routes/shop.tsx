@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
-import { fetchProducts, isShopifyConfigured } from "@/lib/shopify";
+import { fetchAllProducts, isShopifyConfigured } from "@/lib/shopify";
 import { CollectionBrowser } from "@/components/vs/CollectionBrowser";
 import { canonicalUrl } from "@/lib/seo";
 
@@ -38,8 +38,8 @@ export const Route = createFileRoute("/shop")({
 function ShopPage() {
   const search = Route.useSearch();
   const { data: products = [], isLoading, isError } = useQuery({
-    queryKey: ["products", "all"],
-    queryFn: () => fetchProducts(99),
+    queryKey: ["products", "shop-all"],
+    queryFn: () => fetchAllProducts(),
     staleTime: 5 * 60 * 1000,
   });
 
