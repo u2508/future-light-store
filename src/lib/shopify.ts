@@ -1,11 +1,12 @@
-import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
-export const SHOPIFY_API_VERSION = import.meta.env['VITE_SHOPIFY_API_VERSION'] ?? "2025-07";
-export const SHOPIFY_STORE_PERMANENT_DOMAIN =
-  import.meta.env['VITE_SHOPIFY_STORE_DOMAIN'] ?? "vs-store-us.myshopify.com";
-export const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
-export const SHOPIFY_STOREFRONT_TOKEN = import.meta.env['VITE_SHOPIFY_STOREFRONT_TOKEN'] ?? "118a9674830bd4a996a85941636904e4";
-export const isShopifyConfigured = Boolean(SHOPIFY_STOREFRONT_TOKEN);
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+
+// Shopify credentials are kept in the Supabase Edge Function. The browser only
+// needs the Supabase project URL and its publishable client key.
+export const isShopifyConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
 export interface ShopifyVariant {
   id: string;
@@ -24,6 +25,7 @@ export interface ShopifyProductNode {
   id: string;
   title: string;
   description: string;
+  descriptionHtml?: string;
   handle: string;
   vendor: string;
   productType: string;
@@ -45,6 +47,7 @@ export const PRODUCT_FRAGMENT = `
   id
   title
   description
+  descriptionHtml
   handle
   vendor
   productType
@@ -117,26 +120,11 @@ export interface ShopifyCollection {
 export async function storefrontApiRequest(query: string, variables: Record<string, unknown> = {}) {
   if (!isShopifyConfigured) return null;
 
-  const response = await fetch(SHOPIFY_STOREFRONT_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Storefront-Access-Token": SHOPIFY_STOREFRONT_TOKEN,
-    },
-    body: JSON.stringify({ query, variables }),
+  const { data, error } = await supabase.functions.invoke("shopify-storefront", {
+    body: { query, variables },
   });
 
-  if (response.status === 402) {
-    toast.error("Shopify: Payment required", {
-      description:
-        "Shopify API access requires an active billing plan. Visit https://admin.shopify.com to upgrade.",
-    });
-    return null;
-  }
-
-  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-  const data = await response.json();
+  if (error) throw new Error(error.message || "Catalog service is unavailable");
   const hasUsableData =
     data.data &&
     Object.values(data.data).some((value: unknown) => value !== null && value !== undefined);

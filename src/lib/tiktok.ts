@@ -13,7 +13,7 @@ declare global {
 
 let initializedPixelId: string | null = null;
 
-export function initializeTikTokPixel(pixelId = import.meta.env['VITE_TIKTOK_PIXEL_ID']): void {
+export function initializeTikTokPixel(pixelId = import.meta.env.VITE_TIKTOK_PIXEL_ID): void {
   if (typeof window === "undefined" || !pixelId || initializedPixelId === pixelId) return;
 
   const queue =

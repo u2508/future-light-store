@@ -29,10 +29,11 @@ loadEnvFile(resolve(".env.example"));
 
 const BASE_URL = (process.env.VITE_SITE_URL ?? "https://vss-store.vercel.app").replace(/\/$/, "");
 
-const SHOPIFY_STORE_DOMAIN = process.env.VITE_SHOPIFY_STORE_DOMAIN ?? "vs-store-us.myshopify.com";
-const SHOPIFY_API_VERSION = process.env.VITE_SHOPIFY_API_VERSION ?? "2025-07";
-const SHOPIFY_STOREFRONT_TOKEN = process.env.VITE_SHOPIFY_STOREFRONT_TOKEN ?? "";
-const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
+const SUPABASE_URL = (
+  process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "https://miiybtxnnxlimmiyfauy.supabase.co"
+).replace(/\/$/, "");
+const SUPABASE_PUBLISHABLE_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
+const STOREFRONT_PROXY_URL = `${SUPABASE_URL}/functions/v1/shopify-storefront`;
 
 interface SitemapEntry {
   path: string;
@@ -53,27 +54,19 @@ const STATIC_ROUTES: SitemapEntry[] = [
 const POLICY_SLUGS = ["shipping", "returns", "privacy", "terms"];
 
 async function storefrontRequest<T = unknown>(query: string, variables: Record<string, unknown> = {}): Promise<T | null> {
-  if (!SHOPIFY_STOREFRONT_TOKEN) {
-    console.warn("VITE_SHOPIFY_STOREFRONT_TOKEN not set; skipping dynamic Shopify entries.");
-    return null;
-  }
-
-  const response = await fetch(SHOPIFY_STOREFRONT_URL, {
+  const response = await fetch(STOREFRONT_PROXY_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Shopify-Storefront-Access-Token": SHOPIFY_STOREFRONT_TOKEN,
+      ...(SUPABASE_PUBLISHABLE_KEY ? { apikey: SUPABASE_PUBLISHABLE_KEY } : {}),
     },
     body: JSON.stringify({ query, variables }),
   });
 
-  if (!response.ok) {
-    throw new Error(`Shopify Storefront API error: ${response.status} ${response.statusText}`);
-  }
-
-  const json = (await response.json()) as { errors?: Array<{ message: string }>; data?: T };
+  const json = (await response.json()) as { error?: string; errors?: Array<{ message: string }>; data?: T };
+  if (!response.ok) throw new Error(json.error ?? `Catalog proxy error: ${response.status}`);
   if (json.errors?.length) {
-    throw new Error(`Shopify GraphQL error: ${json.errors.map((e) => e.message).join(", ")}`);
+    throw new Error(`Catalog GraphQL error: ${json.errors.map((e) => e.message).join(", ")}`);
   }
   return json.data ?? null;
 }
