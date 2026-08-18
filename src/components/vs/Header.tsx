@@ -5,6 +5,7 @@ import { VsLogo } from "@/components/vs/VsLogo";
 import { PredictiveSearch } from "@/components/vs/PredictiveSearch";
 import { CartDrawer } from "@/components/vs/CartDrawer";
 import { useWishlistStore } from "@/stores/wishlistStore";
+import { useAuth } from "@/hooks/useAuth";
 
 const NAV = [
   { label: "Shop all", to: "/shop" as const },
