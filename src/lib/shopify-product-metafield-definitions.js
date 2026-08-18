@@ -143,7 +143,7 @@ const PRODUCT_METAFIELD_DEFINITIONS = [
     type: "list.metaobject_reference",
     ownerType: "PRODUCT",
     access: {
-      admin: "PUBLIC_READ_WRITE",
+      admin: "MERCHANT_READ_WRITE",
       storefront: "PUBLIC_READ",
     },
     pin: true,

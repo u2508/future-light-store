@@ -57,6 +57,7 @@ const blogPostsPath = resolve(outDir, "blog-posts.json");
 const shopPath = resolve(outDir, "shop.json");
 let forceLiveCollectionHandles = new Set();
 const cliCollectionIdsByHandle = new Map();
+const cliCollectionProductsByHandle = new Map();
 let requestQueue = Promise.resolve();
 const execFileAsync = promisify(execFile);
 
@@ -460,6 +461,10 @@ const CLI_COLLECTIONS_QUERY = /* GraphQL */ `
         title
         updatedAt
         productsCount { count }
+        products(first: 250) {
+          nodes { id legacyResourceId }
+          pageInfo { hasNextPage endCursor }
+        }
         resourcePublications(first: 100) {
           nodes { isPublished channel { name } }
         }
@@ -485,6 +490,14 @@ function normalizeCliCollection(node) {
   const handle = String(node?.handle || "").trim();
   if (handle && node?.id) {
     cliCollectionIdsByHandle.set(handle, String(node.id));
+    const productConnection = node.products || {};
+    cliCollectionProductsByHandle.set(handle, {
+      ids: (Array.isArray(productConnection.nodes) ? productConnection.nodes : [])
+        .map((product) => Number(product?.legacyResourceId) || product?.id)
+        .filter(Boolean),
+      hasNextPage: productConnection.pageInfo?.hasNextPage === true,
+      endCursor: productConnection.pageInfo?.endCursor || null,
+    });
   }
 
   return {
@@ -1438,10 +1451,15 @@ async function fetchCollectionProductIds(handle) {
       throw new Error(`Shopify CLI collection id is unavailable for "${handle}"`);
     }
 
-    const ids = [];
-    let after = null;
-    let page = 0;
-    while (true) {
+    const initial = cliCollectionProductsByHandle.get(handle);
+    if (!initial) {
+      throw new Error(`Shopify CLI collection products are unavailable for "${handle}"`);
+    }
+
+    const ids = [...initial.ids];
+    let after = initial.endCursor;
+    let page = 1;
+    while (initial.hasNextPage || after) {
       const payload = await runShopifyStoreGraphQL(CLI_COLLECTION_PRODUCTS_QUERY, {
         id: collectionId,
         first: limit,

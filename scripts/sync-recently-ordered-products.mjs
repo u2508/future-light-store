@@ -21,7 +21,10 @@ const adminToken =
   process.env.SALT_SHOPIFY_ADMIN_ACCESS_TOKEN ||
   "";
 const RECENTLY_ORDERED_PRODUCT_LIMIT = 1000;
-const RECENTLY_ORDERED_PRODUCT_MINIMUM = 300;
+const RECENTLY_ORDERED_PRODUCT_MINIMUM = Math.max(
+  0,
+  Number(process.env.SALT_RECENTLY_ORDERED_PRODUCT_MINIMUM || 300),
+);
 // The daily price-floor stage runs after this feed is refreshed. Do not drop
 // genuine recent orders before that stage can normalize their variant prices.
 const RECENTLY_ORDERED_MIN_PRICE_EXCLUSIVE = 0;

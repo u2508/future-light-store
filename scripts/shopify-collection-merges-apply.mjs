@@ -384,6 +384,32 @@ async function readPreviousManifest() {
 
 async function main() {
   const approval = await readApproval();
+  if (process.env.FUTURE_LIGHT_STORE === "1" && !asArray(approval?.scope?.sourceCollections).length) {
+    const manifest = {
+      releaseVersion: "2026-08-17.future-light.collection-merges.no-op",
+      mode: dryRun ? "dry-run" : "apply",
+      generatedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      approvalId: approval.approvalId,
+      policy: {
+        sourceHandling: "Future Light Store has no approved legacy source collections; no merge or publication writes are permitted.",
+      },
+      sourceCollections: [],
+      tagTasks: [],
+      summary: {
+        sourceCollections: 0,
+        sourceProducts: 0,
+        eligibleTaxonomyTargetProducts: 0,
+        tagsToAdd: 0,
+        merchandisingRulesToUnion: 0,
+        sourceCollectionsPublishedBefore: 0,
+        failures: 0,
+      },
+    };
+    await writeManifest(manifest);
+    process.stdout.write("Future Light Store collection merge stage is an approved no-op; no legacy source collections are in scope.\n");
+    return;
+  }
   const previousManifest = await readPreviousManifest();
   // Shopify CLI's stored device-auth session is process-safe but not
   // reliably request-safe when two child invocations start together.

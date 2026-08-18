@@ -17,6 +17,7 @@ const productPageSize = 250;
 const jobPollMs = Math.max(1000, Number(process.env.SALT_COLLECTION_SHUFFLE_JOB_POLL_MS || 2000));
 const jobPollAttempts = Math.max(1, Number(process.env.SALT_COLLECTION_SHUFFLE_JOB_POLL_ATTEMPTS || 300));
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "collection-shuffle" });
+const SHUFFLE_EXCLUDED_HANDLES = new Set(["all-products"]);
 
 const COLLECTIONS_QUERY = /* GraphQL */ `
   query CollectionShuffleCollections($first: Int!, $after: String) {
@@ -120,6 +121,7 @@ async function buildPlan(seed) {
   const collections = await fetchCollections();
   const plan = [];
   for (const collection of collections) {
+    if (SHUFFLE_EXCLUDED_HANDLES.has(collection.handle)) continue;
     const currentIds = await fetchCollectionProducts(collection.id);
     const desiredIds = shuffleCollectionProductIds(currentIds, `${seed}:${collection.handle}`);
     const moves = buildCollectionReorderMoves(currentIds, desiredIds);
@@ -272,6 +274,7 @@ async function main() {
   } else {
     plan = hasReusablePriorPlan ? priorManifest.collections : await buildPlan(args.seed);
   }
+  plan = plan.filter((entry) => !SHUFFLE_EXCLUDED_HANDLES.has(entry.handle));
   const manifest = canReusePriorPlan
     ? { ...priorManifest, mode: args.mode, resumedAt: new Date().toISOString() }
     : {

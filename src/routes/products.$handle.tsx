@@ -9,6 +9,43 @@ import { useRecentStore, useWishlistStore } from "@/stores/wishlistStore";
 import { cn } from "@/lib/utils";
 import { canonicalUrl } from "@/lib/seo";
 
+const PRODUCT_DESCRIPTION_TAGS = new Set(["h2", "h3", "p", "ul", "ol", "li", "strong", "em", "br"]);
+
+function sanitizeProductDescriptionHtml(value: string) {
+  return String(value || "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\s*(script|style|iframe|object|embed|form|svg|math)\b[^>]*>[\s\S]*?<\/\s*\1\s*>/gi, "")
+    .replace(/<[^>]*>/g, (tag) => {
+      const tagName = tag.match(/^<\s*\/?\s*([a-z0-9]+)/i)?.[1]?.toLowerCase();
+      if (!tagName || !PRODUCT_DESCRIPTION_TAGS.has(tagName)) return "";
+      if (/^<\s*\//.test(tag)) return `</${tagName}>`;
+      return tagName === "br" ? "<br>" : `<${tagName}>`;
+    });
+}
+
+function ProductDescription({ description, descriptionHtml }: { description: string; descriptionHtml?: string }) {
+  const structuredDescription = sanitizeProductDescriptionHtml(descriptionHtml || "");
+
+  return (
+    <section aria-label="Product description" className="rounded-3xl border border-border bg-card p-5 sm:p-6">
+      {structuredDescription ? (
+        <div
+          className={cn(
+            "space-y-4 text-sm leading-7 text-muted-foreground",
+            "[&_h2]:font-display [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h2]:text-foreground",
+            "[&_h3]:mt-7 [&_h3]:border-t [&_h3]:border-border [&_h3]:pt-5 [&_h3]:font-display [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:uppercase [&_h3]:tracking-[0.14em] [&_h3]:text-foreground",
+            "[&_p]:m-0 [&_p+_p]:mt-2 [&_strong]:font-semibold [&_strong]:text-foreground",
+            "[&_ul]:my-0 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5 [&_ol]:my-0 [&_ol]:list-decimal [&_ol]:space-y-2 [&_ol]:pl-5 [&_li]:pl-1",
+          )}
+          dangerouslySetInnerHTML={{ __html: structuredDescription }}
+        />
+      ) : (
+        <p className="whitespace-pre-line text-sm leading-7 text-muted-foreground">{description}</p>
+      )}
+    </section>
+  );
+}
+
 export const Route = createFileRoute("/products/$handle")({
   head: ({ params }) => ({
     meta: [
@@ -233,7 +270,9 @@ function ProductPage() {
             </button>
           </div>
 
-          {product.description && <p className="text-sm leading-relaxed text-muted-foreground">{product.description}</p>}
+          {product.description && (
+            <ProductDescription description={product.description} descriptionHtml={product.descriptionHtml} />
+          )}
 
           <div className="grid gap-2 rounded-2xl border border-border bg-card p-4 text-xs text-muted-foreground">
             <p className="flex items-center gap-2"><Truck className="h-3.5 w-3.5" /> Delivery estimate at checkout</p>

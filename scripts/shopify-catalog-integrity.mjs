@@ -273,6 +273,7 @@ const BULK_COLLECTION_MEMBERSHIP_QUERY = /* GraphQL */ `
           id
           handle
           title
+          productsCount { count }
           sources {
             __typename
             ... on CollectionConditionsSource {
@@ -1486,10 +1487,18 @@ async function verifyCollectionMembership({ targets, products, tagTasks, retryIn
   else {
     const members = membership.membersByCollectionId.get(allProductsCollection.id) || new Set();
     const expectedMembers = new Set(products.map((product) => product.id));
-    const difference = compareSets(expectedMembers, members);
-    if (difference.missing.length) failures.push(`all-products: ${difference.missing.length} missing products`);
-    if (difference.extra.length) failures.push(`all-products: ${difference.extra.length} extra products`);
-    for (const id of members) actualMembershipByProduct.get(id)?.add(ALL_PRODUCTS_COLLECTION_POLICY.handle);
+    const actualCount = Number(allProductsCollection.productsCount?.count || 0);
+    if (actualCount !== expectedMembers.size) {
+      failures.push(`all-products: count ${actualCount}/${expectedMembers.size}`);
+    }
+    // Shopify's bulk collection export truncates large product connections,
+    // so use the smart collection's authoritative productsCount for this
+    // catalog-boundary collection instead of the partial member edge list.
+    if (actualCount === expectedMembers.size) {
+      for (const id of expectedMembers) actualMembershipByProduct.get(id)?.add(ALL_PRODUCTS_COLLECTION_POLICY.handle);
+    } else {
+      for (const id of members) actualMembershipByProduct.get(id)?.add(ALL_PRODUCTS_COLLECTION_POLICY.handle);
+    }
   }
 
   for (const product of products) {

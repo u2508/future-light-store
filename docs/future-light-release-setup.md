@@ -28,6 +28,9 @@ live-readback scripts from the SALT release workflow.
    `SALT_SHOPIFY_SYNC_ACTIVE_CATALOG=1` and
    `SALT_SHOPIFY_USE_CLI_ADMIN_PRICING=1` enabled so catalog and pricing reads
    use the authenticated Admin GraphQL session instead of public JSON feeds.
+   The local release profile uses `SALT_RECENTLY_ORDERED_PRODUCT_MINIMUM=100`
+   because this new store has no order history yet; the template default remains
+   300 for established stores.
 
 6. Run a release only after the approval gates are updated:
 

@@ -110,12 +110,15 @@ function loadJson(relativePath) {
 }
 
 function normalizeGraphQLEntityProduct(node) {
+  const rawRatingCount = node?.ratingCount?.jsonValue ?? node?.ratingCount?.value ?? null;
   return normalizeProductCustomData({
     subtitle: node?.subtitle?.jsonValue ?? node?.subtitle?.value ?? null,
     badgeText: node?.badgeText?.jsonValue ?? node?.badgeText?.value ?? null,
     highlights: node?.highlights?.jsonValue ?? node?.highlights?.value ?? null,
     rating: node?.rating?.jsonValue ?? node?.rating?.value ?? null,
-    ratingCount: node?.ratingCount?.jsonValue ?? node?.ratingCount?.value ?? null,
+    // Shopify stores the empty review-count sentinel as numeric zero after
+    // backfill, while the local source represents “no reviews” as null.
+    ratingCount: rawRatingCount === 0 || rawRatingCount === "0" ? null : rawRatingCount,
     relatedProductsDisplay: node?.relatedProductsDisplay?.jsonValue ?? node?.relatedProductsDisplay?.value ?? null,
     relatedProducts: node?.relatedProducts?.references?.nodes || [],
     complementaryProducts: node?.complementaryProducts?.references?.nodes || [],

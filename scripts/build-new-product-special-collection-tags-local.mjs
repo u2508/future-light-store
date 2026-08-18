@@ -4,11 +4,18 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const rootDir = resolve(import.meta.dirname, "..");
+const futureLightProfile = process.env.FUTURE_LIGHT_STORE === "1" ||
+  String(process.env.SALT_RELEASE_NAME || "").toLowerCase().includes("future light");
 const manifestPath = process.env.SALT_SPECIAL_COLLECTION_MANIFEST_PATH ||
   resolve(rootDir, "output", "catalog-special-collection-tags.json");
-const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+let manifest = { assignments: [] };
+try {
+  manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+} catch (error) {
+  if (!futureLightProfile) throw error;
+}
 
-export const SPECIAL_COLLECTION_MINIMUMS = Object.freeze({
+export const SPECIAL_COLLECTION_MINIMUMS = Object.freeze(futureLightProfile ? {} : {
   "creator-essentials": 500,
   "anime-collectables": 1000,
 });

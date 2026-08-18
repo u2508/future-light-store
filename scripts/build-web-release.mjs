@@ -96,10 +96,14 @@ async function main() {
       recursive: true,
       force: true,
     });
-    await cp(resolve(rootDir, "node_modules"), stageNodeModules, {
-      recursive: true,
-      force: true,
-    });
+    if (process.env.SALT_BUILD_USE_WORKSPACE_NODE_MODULES === "1") {
+      await symlink(resolve(rootDir, "node_modules"), stageNodeModules, "junction");
+    } else {
+      await cp(resolve(rootDir, "node_modules"), stageNodeModules, {
+        recursive: true,
+        force: true,
+      });
+    }
     await mkdir(stageScripts, { recursive: true });
     await cp(resolve(rootDir, "scripts"), stageScripts, {
       recursive: true,

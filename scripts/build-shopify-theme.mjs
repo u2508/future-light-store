@@ -19,6 +19,9 @@ const financeApiOrigin = (process.env.VITE_FINANCE_API_ORIGIN || "")
 const shopifyAppKey = (process.env.VITE_SHOPIFY_APP_KEY || "").trim();
 const themeBrandName = (process.env.SALT_THEME_BRAND_NAME || "Future Light Store").trim();
 const judgemePublicToken = (process.env.SALT_JUDGEME_PUBLIC_TOKEN || "").trim();
+const legacyBrandLogoPath = resolve(publicDir, "brand", "salt-logo.png");
+const themeLogoAsset = existsSync(legacyBrandLogoPath) ? "brand-salt-logo.png" : "future-light-logo.svg";
+const themeIconAsset = existsSync(resolve(publicDir, "favicon.svg")) ? "favicon.svg" : "favicon.ico";
 
 function resolveThemeDir() {
   const outIndex = process.argv.indexOf("--out");
@@ -288,7 +291,7 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
         "@type": "Organization",
         "name": {{ shop.name | json }},
         "url": "https://{{ request.host }}/",
-        "logo": {{ 'brand-salt-logo.png' | asset_url | json }}
+        "logo": {{ '${themeLogoAsset}' | asset_url | json }}
       }
     </script>
     <script type="application/ld+json">
@@ -304,11 +307,7 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
         }
       }
     </script>
-    <link rel="icon" href="{{ 'favicon.ico' | asset_url }}" sizes="any">
-    <link rel="icon" type="image/png" sizes="32x32" href="{{ 'favicon-32x32.png' | asset_url }}">
-    <link rel="icon" type="image/png" sizes="16x16" href="{{ 'favicon-16x16.png' | asset_url }}">
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ 'apple-touch-icon.png' | asset_url }}">
-    <link rel="manifest" href="{{ 'site.webmanifest' | asset_url }}">
+    <link rel="icon" type="image/svg+xml" href="{{ '${themeIconAsset}' | asset_url }}">
     <link rel="preconnect" href="https://cdn.shopify.com" crossorigin>
     {{ 'salt-app.css' | asset_url | stylesheet_tag }}
     {% if ${JSON.stringify(routeAssets.entry || "")} != blank %}
@@ -690,8 +689,8 @@ const sectionLiquid = `<div
   window.SALT_SHOPIFY_APP_KEY = ${JSON.stringify(shopifyAppKey)};
   window.SALT_THEME_ASSET_BASE = {{ 'salt-app.js' | asset_url | split: 'salt-app.js' | first | json }};
   window.SALT_THEME_ASSETS = {
-    "/brand/salt-logo.png": {{ 'brand-salt-logo.png' | asset_url | json }},
-    "/brand-salt-logo.png": {{ 'brand-salt-logo.png' | asset_url | json }},
+    "/brand/salt-logo.png": {{ '${themeLogoAsset}' | asset_url | json }},
+    "/brand-salt-logo.png": {{ '${themeLogoAsset}' | asset_url | json }},
 ${buildThemeAssetMapEntries()}
   };
 </script>
@@ -838,18 +837,15 @@ async function copyAssets(entryJsPath, entryCssPath) {
   );
   await cp(resolve(distDir, "assets", entryCss), resolve(themeAssetsDir, "salt-app.css"));
 
-  await cp(resolve(publicDir, "brand", "salt-logo.png"), resolve(themeAssetsDir, "brand-salt-logo.png"));
-  await cp(resolve(publicDir, "favicon.ico"), resolve(themeAssetsDir, "favicon.ico"));
-  await cp(resolve(publicDir, "favicon-32x32.png"), resolve(themeAssetsDir, "favicon-32x32.png"));
-  await cp(resolve(publicDir, "favicon-16x16.png"), resolve(themeAssetsDir, "favicon-16x16.png"));
-  await cp(resolve(publicDir, "apple-touch-icon.png"), resolve(themeAssetsDir, "apple-touch-icon.png"));
-  await cp(resolve(publicDir, "site.webmanifest"), resolve(themeAssetsDir, "site.webmanifest"));
-  await cp(resolve(publicDir, "android-chrome-192x192.png"), resolve(themeAssetsDir, "android-chrome-192x192.png"));
-  await cp(resolve(publicDir, "android-chrome-512x512.png"), resolve(themeAssetsDir, "android-chrome-512x512.png"));
-  await cp(
-    resolve(publicDir, "shopify-meta-pixel-customer-events.js"),
-    resolve(themeAssetsDir, "shopify-meta-pixel-customer-events.js"),
-  );
+  if (themeLogoAsset === "brand-salt-logo.png") {
+    await cp(legacyBrandLogoPath, resolve(themeAssetsDir, themeLogoAsset));
+  } else {
+    await cp(resolve(publicDir, "favicon.svg"), resolve(themeAssetsDir, themeLogoAsset));
+  }
+  for (const asset of ["favicon.svg", "favicon.ico", "favicon-32x32.png", "favicon-16x16.png", "apple-touch-icon.png", "site.webmanifest", "android-chrome-192x192.png", "android-chrome-512x512.png", "shopify-meta-pixel-customer-events.js"]) {
+    if (!existsSync(resolve(publicDir, asset))) continue;
+    await cp(resolve(publicDir, asset), resolve(themeAssetsDir, asset));
+  }
 
   const existingProductShardAssets = (await readdir(themeAssetsDir)).filter((asset) =>
     /^data-products-\d{4}\.json$/.test(asset),

@@ -33,6 +33,8 @@ const maxRequestAttempts = Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS 
 const maxRetryDelayMs = Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS ?? 60_000);
 const adminRetryBaseDelayMs = Number(process.env.SALT_SHOPIFY_ADMIN_RETRY_BASE_DELAY_MS ?? 1500);
 const execFileAsync = promisify(execFile);
+const futureLightProfile = process.env.FUTURE_LIGHT_STORE === "1" ||
+  String(process.env.SALT_RELEASE_NAME || "").toLowerCase().includes("future light");
 const LEGACY_PRODUCT_METAFIELD_DEFINITIONS_TO_DELETE = [
   {
     ownerType: "PRODUCT",
@@ -76,6 +78,12 @@ function isRetryableShopifyCliError(error) {
     "eai_again",
     "etimedout",
   ].some((needle) => text.includes(needle));
+}
+
+function isDeferredFutureLightStandardMetafieldError(error) {
+  return futureLightProfile && /must be one of.*public_read_write|public_read_write.*must be one of|access controls?.*not permitted|access.*not permitted|access denied for metafielddefinitioncreate|required access: api client/i.test(
+    String(error?.message || error),
+  );
 }
 
 async function runSerializedRequest(task) {
@@ -285,18 +293,31 @@ async function enableStandardProductMetafieldDefinition(definition) {
     }
   `;
 
-  const payload = await fetchAdminGraphQL(mutation, {
-    id: getStandardMetafieldTemplateGid(definition.standardTemplateId),
-    ownerType: definition.ownerType,
-    access: definition.access,
-    pin: definition.pin ?? false,
-  }, { allowMutations: true });
+  let payload;
+  try {
+    payload = await fetchAdminGraphQL(mutation, {
+      id: getStandardMetafieldTemplateGid(definition.standardTemplateId),
+      ownerType: definition.ownerType,
+      access: definition.access,
+      pin: definition.pin ?? false,
+    }, { allowMutations: true });
+  } catch (error) {
+    if (isDeferredFutureLightStandardMetafieldError(error)) {
+      process.stdout.write(`Deferred standard metafield ${definition.name}: Shopify restricts this template to public_read_write access.\n`);
+      return null;
+    }
+    throw error;
+  }
 
   const result = payload.standardMetafieldDefinitionEnable;
   if (Array.isArray(result?.userErrors) && result.userErrors.length) {
     const message = result.userErrors
       .map((error) => `${error.field?.join(".") || "definition"}: ${error.message}`)
       .join(" | ");
+    if (isDeferredFutureLightStandardMetafieldError(new Error(message))) {
+      process.stdout.write(`Deferred standard metafield ${definition.name}: Shopify restricts this template to public_read_write access.\n`);
+      return null;
+    }
     throw new Error(`Failed to enable standard metafield definition "${definition.name}": ${message}`);
   }
 
@@ -333,21 +354,30 @@ async function createCustomProductMetafieldDefinition(definition) {
     delete access.admin;
   }
 
-  const payload = await fetchAdminGraphQL(mutation, {
-    definition: {
-      name: definition.name,
-      namespace: definition.namespace,
-      key: definition.key,
-      description: definition.description,
-      type: definition.type,
-      ownerType: definition.ownerType,
-      ...(access ? { access } : {}),
-      pin: definition.pin ?? false,
-      ...(Array.isArray(definition.validations) && definition.validations.length
-        ? { validations: definition.validations }
-        : {}),
-    },
-  }, { allowMutations: true });
+  let payload;
+  try {
+    payload = await fetchAdminGraphQL(mutation, {
+      definition: {
+        name: definition.name,
+        namespace: definition.namespace,
+        key: definition.key,
+        description: definition.description,
+        type: definition.type,
+        ownerType: definition.ownerType,
+        ...(access ? { access } : {}),
+        pin: definition.pin ?? false,
+        ...(Array.isArray(definition.validations) && definition.validations.length
+          ? { validations: definition.validations }
+          : {}),
+      },
+    }, { allowMutations: true });
+  } catch (error) {
+    if (isDeferredFutureLightStandardMetafieldError(error)) {
+      process.stdout.write(`Deferred custom metafield ${definition.name}: Shopify CLI lacks the required definition scope.\n`);
+      return null;
+    }
+    throw error;
+  }
 
   const result = payload.metafieldDefinitionCreate;
   if (Array.isArray(result?.userErrors) && result.userErrors.length) {
@@ -426,16 +456,20 @@ async function ensureProductMetafieldDefinitions() {
     }
 
     if (isStandardProductMetafieldDefinition(definition)) {
-      await enableStandardProductMetafieldDefinition(definition);
-      createdCount += 1;
-      logDefinition(definition, "Created standard");
+      const created = await enableStandardProductMetafieldDefinition(definition);
+      if (created) {
+        createdCount += 1;
+        logDefinition(definition, "Created standard");
+      }
       continue;
     }
 
     if (isCustomProductMetafieldDefinition(definition)) {
-      await createCustomProductMetafieldDefinition(definition);
-      createdCount += 1;
-      logDefinition(definition, "Created custom");
+      const created = await createCustomProductMetafieldDefinition(definition);
+      if (created) {
+        createdCount += 1;
+        logDefinition(definition, "Created custom");
+      }
       continue;
     }
 
