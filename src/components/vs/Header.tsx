@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, Heart, LogOut, MapPin, Menu, Search, User, X } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +25,15 @@ export function Header() {
   const { user, loading, error, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   const wishlistCount = useWishlistStore((s) => s.items.length);
+
+  useEffect(() => {
+    if (!mobileNav && !mobileSearch) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileNav, mobileSearch]);
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -164,7 +173,7 @@ export function Header() {
       {mobileNav && (
         <div className="fixed inset-0 z-[100]">
           <div className="absolute inset-0 bg-foreground/35" onClick={() => setMobileNav(false)} />
-          <aside className="fixed inset-y-0 left-0 z-[101] flex w-[88%] max-w-[380px] flex-col overflow-hidden border-r border-border bg-card shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
+          <aside className="fixed inset-y-0 left-0 z-[101] flex h-[100dvh] w-[88%] max-w-[380px] flex-col overflow-hidden border-r border-border bg-card shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
             <div className="flex items-start justify-between bg-[#1f2c57] px-5 py-5 text-white">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.38em] text-white/65">Browse Salt</p>
@@ -203,7 +212,7 @@ export function Header() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-[#eef4ff] p-4">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain bg-[#eef4ff] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <section>
                 <div className="flex items-center justify-between px-1">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.36em] text-[#3557b9]">
