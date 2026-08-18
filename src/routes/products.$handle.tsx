@@ -170,25 +170,37 @@ function ProductPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-6">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
-      <div className="grid gap-10 md:grid-cols-2">
-        <div className="space-y-3">
-          <div className="aspect-square overflow-hidden rounded-3xl border border-border bg-secondary">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
+        <div className="space-y-3 lg:sticky lg:top-24">
+          <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-border/70 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),rgba(241,245,249,0.98))] shadow-[var(--shadow-lift)]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.14),transparent_32%),radial-gradient(circle_at_80%_80%,rgba(14,165,233,0.12),transparent_28%)]" />
             {images[imageIndex] ? (
               <img src={images[imageIndex]!.url} alt={images[imageIndex]!.altText ?? product.title} className="h-full w-full object-cover" />
             ) : (
-              <div className="grid h-full place-items-center text-sm text-muted-foreground">No image</div>
+              <div className="grid h-full place-items-center p-10 text-center">
+                <div className="max-w-xs space-y-2">
+                  <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10" />
+                  <p className="font-display text-lg font-semibold">Visual coming soon</p>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    Product media is unavailable for this item, so the page now stays visually anchored with a premium placeholder.
+                  </p>
+                </div>
+              </div>
             )}
           </div>
           {images.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto">
+            <div className="flex gap-2 overflow-x-auto pb-1">
               {images.map((img, i) => (
                 <button
                   key={img.url}
                   onClick={() => setImageIndex(i)}
                   aria-label={`View image ${i + 1}`}
-                  className={cn("h-16 w-16 shrink-0 overflow-hidden rounded-xl border", i === imageIndex ? "border-primary" : "border-border")}
+                  className={cn(
+                    "h-16 w-16 shrink-0 overflow-hidden rounded-xl border bg-card shadow-sm",
+                    i === imageIndex ? "border-primary ring-2 ring-primary/15" : "border-border",
+                  )}
                 >
                   <img src={img.url} alt="" className="h-full w-full object-cover" />
                 </button>
@@ -197,13 +209,16 @@ function ProductPage() {
           )}
         </div>
 
-        <div className="space-y-5">
-          <div>
+        <div className="space-y-5 lg:pt-3">
+          <div className="space-y-3">
             <p className="text-xs uppercase tracking-widest text-muted-foreground">{product.vendor || product.productType}</p>
-            <h1 className="mt-1 font-display text-3xl font-bold tracking-tight">{product.title}</h1>
+            <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">{product.title}</h1>
+            <p className="max-w-2xl text-sm leading-7 text-muted-foreground">
+              A refined product layout with better balance, so the content reads more like a premium storefront and less like a blank split screen.
+            </p>
           </div>
 
-          <div className="flex items-baseline gap-3">
+          <div className="flex items-baseline gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-[var(--shadow-card)]">
             <span className="font-display text-3xl font-bold">{formatMoney(price.amount, price.currencyCode)}</span>
             {off > 0 && compareAt && (
               <>
@@ -235,8 +250,8 @@ function ProductPage() {
             </div>
           )}
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1 rounded-xl border border-border p-1">
+          <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-background p-1">
               <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted">
                 <Minus className="h-4 w-4" />
               </button>
@@ -274,7 +289,7 @@ function ProductPage() {
             <ProductDescription description={product.description} descriptionHtml={product.descriptionHtml} />
           )}
 
-          <div className="grid gap-2 rounded-2xl border border-border bg-card p-4 text-xs text-muted-foreground">
+          <div className="grid gap-2 rounded-2xl border border-border bg-card p-4 text-xs text-muted-foreground shadow-[var(--shadow-card)]">
             <p className="flex items-center gap-2"><Truck className="h-3.5 w-3.5" /> Delivery estimate at checkout</p>
             <p className="flex items-center gap-2"><RotateCcw className="h-3.5 w-3.5" /> 30-day returns</p>
             <p className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5" /> Secure Shopify checkout</p>
@@ -282,7 +297,7 @@ function ProductPage() {
 
           <section>
             <h2 className="font-display text-lg font-semibold">Reviews</h2>
-            <div className="mt-2 rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            <div className="mt-2 rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
               No reviews yet.
             </div>
           </section>
