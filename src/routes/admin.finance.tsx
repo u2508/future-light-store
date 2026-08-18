@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useIsStaff } from "@/hooks/useAuth";
 import { formatMoney } from "@/lib/shopify";
+
+const FinanceChart = lazy(() => import("@/components/vs/FinanceChart"));
 
 export const Route = createFileRoute("/admin/finance")({
   head: () => ({
@@ -169,15 +170,9 @@ function FinancePage() {
             <div className="vs-card rounded-2xl border border-border bg-card p-4 lg:col-span-2">
               <h2 className="font-display text-lg font-semibold">Net sales trend</h2>
               <div className="mt-4 h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.series}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} width={60} />
-                    <Tooltip formatter={(v: number) => formatMoney(v, c)} />
-                    <Area type="monotone" dataKey="net" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.15} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading chart…</div>}>
+                  <FinanceChart data={data.series} currency={c} />
+                </Suspense>
               </div>
             </div>
 
