@@ -7,6 +7,7 @@ import { PredictiveSearch } from "@/components/vs/PredictiveSearch";
 import { CartDrawer } from "@/components/vs/CartDrawer";
 import { useWishlistStore } from "@/stores/wishlistStore";
 import { useAuth } from "@/hooks/useAuth";
+import { FEATURED_COLLECTION_LINKS } from "@/lib/seo-content";
 
 const NAV = [
   { label: "Shop all", to: "/shop" as const },
@@ -50,7 +51,7 @@ export function Header() {
           <button
             onClick={() => setMobileNav((v) => !v)}
             aria-label="Open menu"
-            className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card shadow-sm transition-colors hover:border-primary lg:hidden"
+            className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card shadow-sm transition-colors hover:border-primary"
           >
             {mobileNav ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
@@ -161,20 +162,60 @@ export function Header() {
       </nav>
 
       {mobileNav && (
-        <div className="border-t border-border bg-card px-4 py-3 lg:hidden">
-          <div className="grid gap-1">
-            {NAV.map((item) => (
-              <Link
-                key={item.label}
-                to={item.to}
-                search={item.search as never}
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-foreground/35" onClick={() => setMobileNav(false)} />
+          <aside className="absolute left-0 top-0 h-full w-[86%] max-w-md overflow-y-auto border-r border-border bg-card shadow-[var(--shadow-lift)]">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Menu</p>
+                <p className="mt-1 font-display text-lg font-semibold">Collections & navigation</p>
+              </div>
+              <button
                 onClick={() => setMobileNav(false)}
-                className="rounded-xl px-3 py-2 text-sm font-medium hover:bg-muted"
+                aria-label="Close menu"
+                className="grid h-10 w-10 place-items-center rounded-full border border-border bg-background"
               >
-                {item.label}
-              </Link>
-            ))}
-          </div>
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-6 p-5">
+              <section>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Collections</p>
+                <div className="mt-3 grid gap-2">
+                  {FEATURED_COLLECTION_LINKS.map((collection) => (
+                    <Link
+                      key={collection.handle}
+                      to="/collections/$handle"
+                      params={{ handle: collection.handle }}
+                      onClick={() => setMobileNav(false)}
+                      className="rounded-2xl border border-border bg-surface/60 px-4 py-3 transition-colors hover:border-primary hover:bg-accent"
+                    >
+                      <p className="text-sm font-semibold">{collection.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{collection.description}</p>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Browse</p>
+                <div className="mt-3 grid gap-1">
+                  {NAV.map((item) => (
+                    <Link
+                      key={item.label}
+                      to={item.to}
+                      search={item.search as never}
+                      onClick={() => setMobileNav(false)}
+                      className="rounded-xl px-3 py-3 text-sm font-medium hover:bg-muted"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </aside>
         </div>
       )}
 
