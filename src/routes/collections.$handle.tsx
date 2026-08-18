@@ -10,6 +10,7 @@ export const Route = createFileRoute("/collections/$handle")({
       { name: "description", content: `Shop the ${params.handle.replace(/-/g, " ")} collection at VS Store.` },
       { property: "og:title", content: `${params.handle.replace(/-/g, " ")} — VS Store` },
       { property: "og:description", content: `Shop the ${params.handle.replace(/-/g, " ")} collection at VS Store.` },
+      { property: "og:url", content: `https://future-light-store.lovable.app/collections/${params.handle}` },
     ],
   }),
   component: CollectionPage,
@@ -22,8 +23,26 @@ function CollectionPage() {
     queryFn: () => fetchCollection(handle),
   });
 
+  const collectionJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: data?.title ?? handle.replace(/-/g, " "),
+    description: data?.description ?? undefined,
+    url: `https://future-light-store.lovable.app/collections/${handle}`,
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: (data?.products ?? []).map((p, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        url: `https://future-light-store.lovable.app/products/${p.node.handle}`,
+        name: p.node.title,
+      })),
+    },
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
       <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
         {data?.title ?? handle.replace(/-/g, " ")}
       </h1>

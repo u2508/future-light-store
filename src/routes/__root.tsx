@@ -13,6 +13,7 @@ import { Footer } from "@/components/vs/Footer";
 import { Toaster } from "@/components/ui/sonner";
 import { useCartSync } from "@/hooks/useCartSync";
 import { initializeTikTokPixel } from "@/lib/tiktok";
+import ogImage from "@/assets/vs-og.jpg";
 
 function NotFoundComponent() {
   return (
@@ -84,7 +85,35 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:site_name", content: "VS Store" },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://future-light-store.lovable.app/" },
+      { property: "og:image", content: `https://future-light-store.lovable.app${ogImage}` },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: `https://future-light-store.lovable.app${ogImage}` },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "VS Store",
+          url: "https://future-light-store.lovable.app/",
+        }),
+      },
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "VS Store",
+          url: "https://future-light-store.lovable.app/",
+          potentialAction: {
+            "@type": "SearchAction",
+            target: "https://future-light-store.lovable.app/search?q={search_term_string}",
+            "query-input": "required name=search_term_string",
+          },
+        }),
+      },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },

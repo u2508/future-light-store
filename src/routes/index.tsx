@@ -8,13 +8,14 @@ import { ProductShelf } from "@/components/vs/ProductShelf";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "VS Store — Future-facing marketplace" },
+      { title: "Everyday essentials, engineered forward — VS Store" },
       {
         name: "description",
         content: "Discover new arrivals, best sellers and limited-time offers at VS Store, with tracked delivery and secure checkout.",
       },
-      { property: "og:title", content: "VS Store — Future-facing marketplace" },
+      { property: "og:title", content: "Everyday essentials, engineered forward — VS Store" },
       { property: "og:description", content: "New arrivals, best sellers and limited-time offers, with tracked delivery." },
+      { property: "og:url", content: "https://future-light-store.lovable.app/" },
     ],
   }),
   component: Index,
