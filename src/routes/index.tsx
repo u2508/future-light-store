@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ShieldCheck, Truck, RotateCcw, Sparkles } from "lucide-react";
+import { BadgeCheck, ShieldCheck, Sparkles, Star, Truck, RotateCcw } from "lucide-react";
 import heroImage from "@/assets/vs-hero.jpg";
 import { fetchProducts, discountPercent } from "@/lib/shopify";
 import { ProductShelf } from "@/components/vs/ProductShelf";
@@ -43,51 +43,128 @@ function Index() {
   const underFifty = products.filter((p) => parseFloat(p.node.priceRange.minVariantPrice.amount) <= 50);
 
   return (
-    <div>
+    <div className="relative overflow-hidden">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[780px] bg-[radial-gradient(circle_at_top,rgba(60,110,255,0.13),transparent_42%),radial-gradient(circle_at_80%_10%,rgba(42,186,170,0.16),transparent_24%),linear-gradient(to_bottom,rgba(255,255,255,0.85),transparent)]" />
       <section className="mx-auto max-w-7xl px-4 pt-6">
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-[var(--shadow-lift)]">
+        <div className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card shadow-[var(--shadow-lift)]">
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(255,255,255,0.18))]" />
+          <div className="absolute -left-24 top-10 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
+          <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-electric/10 blur-3xl" />
           <img
             src={heroImage}
             alt="Curated VS Store everyday-carry collection"
             width={1600}
             height={1104}
-            className="h-[380px] w-full object-cover sm:h-[460px]"
+            className="h-[420px] w-full object-cover sm:h-[520px]"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/70 to-transparent" />
-          <div className="absolute inset-0 flex flex-col justify-center gap-4 p-8 sm:p-14">
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-accent-foreground">
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(245,247,252,0.97)_0%,rgba(245,247,252,0.82)_38%,rgba(245,247,252,0.2)_68%,rgba(245,247,252,0.02)_100%)]" />
+          <div className="absolute inset-0 flex flex-col justify-center gap-5 p-7 sm:p-14 lg:p-16">
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-foreground shadow-sm backdrop-blur">
               <Sparkles className="h-3 w-3" /> New season
             </span>
-            <h1 className="max-w-xl font-display text-4xl font-bold leading-[1.05] sm:text-6xl">
-              Everyday essentials, engineered forward.
-            </h1>
-            <p className="max-w-md text-sm text-muted-foreground sm:text-base">
-              Precision search, honest pricing, and fulfilment you can follow from checkout to doorstep.
-            </p>
-            <Link
-              to="/shop"
-              className="inline-flex w-fit items-center rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Explore the catalog
-            </Link>
+            <div className="max-w-2xl space-y-4">
+              <h1 className="max-w-xl font-display text-4xl font-bold leading-[1.02] sm:text-6xl lg:text-7xl">
+                Everyday essentials, engineered forward.
+              </h1>
+              <p className="max-w-md text-sm leading-7 text-muted-foreground sm:text-base">
+                Precision search, honest pricing, and fulfilment you can follow from checkout to doorstep.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                to="/shop"
+                className="inline-flex w-fit items-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(38,88,190,0.28)] transition-transform hover:-translate-y-0.5"
+              >
+                Explore the catalog
+              </Link>
+              <Link
+                to="/collections"
+                className="inline-flex w-fit items-center rounded-full border border-border bg-white/70 px-6 py-3 text-sm font-semibold text-foreground backdrop-blur transition-colors hover:border-primary hover:bg-white"
+              >
+                Browse collections
+              </Link>
+            </div>
+            <div className="grid max-w-2xl gap-3 pt-2 sm:grid-cols-3">
+              {[
+                { value: "24h", label: "Fast dispatch" },
+                { value: "30d", label: "Returns window" },
+                { value: "Shopify", label: "Secure checkout" },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-2xl border border-white/70 bg-white/75 p-4 shadow-sm backdrop-blur">
+                  <p className="font-display text-2xl font-bold text-foreground">{stat.value}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">{stat.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-3 px-4 pt-8 sm:grid-cols-3">
-        {[
-          { icon: Truck, title: "Tracked delivery", copy: "Live status on every order" },
-          { icon: RotateCcw, title: "Easy returns", copy: "30-day return window" },
-          { icon: ShieldCheck, title: "Secure checkout", copy: "Payments handled by Shopify" },
-        ].map((item) => (
-          <div key={item.title} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
-            <item.icon className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-sm font-semibold">{item.title}</p>
-              <p className="text-xs text-muted-foreground">{item.copy}</p>
+      <section className="mx-auto max-w-7xl px-4 pt-8">
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[
+            { icon: Truck, title: "Tracked delivery", copy: "Live status on every order", accent: "from-primary/10 to-primary/5" },
+            { icon: RotateCcw, title: "Easy returns", copy: "30-day return window", accent: "from-electric/10 to-electric/5" },
+            { icon: ShieldCheck, title: "Secure checkout", copy: "Payments handled by Shopify", accent: "from-signal/10 to-signal/5" },
+          ].map((item) => (
+            <div
+              key={item.title}
+              className={`flex items-center gap-4 rounded-3xl border border-border/70 bg-gradient-to-br ${item.accent} p-5 shadow-[var(--shadow-card)]`}
+            >
+              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/80 shadow-sm">
+                <item.icon className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold">{item.title}</p>
+                <p className="text-xs leading-5 text-muted-foreground">{item.copy}</p>
+              </div>
             </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-7xl gap-4 px-4 pt-8 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="vs-premium-panel rounded-[2rem] p-6 sm:p-8">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+            <Star className="h-4 w-4 text-primary" />
+            Premium curation
           </div>
-        ))}
+          <h2 className="mt-3 font-display text-2xl font-bold sm:text-3xl">
+            Designed to feel editorial, not transactional.
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
+            The storefront now leans into richer spacing, layered surfaces and more deliberate hierarchy so the catalog feels elevated on first view.
+          </p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {[
+              "Silky gradients",
+              "Refined cards",
+              "Luxury spacing",
+            ].map((feature) => (
+              <div key={feature} className="rounded-2xl border border-border/70 bg-white/70 px-4 py-3 text-sm font-medium shadow-sm">
+                {feature}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="vs-card flex flex-col justify-between rounded-[2rem] p-6 sm:p-8">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+            <BadgeCheck className="h-4 w-4 text-electric" />
+            Trusted shopping
+          </div>
+          <div className="mt-5 space-y-3">
+            <p className="font-display text-2xl font-bold">A smoother premium feel across every touchpoint.</p>
+            <p className="text-sm leading-7 text-muted-foreground">
+              Buttons, cards, sections and callouts now use softer borders, better contrast and more confident surfaces.
+            </p>
+          </div>
+          <div className="mt-6 rounded-2xl border border-border bg-muted/60 p-4">
+            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Experience upgrade</p>
+            <p className="mt-2 text-sm font-medium">
+              More depth, more breathing room, and a more premium visual cadence.
+            </p>
+          </div>
+        </div>
       </section>
 
       <ProductShelf
@@ -134,23 +211,24 @@ function Index() {
               key={collection.handle}
               to="/collections/$handle"
               params={{ handle: collection.handle }}
-              className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary hover:bg-accent"
+              className="group rounded-3xl border border-border/70 bg-card p-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow-lift)]"
             >
+              <div className="mb-6 h-12 w-12 rounded-2xl bg-primary/10 transition-colors group-hover:bg-primary/15" />
               <h3 className="font-semibold">{collection.title}</h3>
-              <p className="mt-2 text-sm leading-5 text-muted-foreground">{collection.description}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{collection.description}</p>
             </Link>
           ))}
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="vs-store-answers">
-        <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
+        <div className="rounded-[2rem] border border-border/70 bg-card p-6 shadow-[var(--shadow-card)] sm:p-8">
           <h2 id="vs-store-answers" className="font-display text-2xl font-bold">
             Answers for everyday shopping
           </h2>
           <div className="mt-5 grid gap-5 md:grid-cols-3">
             {HOME_ANSWER_BLOCKS.map((block) => (
-              <article key={block.question}>
+              <article key={block.question} className="rounded-2xl bg-muted/50 p-4">
                 <h3 className="font-semibold">{block.question}</h3>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{block.answer}</p>
               </article>
@@ -163,7 +241,7 @@ function Index() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10">
-        <div className="rounded-3xl border border-border vs-hero-gradient p-10 text-center text-primary-foreground">
+        <div className="rounded-[2rem] border border-border/70 vs-hero-gradient p-10 text-center text-primary-foreground shadow-[var(--shadow-lift)]">
           <h2 className="font-display text-2xl font-bold sm:text-3xl">Get drops before anyone else</h2>
           <p className="mx-auto mt-2 max-w-md text-sm opacity-90">
             Restock alerts, new arrivals and members-only pricing straight to your inbox.
@@ -179,9 +257,11 @@ function Index() {
               required
               placeholder="you@email.com"
               aria-label="Email address"
-              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground"
+              className="w-full rounded-full border border-border bg-card px-4 py-3 text-sm text-foreground shadow-sm outline-none ring-0 transition-colors placeholder:text-muted-foreground focus:border-primary"
             />
-            <button className="rounded-xl bg-card px-5 py-3 text-sm font-semibold text-foreground">Notify me</button>
+            <button className="rounded-full bg-card px-5 py-3 text-sm font-semibold text-foreground shadow-sm transition-transform hover:-translate-y-0.5">
+              Notify me
+            </button>
           </form>
         </div>
       </section>
