@@ -20,6 +20,7 @@ const NAV = [
 export function Header() {
   const [mobileSearch, setMobileSearch] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
+  const { user } = useAuth();
   const wishlistCount = useWishlistStore((s) => s.items.length);
 
   return (
