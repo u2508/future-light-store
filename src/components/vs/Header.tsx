@@ -54,9 +54,18 @@ export function Header() {
             className="hidden items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left text-xs leading-tight transition-colors hover:border-primary md:flex"
           >
             <User className="h-4 w-4" />
-            <span>
-              <span className="block text-muted-foreground">Hello, sign in</span>
-              <span className="block font-semibold">Account &amp; Orders</span>
+            <span className="max-w-[10rem] truncate">
+              {user ? (
+                <>
+                  <span className="block truncate font-semibold">{user.email}</span>
+                  <span className="block text-muted-foreground">Account &amp; Orders</span>
+                </>
+              ) : (
+                <>
+                  <span className="block text-muted-foreground">Hello, sign in</span>
+                  <span className="block font-semibold">Account &amp; Orders</span>
+                </>
+              )}
             </span>
           </Link>
 
