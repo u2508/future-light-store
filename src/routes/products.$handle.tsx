@@ -98,8 +98,27 @@ function ProductPage() {
     toast.success("Added to bag", { description: product.title, position: "top-center" });
   };
 
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.title,
+    description: product.description ?? undefined,
+    image: images.map((i) => i.url),
+    url: `https://future-light-store.lovable.app/products/${handle}`,
+    offers: {
+      "@type": "Offer",
+      price: price.amount,
+      priceCurrency: price.currencyCode,
+      availability: selected?.availableForSale
+        ? "https://schema.org/InStock"
+        : "https://schema.org/OutOfStock",
+      url: `https://future-light-store.lovable.app/products/${handle}`,
+    },
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
       <div className="grid gap-10 md:grid-cols-2">
         <div className="space-y-3">
           <div className="aspect-square overflow-hidden rounded-3xl border border-border bg-secondary">
