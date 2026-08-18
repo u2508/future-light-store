@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { POLICIES } from "@/lib/policies";
+import { canonicalUrl } from "@/lib/seo";
 
 
 export const Route = createFileRoute("/policies/$slug")({
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/policies/$slug")({
         { property: "og:title", content: `${title} — VS Store` },
         { property: "og:description", content: `${title} for VS Store orders and customers.` },
       ],
+      links: [{ rel: "canonical", href: canonicalUrl(`/policies/${params.slug}`) }],
     };
   },
   component: PolicyPage,

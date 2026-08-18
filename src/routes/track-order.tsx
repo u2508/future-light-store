@@ -4,6 +4,7 @@ import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/shopify";
 import { SHOPIFY_ACCOUNT_URL } from "./account";
+import { canonicalUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/track-order")({
   head: () => ({
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/track-order")({
       { property: "og:title", content: "Track your order — VS Store" },
       { property: "og:description", content: "Check the live delivery status of your VS Store order." },
     ],
+    links: [{ rel: "canonical", href: canonicalUrl("/track-order") }],
   }),
   component: TrackOrderPage,
 });

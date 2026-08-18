@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { discountPercent, fetchProducts } from "@/lib/shopify";
 import { ProductCard, ProductGridSkeleton, EmptyProducts } from "@/components/vs/ProductCard";
+import { canonicalUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/offers")({
   head: () => ({
@@ -11,6 +12,7 @@ export const Route = createFileRoute("/offers")({
       { property: "og:title", content: "Offers — VS Store" },
       { property: "og:description", content: "Live price drops and limited-time offers at VS Store." },
     ],
+    links: [{ rel: "canonical", href: canonicalUrl("/offers") }],
   }),
   component: OffersPage,
 });

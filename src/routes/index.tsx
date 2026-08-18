@@ -19,6 +19,7 @@ export const Route = createFileRoute("/")({
       { property: "og:description", content: "New arrivals, best sellers and limited-time offers, with tracked delivery." },
       { property: "og:url", content: canonicalUrl("/") },
     ],
+    links: [{ rel: "canonical", href: canonicalUrl("/") }],
   }),
   component: Index,
 });
