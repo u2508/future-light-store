@@ -10,6 +10,7 @@ export const Route = createFileRoute("/cart")({
       { name: "description", content: "Review the items in your VS Store bag and continue to secure checkout." },
       { property: "og:title", content: "Your bag — VS Store" },
       { property: "og:description", content: "Review your bag and continue to secure checkout." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: CartPage,

@@ -34,3 +34,26 @@ export const HOME_ANSWER_BLOCKS = [
       "Yes. Enter the order number and checkout email on the track-order page to view the latest fulfilment status and carrier tracking links.",
   },
 ] as const;
+
+export const FEATURED_COLLECTION_LINKS = [
+  {
+    handle: "travel-outdoor",
+    title: "Travel & outdoor essentials",
+    description: "Compact gear and practical upgrades for commutes, road trips and weekends away.",
+  },
+  {
+    handle: "portable-gadgets",
+    title: "Portable gadgets",
+    description: "Useful tech accessories that keep your everyday setup connected and organized.",
+  },
+  {
+    handle: "car-accessories",
+    title: "Car accessories",
+    description: "Small, useful additions for a more comfortable and capable drive.",
+  },
+  {
+    handle: "home-safety",
+    title: "Home safety",
+    description: "Practical products for a calmer, safer and better-prepared home.",
+  },
+] as const;

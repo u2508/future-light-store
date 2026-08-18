@@ -12,6 +12,7 @@ export const Route = createFileRoute("/account")({
       { name: "description", content: "Manage your VS Store profile, orders, tracking and saved items." },
       { property: "og:title", content: "Account — VS Store" },
       { property: "og:description", content: "Manage your VS Store profile, orders and saved items." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: AccountPage,

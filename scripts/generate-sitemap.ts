@@ -46,14 +46,8 @@ const STATIC_ROUTES: SitemapEntry[] = [
   { path: "/shop", changefreq: "weekly", priority: "0.9" },
   { path: "/collections", changefreq: "weekly", priority: "0.8" },
   { path: "/offers", changefreq: "weekly", priority: "0.8" },
-  { path: "/search", changefreq: "monthly", priority: "0.5" },
-  { path: "/cart", changefreq: "monthly", priority: "0.3" },
-  { path: "/wishlist", changefreq: "monthly", priority: "0.3" },
-  { path: "/account", changefreq: "monthly", priority: "0.3" },
-  { path: "/orders", changefreq: "monthly", priority: "0.3" },
   { path: "/track-order", changefreq: "monthly", priority: "0.6" },
   { path: "/help", changefreq: "monthly", priority: "0.6" },
-  { path: "/auth", changefreq: "monthly", priority: "0.3" },
 ];
 
 const POLICY_SLUGS = ["shipping", "returns", "privacy", "terms"];

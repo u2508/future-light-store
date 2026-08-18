@@ -5,7 +5,7 @@ import heroImage from "@/assets/vs-hero.jpg";
 import { fetchProducts, discountPercent } from "@/lib/shopify";
 import { ProductShelf } from "@/components/vs/ProductShelf";
 import { canonicalUrl } from "@/lib/seo";
-import { HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
+import { FEATURED_COLLECTION_LINKS, HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -114,6 +114,33 @@ function Index() {
         action={{ label: "Shop all", to: "/shop" }}
         emptyMessage="Nothing under $50 yet"
       />
+
+      <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="home-collection-paths">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h2 id="home-collection-paths" className="font-display text-2xl font-bold">
+              Shop by intent
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">Find the right starting point for your next upgrade.</p>
+          </div>
+          <Link to="/collections" className="hidden text-sm font-semibold text-primary hover:underline sm:block">
+            View all collections →
+          </Link>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {FEATURED_COLLECTION_LINKS.map((collection) => (
+            <Link
+              key={collection.handle}
+              to="/collections/$handle"
+              params={{ handle: collection.handle }}
+              className="rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary hover:bg-accent"
+            >
+              <h3 className="font-semibold">{collection.title}</h3>
+              <p className="mt-2 text-sm leading-5 text-muted-foreground">{collection.description}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="vs-store-answers">
         <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">

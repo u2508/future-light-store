@@ -1,0 +1,31 @@
+# VS Store
+
+> VS Store is a curated online marketplace for practical everyday essentials, future-ready tech and lifestyle accessories, with secure Shopify checkout and tracked fulfilment.
+
+## Public storefront
+
+- [Homepage](https://vss-store.vercel.app/): What VS Store is and how it helps shoppers.
+- [Shop all](https://vss-store.vercel.app/shop): Search and filter the live product catalog.
+- [Collections](https://vss-store.vercel.app/collections): Browse collection hubs by shopping intent.
+- [Help centre](https://vss-store.vercel.app/help): Delivery, returns, payment and order-tracking answers.
+- [Track order](https://vss-store.vercel.app/track-order): Check fulfilment status using an order number and checkout email.
+- [Account](https://vss-store.vercel.app/account): Customer profile and Shopify account links.
+
+## Featured shopping intents
+
+- [Travel and outdoor essentials](https://vss-store.vercel.app/collections/travel-outdoor)
+- [Portable gadgets](https://vss-store.vercel.app/collections/portable-gadgets)
+- [Car accessories](https://vss-store.vercel.app/collections/car-accessories)
+- [Home safety](https://vss-store.vercel.app/collections/home-safety)
+
+## Policies
+
+- [Shipping](https://vss-store.vercel.app/policies/shipping)
+- [Returns](https://vss-store.vercel.app/policies/returns)
+- [Privacy](https://vss-store.vercel.app/policies/privacy)
+- [Terms](https://vss-store.vercel.app/policies/terms)
+
+## Machine-readable discovery
+
+- [Sitemap](https://vss-store.vercel.app/sitemap.xml)
+- [Robots policy](https://vss-store.vercel.app/robots.txt)

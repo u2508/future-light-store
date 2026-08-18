@@ -21,31 +21,6 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://vss-store.vercel.app/search</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
-  </url>
-  <url>
-    <loc>https://vss-store.vercel.app/cart</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://vss-store.vercel.app/wishlist</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://vss-store.vercel.app/account</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
-    <loc>https://vss-store.vercel.app/orders</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
-  </url>
-  <url>
     <loc>https://vss-store.vercel.app/track-order</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
@@ -54,11 +29,6 @@
     <loc>https://vss-store.vercel.app/help</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://vss-store.vercel.app/auth</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
   </url>
   <url>
     <loc>https://vss-store.vercel.app/policies/shipping</loc>

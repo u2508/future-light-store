@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { fetchCollections } from "@/lib/shopify";
 import { canonicalUrl } from "@/lib/seo";
+import { FEATURED_COLLECTION_LINKS } from "@/lib/seo-content";
 
 export const Route = createFileRoute("/collections/")({
   head: () => ({
@@ -23,7 +24,7 @@ export const Route = createFileRoute("/collections/")({
 function CollectionsIndex() {
   const { data, isLoading } = useQuery({
     queryKey: ["collections", "all"],
-    queryFn: () => fetchCollections(50),
+    queryFn: () => fetchCollections(100),
   });
 
   return (
@@ -32,6 +33,29 @@ function CollectionsIndex() {
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
         Curated edits from the VS catalogue — shop by theme, category and season.
       </p>
+
+      <section className="mt-8 rounded-3xl border border-border bg-card p-6" aria-labelledby="shop-by-intent">
+        <h2 id="shop-by-intent" className="font-display text-xl font-semibold">
+          Shop by intent
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          Start with a practical use case, then narrow the live catalog by price, availability or product type.
+        </p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {FEATURED_COLLECTION_LINKS.map((collection) => (
+            <Link
+              key={collection.handle}
+              to="/collections/$handle"
+              params={{ handle: collection.handle }}
+              className="rounded-2xl border border-border p-4 transition-colors hover:border-primary hover:bg-accent"
+            >
+              <h3 className="font-semibold">{collection.title}</h3>
+              <p className="mt-2 text-sm leading-5 text-muted-foreground">{collection.description}</p>
+              <span className="mt-3 inline-block text-sm font-semibold text-primary">Explore collection →</span>
+            </Link>
+          ))}
+        </div>
+      </section>
 
       {isLoading ? (
         <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">

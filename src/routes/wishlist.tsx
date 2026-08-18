@@ -9,6 +9,7 @@ export const Route = createFileRoute("/wishlist")({
       { name: "description", content: "Everything you've saved at VS Store, ready when you are." },
       { property: "og:title", content: "Wishlist — VS Store" },
       { property: "og:description", content: "Everything you've saved at VS Store." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: WishlistPage,

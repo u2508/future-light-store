@@ -7,6 +7,7 @@ export const Route = createFileRoute("/orders")({
       { name: "description", content: "See your VS Store order history and delivery status." },
       { property: "og:title", content: "Orders — VS Store" },
       { property: "og:description", content: "See your VS Store order history and delivery status." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: OrdersPage,

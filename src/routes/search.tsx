@@ -16,6 +16,7 @@ export const Route = createFileRoute("/search")({
       { name: "description", content: "Search the VS Store catalog with instant, typo-tolerant results." },
       { property: "og:title", content: "Search — VS Store" },
       { property: "og:description", content: "Search the VS catalog with instant, typo-tolerant results." },
+      { name: "robots", content: "noindex, follow" },
     ],
   }),
   component: SearchPage,
