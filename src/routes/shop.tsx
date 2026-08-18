@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
-import { fetchAllProducts, isShopifyConfigured } from "@/lib/shopify";
+import { fetchAllProducts, fetchCollections, isShopifyConfigured } from "@/lib/shopify";
 import { CollectionBrowser } from "@/components/vs/CollectionBrowser";
 import { canonicalUrl } from "@/lib/seo";
 
@@ -42,6 +42,11 @@ function ShopPage() {
     queryFn: () => fetchAllProducts(),
     staleTime: 5 * 60 * 1000,
   });
+  const { data: collections = [], isLoading: collectionsLoading } = useQuery({
+    queryKey: ["collections", "sidebar"],
+    queryFn: () => fetchCollections(100),
+    staleTime: 5 * 60 * 1000,
+  });
 
   const title = useMemo(() => (search.q ? `Results for “${search.q}”` : "Shop all"), [search.q]);
 
@@ -50,6 +55,8 @@ function ShopPage() {
       title={title}
       description="Every product in the VS catalog, live from Shopify."
       products={products}
+      collections={collections}
+      collectionsLoading={collectionsLoading}
       isLoading={isLoading}
       isError={isError || !isShopifyConfigured}
       routeTo="/shop"

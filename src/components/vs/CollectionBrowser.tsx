@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { SlidersHorizontal, X } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import type { ShopifyProduct } from "@/lib/shopify";
-import { discountPercent } from "@/lib/shopify";
+import { discountPercent, type ShopifyCollection } from "@/lib/shopify";
 import { searchProducts } from "@/lib/vs-search";
 import { ProductCard, ProductGridSkeleton, EmptyProducts } from "@/components/vs/ProductCard";
 import { cn } from "@/lib/utils";
@@ -44,6 +44,8 @@ export function CollectionBrowser({
   title,
   description,
   products,
+  collections,
+  collectionsLoading,
   isLoading,
   isError,
   routeTo,
@@ -52,6 +54,8 @@ export function CollectionBrowser({
   title: string;
   description?: string;
   products: ShopifyProduct[];
+  collections: ShopifyCollection[];
+  collectionsLoading: boolean;
   isLoading: boolean;
   isError?: boolean;
   routeTo: "/shop";
@@ -285,7 +289,7 @@ export function CollectionBrowser({
       <form
         aria-label="Product filters"
         onSubmit={(event) => event.preventDefault()}
-        className="mt-8 grid gap-8 lg:grid-cols-[280px_1fr]"
+        className="mt-8 grid gap-8 xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)_260px]"
       >
         <aside className="hidden lg:block">
           <div className="sticky top-32 space-y-6 rounded-[2rem] border border-border/70 bg-card p-5 shadow-[var(--shadow-card)]">
@@ -360,6 +364,44 @@ export function CollectionBrowser({
             </div>
           )}
         </div>
+
+        <aside className="hidden 2xl:block">
+          <div className="sticky top-32 rounded-[2rem] border border-border/70 bg-card p-5 shadow-[var(--shadow-card)]">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-display font-semibold">Collections</p>
+                <p className="text-xs text-muted-foreground">Jump into curated product groups</p>
+              </div>
+              <span className="text-xs text-muted-foreground">{collections.length}</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {collectionsLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="h-12 animate-pulse rounded-2xl bg-muted" />
+                  ))}
+                </div>
+              ) : (
+                collections.map((collection) => (
+                  <Link
+                    key={collection.id}
+                    to="/collections/$handle"
+                    params={{ handle: collection.handle }}
+                    className="group flex items-center justify-between rounded-2xl border border-border/70 bg-surface/60 px-3 py-3 transition-colors hover:border-primary hover:bg-accent"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{collection.title}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {collection.description || "Curated collection"}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+        </aside>
       </form>
 
       {drawerOpen && (
