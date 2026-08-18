@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Heart, LogOut, MapPin, Menu, Search, User, X } from "lucide-react";
+import { ChevronRight, Heart, LogOut, MapPin, Menu, Search, User, X } from "lucide-react";
 import { toast } from "sonner";
 import { VsLogo } from "@/components/vs/VsLogo";
 import { PredictiveSearch } from "@/components/vs/PredictiveSearch";
@@ -164,24 +164,59 @@ export function Header() {
       {mobileNav && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-foreground/35" onClick={() => setMobileNav(false)} />
-          <aside className="absolute left-0 top-0 h-full w-[86%] max-w-md overflow-y-auto border-r border-border bg-card shadow-[var(--shadow-lift)]">
-            <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Menu</p>
-                <p className="mt-1 font-display text-lg font-semibold">Collections & navigation</p>
+          <aside className="fixed inset-y-0 left-0 w-[88%] max-w-[380px] overflow-y-auto border-r border-border bg-card shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
+            <div className="flex items-start justify-between bg-[#1f2c57] px-5 py-5 text-white">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.38em] text-white/65">Browse Salt</p>
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="grid h-12 w-12 place-items-center rounded-full bg-white/90 text-[#1f2c57] shadow-sm">
+                    <User className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-[18px] font-semibold leading-none">
+                      {user ? user.email ?? "Signed in" : "Hello, sign in"}
+                    </p>
+                    <p className="mt-1 text-[12px] uppercase tracking-[0.22em] text-white/65">Account & orders</p>
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={() => setMobileNav(false)}
-                aria-label="Close menu"
-                className="grid h-10 w-10 place-items-center rounded-full border border-border bg-background"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex flex-col items-end gap-3">
+                <button
+                  onClick={() => setMobileNav(false)}
+                  aria-label="Close menu"
+                  className="grid h-12 w-12 place-items-center rounded-full border border-white/25 bg-white/10 text-white shadow-sm transition-colors hover:bg-white/15"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+                {user && (
+                  <button
+                    type="button"
+                    aria-label="Sign out of account"
+                    title="Sign out"
+                    disabled={signingOut}
+                    onClick={handleSignOut}
+                    className="rounded-full border border-white/20 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.2em] text-white transition-colors hover:bg-white/10 disabled:opacity-60"
+                  >
+                    Sign out
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-6 p-5">
+            <div className="space-y-5 bg-[#eef4ff] p-4">
               <section>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Collections</p>
+                <div className="flex items-center justify-between px-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.36em] text-[#3557b9]">
+                    Collections
+                  </p>
+                  <Link
+                    to="/collections"
+                    onClick={() => setMobileNav(false)}
+                    className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#3d68f5]"
+                  >
+                    View all
+                  </Link>
+                </div>
                 <div className="mt-3 grid gap-2">
                   {FEATURED_COLLECTION_LINKS.map((collection) => (
                     <Link
@@ -189,17 +224,42 @@ export function Header() {
                       to="/collections/$handle"
                       params={{ handle: collection.handle }}
                       onClick={() => setMobileNav(false)}
-                      className="rounded-2xl border border-border bg-surface/60 px-4 py-3 transition-colors hover:border-primary hover:bg-accent"
+                      className="rounded-[1.4rem] border border-[#cfdaf2] bg-white px-4 py-4 transition-colors hover:border-[#94aef7] hover:bg-[#f7faff]"
                     >
-                      <p className="text-sm font-semibold">{collection.title}</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{collection.description}</p>
+                      <p className="text-[15px] font-medium leading-5">{collection.title}</p>
+                      <p className="mt-1 text-[13px] leading-6 text-muted-foreground">{collection.description}</p>
                     </Link>
                   ))}
                 </div>
               </section>
 
               <section>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Browse</p>
+                <div className="rounded-[1.6rem] border border-[#cfdaf2] bg-white p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.36em] text-[#3557b9]">Quick links</p>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#3d68f5]">Explore</span>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {[
+                      { label: "Shop all", to: "/shop" as const },
+                      { label: "Offers", to: "/offers" as const },
+                      { label: "Support", to: "/help" as const },
+                      { label: "Track order", to: "/track-order" as const },
+                    ].map((item) => (
+                      <Link
+                        key={item.label}
+                        to={item.to}
+                        onClick={() => setMobileNav(false)}
+                        className="flex items-center justify-between rounded-[1.2rem] border border-[#d8e2f5] bg-[#f8fbff] px-4 py-4 transition-colors hover:border-[#94aef7] hover:bg-white"
+                      >
+                        <span className="text-[15px] font-medium">{item.label}</span>
+                        <span className="grid h-8 w-8 place-items-center rounded-full border border-[#d8e2f5] bg-white text-[#3d68f5]">
+                          <ChevronRight className="h-4 w-4" />
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
                 <div className="mt-3 grid gap-1">
                   {NAV.map((item) => (
                     <Link
@@ -207,7 +267,7 @@ export function Header() {
                       to={item.to}
                       search={item.search as never}
                       onClick={() => setMobileNav(false)}
-                      className="rounded-xl px-3 py-3 text-sm font-medium hover:bg-muted"
+                      className="rounded-xl px-3 py-3 text-[15px] font-medium hover:bg-muted"
                     >
                       {item.label}
                     </Link>
