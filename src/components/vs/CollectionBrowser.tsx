@@ -258,18 +258,37 @@ export function CollectionBrowser({
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-6">
-        <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+      <div className="vs-section-shell rounded-[2rem] p-6 sm:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">Catalog browser</p>
+            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1>
+            {description && <p className="mt-3 text-sm leading-7 text-muted-foreground">{description}</p>}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Sort</p>
+              <p className="mt-1 text-sm font-semibold">Curated by value</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Filters</p>
+              <p className="mt-1 text-sm font-semibold">Live search, live stock</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Catalog</p>
+              <p className="mt-1 text-sm font-semibold">Shopify synced</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <form
         aria-label="Product filters"
         onSubmit={(event) => event.preventDefault()}
-        className="grid gap-8 lg:grid-cols-[260px_1fr]"
+        className="mt-8 grid gap-8 lg:grid-cols-[280px_1fr]"
       >
         <aside className="hidden lg:block">
-          <div className="sticky top-32 space-y-6 rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+          <div className="sticky top-32 space-y-6 rounded-[2rem] border border-border/70 bg-card p-5 shadow-[var(--shadow-card)]">
             <div className="flex items-center justify-between">
               <p className="font-display font-semibold">Filters</p>
               <button type="button" onClick={clearAll} className="text-xs text-primary hover:underline">
@@ -285,7 +304,7 @@ export function CollectionBrowser({
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm lg:hidden"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm shadow-sm lg:hidden"
             >
               <SlidersHorizontal className="h-4 w-4" /> Filters
             </button>
@@ -296,7 +315,7 @@ export function CollectionBrowser({
               value={search.sort}
               onChange={(e) => setFilter({ sort: e.target.value })}
               aria-label="Sort products"
-              className="ml-auto rounded-xl border border-border bg-card px-3 py-2 text-sm"
+              className="ml-auto rounded-full border border-border bg-card px-4 py-2 text-sm shadow-sm"
             >
               {SORTS.map((s) => (
                 <option key={s.value} value={s.value}>
@@ -313,7 +332,7 @@ export function CollectionBrowser({
                   type="button"
                   key={chip.label}
                   onClick={() => setFilter(chip.clear)}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground shadow-sm"
                 >
                   {chip.label} <X className="h-3 w-3" />
                 </button>
@@ -325,7 +344,7 @@ export function CollectionBrowser({
           )}
 
           {isError ? (
-            <div className="vs-card p-10 text-center">
+            <div className="vs-section-shell rounded-[2rem] p-10 text-center">
               <p className="font-display text-lg font-semibold">We couldn't reach the catalog</p>
               <p className="mt-1 text-sm text-muted-foreground">Check your connection and try again.</p>
             </div>
@@ -334,7 +353,7 @@ export function CollectionBrowser({
           ) : filtered.length === 0 ? (
             <EmptyProducts message={products.length === 0 ? "No products found" : "No products match these filters"} />
           ) : (
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
               {filtered.map((p) => (
                 <ProductCard key={p.node.id} product={p} />
               ))}
@@ -346,7 +365,7 @@ export function CollectionBrowser({
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
           <div className="flex-1 bg-foreground/40" onClick={() => setDrawerOpen(false)} />
-          <div className="w-[85%] max-w-sm overflow-y-auto bg-card p-5">
+          <div className="w-[85%] max-w-sm overflow-y-auto bg-card p-5 shadow-[var(--shadow-lift)]">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-display font-semibold">Filters</p>
               <button type="button" onClick={() => setDrawerOpen(false)} aria-label="Close filters">

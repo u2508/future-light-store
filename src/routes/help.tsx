@@ -17,7 +17,7 @@ export const Route = createFileRoute("/help")({
 
 function HelpPage() {
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
+    <div className="mx-auto max-w-4xl px-4 py-12">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -32,12 +32,18 @@ function HelpPage() {
           }),
         }}
       />
-      <h1 className="font-display text-3xl font-bold">Help centre</h1>
+      <div className="vs-section-shell rounded-[2rem] p-6 sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">Support</p>
+        <h1 className="mt-2 font-display text-3xl font-bold sm:text-4xl">Help centre</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
+          Answers on delivery, returns, payments and order tracking at VS Store.
+        </p>
+      </div>
       <div className="mt-6 space-y-3">
         {FAQS.map((faq) => (
-          <details key={faq.question} className="rounded-2xl border border-border bg-card p-5">
+          <details key={faq.question} className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
             <summary className="cursor-pointer font-medium">{faq.question}</summary>
-            <p className="mt-2 text-sm text-muted-foreground">{faq.answer}</p>
+            <p className="mt-2 text-sm leading-7 text-muted-foreground">{faq.answer}</p>
           </details>
         ))}
       </div>

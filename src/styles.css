@@ -149,7 +149,7 @@
     background:
       radial-gradient(circle at top left, oklch(0.92 0.03 255 / 0.55), transparent 32%),
       radial-gradient(circle at top right, oklch(0.88 0.06 205 / 0.25), transparent 28%),
-      linear-gradient(to bottom, oklch(0.99 0.002 250), oklch(0.985 0.004 250) 24%, oklch(0.98 0.004 250));
+      linear-gradient(to bottom, oklch(0.99 0.002 250), oklch(0.985 0.004 250) 24%, oklch(0.976 0.004 250));
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -192,4 +192,12 @@
     linear-gradient(180deg, oklch(1 0 0 / 0.88), oklch(0.99 0.003 250 / 0.98));
   border: 1px solid color-mix(in oklch, var(--color-border) 72%, white);
   box-shadow: var(--shadow-lift);
+}
+
+@utility vs-section-shell {
+  border: 1px solid color-mix(in oklch, var(--color-border) 80%, white);
+  background:
+    linear-gradient(180deg, oklch(1 0 0 / 0.9), oklch(0.995 0.002 250 / 0.96)),
+    var(--color-card);
+  box-shadow: var(--shadow-card);
 }

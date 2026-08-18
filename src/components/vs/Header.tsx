@@ -38,92 +38,98 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-xl">
-      <div className="mx-auto max-w-7xl px-4 py-3">
-        <div className="flex items-center gap-3">
-        <button
-          onClick={() => setMobileNav((v) => !v)}
-          aria-label="Open menu"
-          className="grid h-10 w-10 place-items-center rounded-xl border border-border lg:hidden"
-        >
-          {mobileNav ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-        </button>
-
-        <VsLogo />
-
-        <div className="mx-auto hidden w-full max-w-2xl lg:block">
-          <PredictiveSearch />
+    <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-2xl">
+      <div className="border-b border-border/60 bg-surface/70">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+          <span>Premium curation, tracked fulfilment, secure checkout</span>
+          <span className="hidden sm:inline-flex">Fast support from our help centre</span>
         </div>
-
-        <div className="ml-auto flex items-center gap-2">
+      </div>
+      <div className="mx-auto max-w-7xl px-4 py-4">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setMobileSearch(true)}
-            aria-label="Search"
-            className="grid h-10 w-10 place-items-center rounded-xl border border-border lg:hidden"
+            onClick={() => setMobileNav((v) => !v)}
+            aria-label="Open menu"
+            className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card shadow-sm transition-colors hover:border-primary lg:hidden"
           >
-            <Search className="h-4 w-4" />
+            {mobileNav ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
 
-          {loading ? (
-            <div
-              role="status"
-              aria-label="Checking account session"
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card md:w-40"
+          <VsLogo />
+
+          <div className="mx-auto hidden w-full max-w-3xl lg:block">
+            <PredictiveSearch />
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setMobileSearch(true)}
+              aria-label="Search"
+              className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card shadow-sm transition-colors hover:border-primary lg:hidden"
             >
-              <span className="h-3 w-20 animate-pulse rounded-full bg-muted" />
-            </div>
-          ) : (
-            <>
-              <Link
-                to={user ? "/account" : "/auth"}
-                aria-label={user ? `Account for ${user.email ?? "signed-in user"}` : "Sign in to account"}
-                className="flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-2 text-left text-xs leading-tight transition-colors hover:border-primary md:px-3"
+              <Search className="h-4 w-4" />
+            </button>
+
+            {loading ? (
+              <div
+                role="status"
+                aria-label="Checking account session"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card md:w-40"
               >
-                <User className="h-4 w-4 shrink-0" />
-                <span className="hidden max-w-[10rem] truncate sm:block">
-                  {user ? (
-                    <>
-                      <span className="block truncate font-semibold">{user.email ?? "Signed-in account"}</span>
-                      <span className="block text-muted-foreground">Profile &amp; Orders</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="block text-muted-foreground">Hello, sign in</span>
-                      <span className="block font-semibold">Account &amp; Orders</span>
-                    </>
-                  )}
-                </span>
-              </Link>
-              {user && (
-                <button
-                  type="button"
-                  aria-label="Sign out of account"
-                  title="Sign out"
-                  disabled={signingOut}
-                  onClick={handleSignOut}
-                  className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-card transition-colors hover:border-primary disabled:cursor-wait disabled:opacity-60"
+                <span className="h-3 w-20 animate-pulse rounded-full bg-muted" />
+              </div>
+            ) : (
+              <>
+                <Link
+                  to={user ? "/account" : "/auth"}
+                  aria-label={user ? `Account for ${user.email ?? "signed-in user"}` : "Sign in to account"}
+                  className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-left text-xs leading-tight shadow-sm transition-colors hover:border-primary md:px-4"
                 >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              )}
-            </>
-          )}
-
-          <Link
-            to="/wishlist"
-            aria-label={`Wishlist, ${wishlistCount} items`}
-            className="relative grid h-10 w-10 place-items-center rounded-xl border border-border bg-card transition-colors hover:border-signal"
-          >
-            <Heart className="h-4 w-4" />
-            {wishlistCount > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-signal px-1 text-[11px] font-bold text-signal-foreground">
-                {wishlistCount}
-              </span>
+                  <User className="h-4 w-4 shrink-0" />
+                  <span className="hidden max-w-[10rem] truncate sm:block">
+                    {user ? (
+                      <>
+                        <span className="block truncate font-semibold">{user.email ?? "Signed-in account"}</span>
+                        <span className="block text-muted-foreground">Profile &amp; Orders</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="block text-muted-foreground">Hello, sign in</span>
+                        <span className="block font-semibold">Account &amp; Orders</span>
+                      </>
+                    )}
+                  </span>
+                </Link>
+                {user && (
+                  <button
+                    type="button"
+                    aria-label="Sign out of account"
+                    title="Sign out"
+                    disabled={signingOut}
+                    onClick={handleSignOut}
+                    className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card shadow-sm transition-colors hover:border-primary disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                )}
+              </>
             )}
-          </Link>
 
-          <CartDrawer />
-        </div>
+            <Link
+              to="/wishlist"
+              aria-label={`Wishlist, ${wishlistCount} items`}
+              className="relative grid h-11 w-11 place-items-center rounded-full border border-border bg-card shadow-sm transition-colors hover:border-signal"
+            >
+              <Heart className="h-4 w-4" />
+              {wishlistCount > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-signal px-1 text-[11px] font-bold text-signal-foreground">
+                  {wishlistCount}
+                </span>
+              )}
+            </Link>
+
+            <CartDrawer />
+          </div>
         </div>
         {error && (
           <div role="alert" className="pt-2 text-xs text-destructive">
@@ -135,14 +141,14 @@ export function Header() {
         )}
       </div>
 
-      <nav className="border-t border-border bg-surface/60">
-        <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto px-4 py-2 text-sm">
+      <nav className="border-t border-border/70 bg-surface/75">
+        <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto px-4 py-3 text-sm">
           {NAV.map((item) => (
             <Link
               key={item.label}
               to={item.to}
               search={item.search as never}
-              className="whitespace-nowrap rounded-full border border-transparent px-3 py-1.5 font-medium text-muted-foreground transition-colors hover:border-border hover:bg-card hover:text-foreground"
+              className="whitespace-nowrap rounded-full border border-transparent px-3.5 py-1.5 font-medium text-muted-foreground transition-colors hover:border-border hover:bg-card hover:text-foreground"
               activeProps={{ className: "text-foreground" }}
             >
               {item.label}

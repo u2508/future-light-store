@@ -27,7 +27,7 @@ function ProductDescription({ description, descriptionHtml }: { description: str
   const structuredDescription = sanitizeProductDescriptionHtml(descriptionHtml || "");
 
   return (
-    <section aria-label="Product description" className="rounded-3xl border border-border bg-card p-5 sm:p-6">
+    <section aria-label="Product description" className="rounded-[2rem] border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
       {structuredDescription ? (
         <div
           className={cn(
@@ -211,14 +211,14 @@ function ProductPage() {
 
         <div className="space-y-5 lg:pt-3">
           <div className="space-y-3">
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">{product.vendor || product.productType}</p>
+            <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">{product.vendor || product.productType}</p>
             <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">{product.title}</h1>
             <p className="max-w-2xl text-sm leading-7 text-muted-foreground">
               A refined product layout with better balance, so the content reads more like a premium storefront and less like a blank split screen.
             </p>
           </div>
 
-          <div className="flex items-baseline gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-[var(--shadow-card)]">
+          <div className="flex items-baseline gap-3 rounded-[1.5rem] border border-border bg-card px-4 py-3 shadow-[var(--shadow-card)]">
             <span className="font-display text-3xl font-bold">{formatMoney(price.amount, price.currencyCode)}</span>
             {off > 0 && compareAt && (
               <>
@@ -250,7 +250,7 @@ function ProductPage() {
             </div>
           )}
 
-          <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-[var(--shadow-card)]">
+          <div className="flex items-center gap-3 rounded-[1.5rem] border border-border bg-card px-4 py-3 shadow-[var(--shadow-card)]">
             <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-background p-1">
               <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted">
                 <Minus className="h-4 w-4" />
@@ -289,7 +289,7 @@ function ProductPage() {
             <ProductDescription description={product.description} descriptionHtml={product.descriptionHtml} />
           )}
 
-          <div className="grid gap-2 rounded-2xl border border-border bg-card p-4 text-xs text-muted-foreground shadow-[var(--shadow-card)]">
+          <div className="grid gap-2 rounded-[1.5rem] border border-border bg-card p-4 text-xs text-muted-foreground shadow-[var(--shadow-card)]">
             <p className="flex items-center gap-2"><Truck className="h-3.5 w-3.5" /> Delivery estimate at checkout</p>
             <p className="flex items-center gap-2"><RotateCcw className="h-3.5 w-3.5" /> 30-day returns</p>
             <p className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5" /> Secure Shopify checkout</p>

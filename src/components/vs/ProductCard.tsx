@@ -104,21 +104,21 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col gap-2 p-4">
+        <div className="flex flex-1 flex-col gap-2 p-3">
           <Link
             to="/products/$handle"
             params={{ handle: n.handle }}
-            className="line-clamp-2 text-sm font-medium hover:text-primary"
+            className="line-clamp-2 text-[13px] font-medium leading-5 hover:text-primary"
           >
             {n.title}
           </Link>
           <div className="mt-auto flex items-end justify-between gap-2">
             <div>
-              <p className="font-display text-lg font-bold">
+              <p className="font-display text-[17px] font-bold">
                 {formatMoney(price.amount, price.currencyCode)}
               </p>
               {off > 0 && compareAt && (
-                <p className="text-xs text-muted-foreground line-through">
+                <p className="text-[11px] text-muted-foreground line-through">
                   {formatMoney(compareAt, price.currencyCode)}
                 </p>
               )}
@@ -127,20 +127,20 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
               onClick={quickAdd}
               disabled={soldOut || isLoading}
               aria-label={singleVariant ? "Add to bag" : "Choose options"}
-              className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
+              className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
             >
               {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <ShoppingBag className="h-4 w-4" />
+                <ShoppingBag className="h-3.5 w-3.5" />
               )}
             </button>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
             {lowStock && !soldOut && <span className="font-semibold text-signal">Low stock</span>}
             {n.productType && <span className="truncate">{n.productType}</span>}
             <span className="ml-auto inline-flex items-center gap-1">
-              <Star className="h-3 w-3" /> No reviews yet
+              <Star className="h-2.5 w-2.5" /> No reviews yet
             </span>
           </div>
         </div>
