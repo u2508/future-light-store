@@ -15,6 +15,8 @@ export const Route = createFileRoute("/products/$handle")({
       { name: "description", content: `Buy ${params.handle.replace(/-/g, " ")} at VS Store with secure checkout and tracked delivery.` },
       { property: "og:title", content: `${params.handle.replace(/-/g, " ")} — VS Store` },
       { property: "og:description", content: "Secure checkout and tracked delivery from VS Store." },
+      { property: "og:type", content: "product" },
+      { property: "og:url", content: `https://future-light-store.lovable.app/products/${params.handle}` },
     ],
   }),
   component: ProductPage,
