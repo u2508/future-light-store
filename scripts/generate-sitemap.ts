@@ -24,6 +24,7 @@ function loadEnvFile(path: string) {
 }
 
 loadEnvFile(resolve(".env"));
+loadEnvFile(resolve(".env.example"));
 
 const BASE_URL = "https://future-light-store.lovable.app";
 
