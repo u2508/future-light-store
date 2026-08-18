@@ -162,9 +162,9 @@ export function Header() {
       </nav>
 
       {mobileNav && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[100]">
           <div className="absolute inset-0 bg-foreground/35" onClick={() => setMobileNav(false)} />
-          <aside className="fixed inset-y-0 left-0 w-[88%] max-w-[380px] overflow-y-auto border-r border-border bg-card shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
+          <aside className="fixed inset-y-0 left-0 z-[101] flex w-[88%] max-w-[380px] flex-col overflow-hidden border-r border-border bg-card shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
             <div className="flex items-start justify-between bg-[#1f2c57] px-5 py-5 text-white">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.38em] text-white/65">Browse Salt</p>
@@ -203,7 +203,7 @@ export function Header() {
               </div>
             </div>
 
-            <div className="space-y-5 bg-[#eef4ff] p-4">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-[#eef4ff] p-4">
               <section>
                 <div className="flex items-center justify-between px-1">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.36em] text-[#3557b9]">
