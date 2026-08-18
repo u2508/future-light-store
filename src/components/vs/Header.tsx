@@ -236,7 +236,6 @@ export function Header() {
                       className="rounded-[1.4rem] border border-[#cfdaf2] bg-white px-4 py-4 transition-colors hover:border-[#94aef7] hover:bg-[#f7faff]"
                     >
                       <p className="text-[15px] font-medium leading-5">{collection.title}</p>
-                      <p className="mt-1 text-[13px] leading-6 text-muted-foreground">{collection.description}</p>
                     </Link>
                   ))}
                 </div>
