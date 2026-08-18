@@ -84,18 +84,6 @@ function Index() {
                 Browse collections
               </Link>
             </div>
-            <div className="grid max-w-2xl gap-3 pt-2 sm:grid-cols-3">
-              {[
-                { value: "24h", label: "Fast dispatch" },
-                { value: "30d", label: "Returns window" },
-                { value: "Shopify", label: "Secure checkout" },
-              ].map((stat) => (
-                <div key={stat.label} className="rounded-2xl border border-white/70 bg-white/75 p-4 shadow-sm backdrop-blur">
-                  <p className="font-display text-2xl font-bold text-foreground">{stat.value}</p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.24em] text-muted-foreground">{stat.label}</p>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </section>
