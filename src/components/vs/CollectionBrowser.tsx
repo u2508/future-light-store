@@ -177,6 +177,7 @@ export function CollectionBrowser({
             type="number"
             value={search.min_price || ""}
             placeholder="Min"
+            aria-label="Minimum price"
             onChange={(e) => setFilter({ min_price: Number(e.target.value) || 0 })}
             className="w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm"
           />
@@ -185,6 +186,7 @@ export function CollectionBrowser({
             type="number"
             value={search.max_price || ""}
             placeholder="Max"
+            aria-label="Maximum price"
             onChange={(e) => setFilter({ max_price: Number(e.target.value) || 0 })}
             className="w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm"
           />
