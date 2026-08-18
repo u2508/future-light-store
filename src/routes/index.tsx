@@ -66,9 +66,6 @@ function Index() {
               <h1 className="max-w-xl font-display text-4xl font-bold leading-[1.02] sm:text-6xl lg:text-7xl">
                 Everyday essentials, engineered forward.
               </h1>
-              <p className="max-w-md text-sm leading-7 text-muted-foreground sm:text-base">
-                Precision search, honest pricing, and fulfilment you can follow from checkout to doorstep.
-              </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Link
