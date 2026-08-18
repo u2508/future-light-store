@@ -14,3 +14,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://future-light-store.lovable.app/sitemap.xml
+Sitemap: https://vss-store.vercel.app/sitemap.xml

@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useIsStaff } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -19,7 +18,7 @@ export const Route = createFileRoute("/account")({
 });
 
 function AccountPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const isStaff = useIsStaff(user);
 
   return (
@@ -78,9 +77,14 @@ function AccountPage() {
                 </Link>
               )}
               <button
+                type="button"
                 onClick={async () => {
-                  await supabase.auth.signOut();
-                  toast.success("Signed out");
+                  try {
+                    await signOut();
+                    toast.success("Signed out");
+                  } catch {
+                    toast.error("You were signed out locally, but the server could not be reached.");
+                  }
                 }}
                 className="rounded-xl border border-border px-4 py-2 text-sm font-semibold"
               >

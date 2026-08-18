@@ -23,12 +23,13 @@ function loadEnvFile(path: string) {
   }
 }
 
+loadEnvFile(resolve(".env.local"));
 loadEnvFile(resolve(".env"));
 loadEnvFile(resolve(".env.example"));
 
-const BASE_URL = "https://future-light-store.lovable.app";
+const BASE_URL = (process.env.VITE_SITE_URL ?? "https://vss-store.vercel.app").replace(/\/$/, "");
 
-const SHOPIFY_STORE_DOMAIN = process.env.VITE_SHOPIFY_STORE_DOMAIN ?? "vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
+const SHOPIFY_STORE_DOMAIN = process.env.VITE_SHOPIFY_STORE_DOMAIN ?? "vs-store-us.myshopify.com";
 const SHOPIFY_API_VERSION = process.env.VITE_SHOPIFY_API_VERSION ?? "2025-07";
 const SHOPIFY_STOREFRONT_TOKEN = process.env.VITE_SHOPIFY_STOREFRONT_TOKEN ?? "";
 const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
@@ -83,17 +84,17 @@ async function storefrontRequest<T = unknown>(query: string, variables: Record<s
   return json.data ?? null;
 }
 
-async function fetchAllCollections(): Promise<Array<{ handle: string }>> {
+async function fetchAllCollections(): Promise<Array<{ handle: string; updatedAt?: string }>> {
   const query = `
     query GetCollections($first: Int!, $after: String) {
       collections(first: $first, after: $after) {
         pageInfo { hasNextPage endCursor }
-        edges { node { handle } }
+        edges { node { handle updatedAt } }
       }
     }
   `;
 
-  const handles: Array<{ handle: string }> = [];
+  const handles: Array<{ handle: string; updatedAt?: string }> = [];
   let after: string | null = null;
   const pageSize = 250;
 
@@ -101,14 +102,14 @@ async function fetchAllCollections(): Promise<Array<{ handle: string }>> {
     const data = await storefrontRequest<{
       collections: {
         pageInfo: { hasNextPage: boolean; endCursor: string | null };
-        edges: Array<{ node: { handle: string } }>;
+        edges: Array<{ node: { handle: string; updatedAt?: string } }>;
       };
     }>(query, { first: pageSize, after });
 
     if (!data) break;
 
     for (const edge of data.collections.edges) {
-      handles.push({ handle: edge.node.handle });
+      handles.push({ handle: edge.node.handle, updatedAt: edge.node.updatedAt });
     }
 
     after = data.collections.pageInfo.hasNextPage ? data.collections.pageInfo.endCursor : null;
@@ -184,7 +185,12 @@ async function main() {
     const [collections, products] = await Promise.all([fetchAllCollections(), fetchAllProducts()]);
 
     for (const collection of collections) {
-      entries.push({ path: `/collections/${collection.handle}`, changefreq: "weekly", priority: "0.7" });
+      entries.push({
+        path: `/collections/${collection.handle}`,
+        changefreq: "weekly",
+        priority: "0.7",
+        lastmod: collection.updatedAt ? collection.updatedAt.split("T")[0] : undefined,
+      });
     }
 
     for (const product of products) {

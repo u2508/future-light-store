@@ -7,6 +7,7 @@ import { discountPercent, fetchProduct, formatMoney } from "@/lib/shopify";
 import { useCartStore } from "@/stores/cartStore";
 import { useRecentStore, useWishlistStore } from "@/stores/wishlistStore";
 import { cn } from "@/lib/utils";
+import { canonicalUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/products/$handle")({
   head: ({ params }) => ({
@@ -16,8 +17,9 @@ export const Route = createFileRoute("/products/$handle")({
       { property: "og:title", content: `${params.handle.replace(/-/g, " ")} — VS Store` },
       { property: "og:description", content: "Secure checkout and tracked delivery from VS Store." },
       { property: "og:type", content: "product" },
-      { property: "og:url", content: `https://future-light-store.lovable.app/products/${params.handle}` },
+      { property: "og:url", content: canonicalUrl(`/products/${params.handle}`) },
     ],
+    links: [{ rel: "canonical", href: canonicalUrl(`/products/${params.handle}`) }],
   }),
   component: ProductPage,
 });
@@ -100,20 +102,34 @@ function ProductPage() {
 
   const productJsonLd = {
     "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.title,
-    description: product.description ?? undefined,
-    image: images.map((i) => i.url),
-    url: `https://future-light-store.lovable.app/products/${handle}`,
-    offers: {
-      "@type": "Offer",
-      price: price.amount,
-      priceCurrency: price.currencyCode,
-      availability: selected?.availableForSale
-        ? "https://schema.org/InStock"
-        : "https://schema.org/OutOfStock",
-      url: `https://future-light-store.lovable.app/products/${handle}`,
-    },
+    "@graph": [
+      {
+        "@type": "Product",
+        name: product.title,
+        description: product.description ?? undefined,
+        image: images.map((i) => i.url),
+        brand: product.vendor ? { "@type": "Brand", name: product.vendor } : undefined,
+        sku: selected?.id,
+        url: canonicalUrl(`/products/${handle}`),
+        offers: {
+          "@type": "Offer",
+          price: price.amount,
+          priceCurrency: price.currencyCode,
+          availability: selected?.availableForSale
+            ? "https://schema.org/InStock"
+            : "https://schema.org/OutOfStock",
+          url: canonicalUrl(`/products/${handle}`),
+        },
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: canonicalUrl("/") },
+          { "@type": "ListItem", position: 2, name: "Shop all", item: canonicalUrl("/shop") },
+          { "@type": "ListItem", position: 3, name: product.title, item: canonicalUrl(`/products/${handle}`) },
+        ],
+      },
+    ],
   };
 
   return (

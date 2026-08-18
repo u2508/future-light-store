@@ -161,8 +161,8 @@ export function CollectionBrowser({
 
   const FilterPanel = (
     <div className="space-y-6">
-      <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Price</p>
+      <fieldset>
+        <legend className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Price</legend>
         <input
           type="range"
           min={0}
@@ -175,6 +175,8 @@ export function CollectionBrowser({
         <div className="mt-2 flex items-center gap-2">
           <input
             type="number"
+            id="min_price"
+            name="min_price"
             value={search.min_price || ""}
             placeholder="Min"
             aria-label="Minimum price"
@@ -184,6 +186,8 @@ export function CollectionBrowser({
           <span className="text-muted-foreground">–</span>
           <input
             type="number"
+            id="max_price"
+            name="max_price"
             value={search.max_price || ""}
             placeholder="Max"
             aria-label="Maximum price"
@@ -191,7 +195,7 @@ export function CollectionBrowser({
             className="w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm"
           />
         </div>
-      </div>
+      </fieldset>
 
       <FilterGroup
         label="Availability"
@@ -259,12 +263,16 @@ export function CollectionBrowser({
         {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
+      <form
+        aria-label="Product filters"
+        onSubmit={(event) => event.preventDefault()}
+        className="grid gap-8 lg:grid-cols-[260px_1fr]"
+      >
         <aside className="hidden lg:block">
           <div className="sticky top-32 space-y-6 rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
             <div className="flex items-center justify-between">
               <p className="font-display font-semibold">Filters</p>
-              <button onClick={clearAll} className="text-xs text-primary hover:underline">
+              <button type="button" onClick={clearAll} className="text-xs text-primary hover:underline">
                 Clear all
               </button>
             </div>
@@ -275,6 +283,7 @@ export function CollectionBrowser({
         <div>
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <button
+              type="button"
               onClick={() => setDrawerOpen(true)}
               className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm lg:hidden"
             >
@@ -301,6 +310,7 @@ export function CollectionBrowser({
             <div className="mb-4 flex flex-wrap gap-2">
               {activeChips.map((chip) => (
                 <button
+                  type="button"
                   key={chip.label}
                   onClick={() => setFilter(chip.clear)}
                   className="inline-flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground"
@@ -308,7 +318,7 @@ export function CollectionBrowser({
                   {chip.label} <X className="h-3 w-3" />
                 </button>
               ))}
-              <button onClick={clearAll} className="text-xs font-semibold text-primary hover:underline">
+              <button type="button" onClick={clearAll} className="text-xs font-semibold text-primary hover:underline">
                 Clear all
               </button>
             </div>
@@ -331,7 +341,7 @@ export function CollectionBrowser({
             </div>
           )}
         </div>
-      </div>
+      </form>
 
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
@@ -339,12 +349,13 @@ export function CollectionBrowser({
           <div className="w-[85%] max-w-sm overflow-y-auto bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
               <p className="font-display font-semibold">Filters</p>
-              <button onClick={() => setDrawerOpen(false)} aria-label="Close filters">
+              <button type="button" onClick={() => setDrawerOpen(false)} aria-label="Close filters">
                 <X className="h-4 w-4" />
               </button>
             </div>
             {FilterPanel}
             <button
+              type="button"
               onClick={() => setDrawerOpen(false)}
               className="mt-6 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
             >
@@ -369,12 +380,13 @@ function FilterGroup({
   onChange: (value: string) => void;
 }) {
   return (
-    <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
+    <fieldset>
+      <legend className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</legend>
       <div className="flex flex-wrap gap-1.5">
         {options.map((o) => (
           <button
             key={o.value}
+            type="button"
             onClick={() => onChange(value === o.value ? "" : o.value)}
             className={cn(
               "rounded-full border px-3 py-1.5 text-xs capitalize transition-colors",
@@ -385,6 +397,6 @@ function FilterGroup({
           </button>
         ))}
       </div>
-    </div>
+    </fieldset>
   );
 }

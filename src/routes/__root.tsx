@@ -14,6 +14,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { useCartSync } from "@/hooks/useCartSync";
 import { initializeTikTokPixel } from "@/lib/tiktok";
 import ogImage from "@/assets/vs-og.jpg";
+import { canonicalUrl } from "@/lib/seo";
 
 function NotFoundComponent() {
   return (
@@ -85,10 +86,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:site_name", content: "VS Store" },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://future-light-store.lovable.app/" },
-      { property: "og:image", content: `https://future-light-store.lovable.app${ogImage}` },
+      { property: "og:url", content: canonicalUrl("/") },
+      { property: "og:image", content: canonicalUrl(ogImage) },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:image", content: `https://future-light-store.lovable.app${ogImage}` },
+      { name: "twitter:image", content: canonicalUrl(ogImage) },
     ],
     scripts: [
       {
@@ -97,7 +98,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@context": "https://schema.org",
           "@type": "Organization",
           name: "VS Store",
-          url: "https://future-light-store.lovable.app/",
+          url: canonicalUrl("/"),
         }),
       },
       {
@@ -106,16 +107,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@context": "https://schema.org",
           "@type": "WebSite",
           name: "VS Store",
-          url: "https://future-light-store.lovable.app/",
+          url: canonicalUrl("/"),
           potentialAction: {
             "@type": "SearchAction",
-            target: "https://future-light-store.lovable.app/search?q={search_term_string}",
+            target: `${canonicalUrl("/search")}?q={search_term_string}`,
             "query-input": "required name=search_term_string",
           },
         }),
       },
     ],
     links: [
+      { rel: "canonical", href: canonicalUrl("/") },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {

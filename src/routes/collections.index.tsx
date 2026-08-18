@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { fetchCollections } from "@/lib/shopify";
+import { canonicalUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/collections/")({
   head: () => ({
@@ -14,6 +15,7 @@ export const Route = createFileRoute("/collections/")({
       { property: "og:description", content: "Browse every VS Store collection." },
       { property: "og:type", content: "website" },
     ],
+    links: [{ rel: "canonical", href: canonicalUrl("/collections") }],
   }),
   component: CollectionsIndex,
 });

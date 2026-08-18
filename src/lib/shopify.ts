@@ -2,7 +2,7 @@ import { toast } from "sonner";
 
 export const SHOPIFY_API_VERSION = import.meta.env['VITE_SHOPIFY_API_VERSION'] ?? "2025-07";
 export const SHOPIFY_STORE_PERMANENT_DOMAIN =
-  import.meta.env['VITE_SHOPIFY_STORE_DOMAIN'] ?? "vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
+  import.meta.env['VITE_SHOPIFY_STORE_DOMAIN'] ?? "vs-store-us.myshopify.com";
 export const SHOPIFY_STOREFRONT_URL = `https://${SHOPIFY_STORE_PERMANENT_DOMAIN}/api/${SHOPIFY_API_VERSION}/graphql.json`;
 export const SHOPIFY_STOREFRONT_TOKEN = import.meta.env['VITE_SHOPIFY_STOREFRONT_TOKEN'] ?? "118a9674830bd4a996a85941636904e4";
 export const isShopifyConfigured = Boolean(SHOPIFY_STOREFRONT_TOKEN);
@@ -28,6 +28,7 @@ export interface ShopifyProductNode {
   vendor: string;
   productType: string;
   tags: string[];
+  updatedAt?: string;
   availableForSale: boolean;
   priceRange: { minVariantPrice: { amount: string; currencyCode: string } };
   compareAtPriceRange?: { minVariantPrice: { amount: string; currencyCode: string } };
@@ -48,6 +49,7 @@ export const PRODUCT_FRAGMENT = `
   vendor
   productType
   tags
+  updatedAt
   availableForSale
   priceRange { minVariantPrice { amount currencyCode } }
   compareAtPriceRange { minVariantPrice { amount currencyCode } }
@@ -84,7 +86,7 @@ export const PRODUCT_BY_HANDLE_QUERY = `
 export const COLLECTIONS_QUERY = `
   query GetCollections($first: Int!) {
     collections(first: $first) {
-      edges { node { id title handle description image { url altText } } }
+      edges { node { id title handle description updatedAt image { url altText } } }
     }
   }
 `;
@@ -96,6 +98,7 @@ export const COLLECTION_BY_HANDLE_QUERY = `
       title
       handle
       description
+      updatedAt
       image { url altText }
       products(first: $first) { edges { node { ${PRODUCT_FRAGMENT} } } }
     }
@@ -107,6 +110,7 @@ export interface ShopifyCollection {
   title: string;
   handle: string;
   description: string;
+  updatedAt?: string;
   image: { url: string; altText: string | null } | null;
 }
 

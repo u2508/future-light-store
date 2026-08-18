@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Heart, MapPin, Menu, Search, User, X } from "lucide-react";
+import { Heart, LogOut, MapPin, Menu, Search, User, X } from "lucide-react";
+import { toast } from "sonner";
 import { VsLogo } from "@/components/vs/VsLogo";
 import { PredictiveSearch } from "@/components/vs/PredictiveSearch";
 import { CartDrawer } from "@/components/vs/CartDrawer";
@@ -20,12 +21,26 @@ const NAV = [
 export function Header() {
   const [mobileSearch, setMobileSearch] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
-  const { user } = useAuth();
+  const { user, loading, error, signOut } = useAuth();
+  const [signingOut, setSigningOut] = useState(false);
   const wishlistCount = useWishlistStore((s) => s.items.length);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+      toast.success("Signed out");
+    } catch {
+      toast.error("You were signed out locally, but the server could not be reached.");
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
+      <div className="mx-auto max-w-7xl px-4 py-3">
+        <div className="flex items-center gap-3">
         <button
           onClick={() => setMobileNav((v) => !v)}
           aria-label="Open menu"
@@ -49,25 +64,50 @@ export function Header() {
             <Search className="h-4 w-4" />
           </button>
 
-          <Link
-            to="/account"
-            className="hidden items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left text-xs leading-tight transition-colors hover:border-primary md:flex"
-          >
-            <User className="h-4 w-4" />
-            <span className="max-w-[10rem] truncate">
-              {user ? (
-                <>
-                  <span className="block truncate font-semibold">{user.email}</span>
-                  <span className="block text-muted-foreground">Account &amp; Orders</span>
-                </>
-              ) : (
-                <>
-                  <span className="block text-muted-foreground">Hello, sign in</span>
-                  <span className="block font-semibold">Account &amp; Orders</span>
-                </>
+          {loading ? (
+            <div
+              role="status"
+              aria-label="Checking account session"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card md:w-40"
+            >
+              <span className="h-3 w-20 animate-pulse rounded-full bg-muted" />
+            </div>
+          ) : (
+            <>
+              <Link
+                to={user ? "/account" : "/auth"}
+                aria-label={user ? `Account for ${user.email ?? "signed-in user"}` : "Sign in to account"}
+                className="flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-2 text-left text-xs leading-tight transition-colors hover:border-primary md:px-3"
+              >
+                <User className="h-4 w-4 shrink-0" />
+                <span className="hidden max-w-[10rem] truncate sm:block">
+                  {user ? (
+                    <>
+                      <span className="block truncate font-semibold">{user.email ?? "Signed-in account"}</span>
+                      <span className="block text-muted-foreground">Profile &amp; Orders</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="block text-muted-foreground">Hello, sign in</span>
+                      <span className="block font-semibold">Account &amp; Orders</span>
+                    </>
+                  )}
+                </span>
+              </Link>
+              {user && (
+                <button
+                  type="button"
+                  aria-label="Sign out of account"
+                  title="Sign out"
+                  disabled={signingOut}
+                  onClick={handleSignOut}
+                  className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-card transition-colors hover:border-primary disabled:cursor-wait disabled:opacity-60"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
               )}
-            </span>
-          </Link>
+            </>
+          )}
 
           <Link
             to="/wishlist"
@@ -84,6 +124,15 @@ export function Header() {
 
           <CartDrawer />
         </div>
+        </div>
+        {error && (
+          <div role="alert" className="pt-2 text-xs text-destructive">
+            {error}{" "}
+            <Link to="/auth" className="font-semibold underline">
+              Try again
+            </Link>
+          </div>
+        )}
       </div>
 
       <nav className="border-t border-border bg-surface/60">

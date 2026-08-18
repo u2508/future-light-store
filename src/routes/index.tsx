@@ -4,6 +4,8 @@ import { ShieldCheck, Truck, RotateCcw, Sparkles } from "lucide-react";
 import heroImage from "@/assets/vs-hero.jpg";
 import { fetchProducts, discountPercent } from "@/lib/shopify";
 import { ProductShelf } from "@/components/vs/ProductShelf";
+import { canonicalUrl } from "@/lib/seo";
+import { HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -15,7 +17,7 @@ export const Route = createFileRoute("/")({
       },
       { property: "og:title", content: "Everyday essentials, engineered forward — VS Store" },
       { property: "og:description", content: "New arrivals, best sellers and limited-time offers, with tracked delivery." },
-      { property: "og:url", content: "https://future-light-store.lovable.app/" },
+      { property: "og:url", content: canonicalUrl("/") },
     ],
   }),
   component: Index,
@@ -112,6 +114,25 @@ function Index() {
         action={{ label: "Shop all", to: "/shop" }}
         emptyMessage="Nothing under $50 yet"
       />
+
+      <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="vs-store-answers">
+        <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
+          <h2 id="vs-store-answers" className="font-display text-2xl font-bold">
+            Answers for everyday shopping
+          </h2>
+          <div className="mt-5 grid gap-5 md:grid-cols-3">
+            {HOME_ANSWER_BLOCKS.map((block) => (
+              <article key={block.question}>
+                <h3 className="font-semibold">{block.question}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{block.answer}</p>
+              </article>
+            ))}
+          </div>
+          <Link to="/help" className="mt-6 inline-block text-sm font-semibold text-primary hover:underline">
+            Read all delivery, returns and tracking answers →
+          </Link>
+        </div>
+      </section>
 
       <section className="mx-auto max-w-7xl px-4 py-10">
         <div className="rounded-3xl border border-border vs-hero-gradient p-10 text-center text-primary-foreground">

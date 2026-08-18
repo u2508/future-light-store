@@ -5,6 +5,7 @@ import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { fetchProducts, isShopifyConfigured } from "@/lib/shopify";
 import { CollectionBrowser } from "@/components/vs/CollectionBrowser";
+import { canonicalUrl } from "@/lib/seo";
 
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/shop")({
       { property: "og:title", content: "Shop all — VS Store" },
       { property: "og:description", content: "Filter the full VS catalog by price, availability, size, colour and more." },
     ],
+    links: [{ rel: "canonical", href: canonicalUrl("/shop") }],
   }),
   component: ShopPage,
 });
