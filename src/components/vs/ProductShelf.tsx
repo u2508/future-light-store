@@ -49,7 +49,7 @@ export function ProductShelf({
       ) : products.length === 0 ? (
         <EmptyProducts message={emptyMessage ?? "No products found"} />
       ) : (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
           {products.map((p) => (
             <ProductCard key={p.node.id} product={p} />
           ))}
