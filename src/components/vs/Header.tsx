@@ -5,6 +5,7 @@ import { VsLogo } from "@/components/vs/VsLogo";
 import { PredictiveSearch } from "@/components/vs/PredictiveSearch";
 import { CartDrawer } from "@/components/vs/CartDrawer";
 import { useWishlistStore } from "@/stores/wishlistStore";
+import { useAuth } from "@/hooks/useAuth";
 
 const NAV = [
   { label: "Shop all", to: "/shop" as const },
@@ -19,6 +20,7 @@ const NAV = [
 export function Header() {
   const [mobileSearch, setMobileSearch] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
+  const { user } = useAuth();
   const wishlistCount = useWishlistStore((s) => s.items.length);
 
   return (
@@ -52,9 +54,18 @@ export function Header() {
             className="hidden items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left text-xs leading-tight transition-colors hover:border-primary md:flex"
           >
             <User className="h-4 w-4" />
-            <span>
-              <span className="block text-muted-foreground">Hello, sign in</span>
-              <span className="block font-semibold">Account &amp; Orders</span>
+            <span className="max-w-[10rem] truncate">
+              {user ? (
+                <>
+                  <span className="block truncate font-semibold">{user.email}</span>
+                  <span className="block text-muted-foreground">Account &amp; Orders</span>
+                </>
+              ) : (
+                <>
+                  <span className="block text-muted-foreground">Hello, sign in</span>
+                  <span className="block font-semibold">Account &amp; Orders</span>
+                </>
+              )}
             </span>
           </Link>
 
