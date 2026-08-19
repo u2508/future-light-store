@@ -1498,6 +1498,182 @@ export const CATALOG_TAXONOMY_IMAGE_OVERRIDES = Object.freeze([
     "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/Sede69f2bde2c48e0830d7f3fd399aa85R.webp?v=1786947520",
     "reviewedAt": "2026-08-18T12:30:00Z",
     "reason": "Live Shopify CDN image shows a protective tablet cover and the image text identifies Xiaomi Pad 7/Pad 7 Pro; phone-case taxonomy covers tablet cases."
+  },
+  {
+    "id": "image-future-light-15982747156561",
+    "productId": "15982747156561",
+    "handle": "protective-covers-shield-wall-waterproof-rainproof-cover-turret-dome-cameras-protection-box-security-camera-protection-case",
+    "ruleId": "camera-accessory",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S455f247e7c9043cd85145c9986befc4cQ.webp?v=1787021963",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a weatherproof dome security-camera cover; camera-accessory is the matching taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15982748270673",
+    "productId": "15982748270673",
+    "handle": "reliable-memory-card-16gb-32gb-64gb-256gb-and-micro-sd-card-sd-cards-tf-cards-fast-read-write-class-10-for-security-camera",
+    "ruleId": "merchant-electronics-fallback",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S0b6404fa2bff4d9a8fcbd674b95c042es.webp?v=1787021994",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows SD and micro-SD memory cards; the controlled electronic-accessory fallback is safer than treating storage media as a camera."
+  },
+  {
+    "id": "image-future-light-15982748827729",
+    "productId": "15982748827729",
+    "handle": "vb603-video-baby-monitor-2-4g-wireless-with-3-2-inches-lcd-2-way-audio-talk-night-vision-surveillance-security-camera-babysitter",
+    "ruleId": "camera-accessory",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S4fd53f6660f14cd08b2fe46bc6ee884fe.webp?v=1787022011",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a baby-monitor camera and handheld display; camera-accessory is the matching available taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15982748958801",
+    "productId": "15982748958801",
+    "handle": "cdycam-new-3-5-inch-wireless-video-baby-monitor-night-vision-temperature-monitoring-2-way-audio-talk-baby-nanny-security-camera",
+    "ruleId": "camera-accessory",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S9e6b18b572c14d7a990c8623b4619ca00.webp?v=1787022014",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a baby-monitor camera and display with night vision and temperature features; camera-accessory is the matching available taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15982750597201",
+    "productId": "15982750597201",
+    "handle": "aiyato-locator-works-with-apple-find-my-app-tracker-and-keys-finder-for-lost-keys-bags-wallets-luggage-only-for-ios",
+    "ruleId": "bluetooth-item-trackers",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S4c9d210f416e4ddfb541c7cbe333c1151.webp?v=1787022448",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image explicitly shows an Apple Find My global tracker; bluetooth-item-trackers is the matching taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15982750629969",
+    "productId": "15982750629969",
+    "handle": "smart-tracker-compatible-with-ios-and-android-designed-to-help-prevent-the-loss-of-keys-wallets-and-other-items",
+    "ruleId": "bluetooth-item-trackers",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S17143025a09b4d4a9949aecc5bb5f316w.webp?v=1787022448",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image explicitly shows a Google Find My and Apple Find My tracker; bluetooth-item-trackers is the matching taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15983058157649",
+    "productId": "15983058157649",
+    "handle": "smart-tracker-compatible-with-ios-and-android-designed-to-help-prevent-the-loss-of-keys-wallets-and-other-items-1",
+    "ruleId": "bluetooth-item-trackers",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S17143025a09b4d4a9949aecc5bb5f316w_eac00398-00b0-44a5-bcbc-699760b00ceb.webp?v=1787051648",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image explicitly shows a Google Find My and Apple Find My tracker; bluetooth-item-trackers is the matching taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15982751613009",
+    "productId": "15982751613009",
+    "handle": "watch-ultra-k62-men-women-1000mah-amoled-100-sport-heart-rate-hd-bluetooth-call-gps-track-waterproof-smart-watch-for-ios-android",
+    "ruleId": "smart-watch",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S7ef28ddd1bb446acb4bedbfa126e0c1av.webp?v=1787022470",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a smartwatch with GPS, Bluetooth calling, heart-rate, and sports features; smart-watch is the matching taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15982752038993",
+    "productId": "15982752038993",
+    "handle": "watch-5-global-version-smartwatches-men-women-hd-amoled-screen-heart-rate-waterproof-bluetooth-call-gps-track-sports-smart-watch",
+    "ruleId": "smart-watch",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S8096b5c5ee9a4f0ea7f28dafa0dee7d3l.webp?v=1787022484",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a sports smartwatch with iOS/Android support, heart-rate, GPS, and calling; smart-watch is the matching taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15983071264849",
+    "productId": "15983071264849",
+    "handle": "large-indoor-ornaments-for-home-party-diy-shopping-mall-gift-led-light-jack-o-lantern-halloween-decoration-pumpkin-lamp",
+    "ruleId": "home-decor",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/Se67de0c160fb4679aabd6d0127e655ca7.webp?v=1787052749",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a decorative jack-o-lantern ornament; home-decor is the matching taxonomy rule."
+  }
+  ,{
+    "id": "image-future-light-15983062384721",
+    "productId": "15983062384721",
+    "handle": "new-portable-fast-charging-removable-lithium-battery-22-5w-power-bank",
+    "ruleId": "power-bank",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S4d173e2d78b24f7b95e5fa19559b9f69D.webp?v=1787051808",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a portable removable lithium battery/power bank marked 22.5W; power-bank is the matching taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15982746435665",
+    "productId": "15982746435665",
+    "handle": "ip67-waterproof-type-c-solar-panel-charger-for-security-camera",
+    "ruleId": "charger",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S00613f1e32e64f03b795ac0ee95338763.webp?v=1787021952",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a Type-C solar panel charger for a security camera; charger is the closest matching available taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15982747844689",
+    "productId": "15982747844689",
+    "handle": "1-2m-carbon-fiber-invisible-selfie-stick-for-dji-action-camera",
+    "ruleId": "camera-accessory",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/Sfd01de0c2e7c46c3a4698b025d55720bg.webp?v=1787021981",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a telescoping invisible selfie stick for an action camera; camera-accessory is the matching taxonomy rule despite the conflicting charger title."
+  },
+  {
+    "id": "image-future-light-15983071395921",
+    "productId": "15983071395921",
+    "handle": "vibrant-halloween-oxford-cloth-apron",
+    "ruleId": "kitchen-aprons",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S422890b0672b4b51990d138062c2fffaO.webp?v=1787052753",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a Halloween Oxford-cloth apron; kitchen-aprons is the matching available apron taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15983071101009",
+    "productId": "15983071101009",
+    "handle": "halloween-3d-printed-balaclava-full-face-mask",
+    "ruleId": "face-masks",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S6e783d2178274f45a6a554d99495ca34r.webp?v=1787052748",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a Halloween full-face balaclava/mask; face-masks is the matching available mask taxonomy rule."
+  },
+  {
+    "id": "image-future-light-15981552369745",
+    "productId": "15981552369745",
+    "handle": "4-port-usb-3-0-2-0-hub-type-c-power-adapter",
+    "ruleId": "electronic-adapter",
+    "approved": true,
+    "imageReviewed": true,
+    "imageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S4bdea879316241cfa5ce180b7b5ba5f0K.webp?v=1786948112",
+    "reviewedAt": "2026-08-18T20:31:32Z",
+    "reason": "Live Shopify CDN image clearly shows a four-port USB 3.0/2.0 hub with Type-C power input; electronic-adapter is the matching taxonomy rule."
   }
 ]);
 

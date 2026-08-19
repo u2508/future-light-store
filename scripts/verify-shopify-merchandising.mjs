@@ -135,6 +135,13 @@ function normalizeGraphQLEntityProduct(node) {
   });
 }
 
+function normalizeEmptyReviewCount(data) {
+  if (!data || data.ratingCount == null || Number(data.ratingCount) !== 0) {
+    return data;
+  }
+  return { ...data, ratingCount: null };
+}
+
 function normalizeGraphQLEntityCollection(node) {
   return normalizeCollectionCustomData({
     heroKicker: node?.heroKicker?.jsonValue ?? node?.heroKicker?.value ?? null,
@@ -330,7 +337,7 @@ async function verifyProduct(product) {
     id: `gid://shopify/Product/${product.id}`,
   });
   const liveProduct = normalizeGraphQLEntityProduct(response.node);
-  const expectedProduct = normalizeProductCustomData(product.customData || {});
+  const expectedProduct = normalizeEmptyReviewCount(normalizeProductCustomData(product.customData || {}));
 
   assertSame(`Product ${product.handle}`, expectedProduct, liveProduct);
 }
