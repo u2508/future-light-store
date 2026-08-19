@@ -16,6 +16,9 @@ const collectionPageSize = Math.max(1, Math.min(250, Number(process.env.SALT_COL
 const productPageSize = 250;
 const jobPollMs = Math.max(1000, Number(process.env.SALT_COLLECTION_SHUFFLE_JOB_POLL_MS || 2000));
 const jobPollAttempts = Math.max(1, Number(process.env.SALT_COLLECTION_SHUFFLE_JOB_POLL_ATTEMPTS || 300));
+const readbackAttempts = Math.max(1, Number(process.env.SALT_COLLECTION_SHUFFLE_READBACK_ATTEMPTS || 6));
+const readbackDelayMs = Math.max(1000, Number(process.env.SALT_COLLECTION_SHUFFLE_READBACK_DELAY_MS || 3000));
+const reorderBatchSize = Math.max(1, Math.min(250, Number(process.env.SALT_COLLECTION_SHUFFLE_REORDER_BATCH_SIZE || 25)));
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "collection-shuffle" });
 const SHUFFLE_EXCLUDED_HANDLES = new Set(["all-products"]);
 
@@ -173,7 +176,7 @@ async function applyCollection(entry) {
     newlyLive: currentIds.filter((id) => !plannedSet.has(id)),
   };
   while (currentIds.join("|") !== targetIds.join("|")) {
-    const moves = buildCollectionReorderMoves(currentIds, targetIds);
+    const moves = buildCollectionReorderMoves(currentIds, targetIds, reorderBatchSize);
     if (!moves.length) throw new Error(`Unable to build a reorder move for ${entry.handle}`);
     const payload = await client.run(
       REORDER_MUTATION,
@@ -191,12 +194,19 @@ async function applyCollection(entry) {
     currentIds = applyCollectionReorderMoves(currentIds, moves);
   }
 
-  const actualIds = await fetchCollectionProducts(entry.id);
-  const actualTargetIds = buildLiveMembershipTarget(actualIds, targetIds);
-  if (actualIds.join("|") !== actualTargetIds.join("|")) {
-    throw new Error(`${entry.handle}: manual order readback mismatch`);
+  let actualIds = [];
+  for (let attempt = 1; attempt <= readbackAttempts; attempt += 1) {
+    actualIds = await fetchCollectionProducts(entry.id);
+    const actualTargetIds = buildLiveMembershipTarget(actualIds, targetIds);
+    if (actualIds.join("|") === actualTargetIds.join("|")) {
+      return membershipDrift;
+    }
+    if (attempt < readbackAttempts) {
+      process.stdout.write(`Shuffle readback pending for ${entry.handle}; retrying ${attempt}/${readbackAttempts}.\n`);
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, readbackDelayMs));
+    }
   }
-  return membershipDrift;
+  throw new Error(`${entry.handle}: manual order readback mismatch after ${readbackAttempts} attempts`);
 }
 
 async function main() {
@@ -284,7 +294,7 @@ async function main() {
         policy: {
           sortOrder: "MANUAL",
           seed: "one deterministic shuffle per collection per seed; the daily release supplies a new date seed",
-          mutationLimit: 250,
+          mutationLimit: reorderBatchSize,
           readback: "every collection order is read back after asynchronous reorder jobs finish",
           resume: "reuse the same date-seeded plan and begin each collection from live Shopify order",
         },
