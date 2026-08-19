@@ -55,12 +55,12 @@ export function Header() {
           <span className="hidden sm:inline-flex">Fast support from our help centre</span>
         </div>
       </div>
-      <div className="mx-auto max-w-7xl px-4 py-4">
+      <div className="mx-auto max-w-7xl px-3 py-4 sm:px-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setMobileNav((v) => !v)}
             aria-label="Open menu"
-            className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card shadow-sm transition-colors hover:border-primary"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border bg-card shadow-sm transition-colors hover:border-primary lg:ml-0"
           >
             {mobileNav ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </button>
