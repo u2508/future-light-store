@@ -117,9 +117,6 @@ function Index() {
           <h2 className="mt-3 font-display text-2xl font-bold sm:text-3xl">
             Designed to feel editorial, not transactional.
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
-            The storefront now leans into richer spacing, layered surfaces and more deliberate hierarchy so the catalog feels elevated on first view.
-          </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             {[
               "Silky gradients",
@@ -136,12 +133,6 @@ function Index() {
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
             <BadgeCheck className="h-4 w-4 text-electric" />
             Trusted shopping
-          </div>
-          <div className="mt-5 space-y-3">
-            <p className="font-display text-2xl font-bold">A smoother premium feel across every touchpoint.</p>
-            <p className="text-sm leading-7 text-muted-foreground">
-              Buttons, cards, sections and callouts now use softer borders, better contrast and more confident surfaces.
-            </p>
           </div>
           <div className="mt-6 rounded-2xl border border-border bg-muted/60 p-4">
             <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Experience upgrade</p>
