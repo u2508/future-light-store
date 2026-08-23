@@ -4,6 +4,7 @@ import {
   getProductMetafieldDefinitionId,
 } from "./shopify-product-metafield-definitions.js";
 import { normalizeProductCustomData } from "./product-custom-data.js";
+import { buildProductSpecifications } from "./product-specifications.js";
 import {
   assessProductContentSpecificity,
   buildCatalogContentCollisionIndex,
@@ -36,6 +37,7 @@ const BACKFILL_FIELD_IDS = {
   googleCustomProduct: "mm-google-shopping.custom_product",
   shopChannelMinimumQuantity: "salt-marketing.shop_channel_minimum_quantity",
   disclosures: "shopify.disclosure",
+  specifications: "salt-product.specifications",
 };
 
 const BACKFILL_FIELDS = Object.fromEntries(
@@ -197,6 +199,43 @@ function getProductExistingCustomData(product) {
     rating: product?.customData?.rating ?? product?.average_rating ?? null,
     ratingCount: product?.customData?.ratingCount ?? product?.total_reviews ?? null,
   });
+}
+
+function parseJsonMetafieldValue(entry) {
+  const raw = entry?.jsonValue ?? entry?.value ?? null;
+  if (raw && typeof raw === "object") return raw;
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function stableJsonValue(value) {
+  if (Array.isArray(value)) return value.map(stableJsonValue);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableJsonValue(value[key])]));
+}
+
+function buildProductSpecificationsWrite(product, existing) {
+  const specifications = buildProductSpecifications(product);
+  const existingSpecifications = parseJsonMetafieldValue(existing?.metafields?.[BACKFILL_FIELD_IDS.specifications]);
+  if (JSON.stringify(stableJsonValue(specifications)) === JSON.stringify(stableJsonValue(existingSpecifications))) {
+    return null;
+  }
+  return {
+    fieldId: BACKFILL_FIELD_IDS.specifications,
+    label: BACKFILL_FIELDS.specifications?.name || "Product specifications",
+    namespace: BACKFILL_FIELDS.specifications?.namespace || "salt-product",
+    key: BACKFILL_FIELDS.specifications?.key || "specifications",
+    type: BACKFILL_FIELDS.specifications?.type || "json",
+    ownerId: toShopifyGid("Product", product.id),
+    value: JSON.stringify(specifications),
+    reason: specifications.evidence.labeled_fact_count
+      ? `Stored ${specifications.evidence.labeled_fact_count} evidence-backed supplier specification(s)`
+      : "Stored product identity and available catalog evidence for downstream merchandising",
+  };
 }
 
 function isGenericCollectionHandle(handle) {
@@ -1383,6 +1422,14 @@ function buildProductPlan(product, context) {
   const skipped = [];
   const reasons = [];
 
+  const specificationsWrite = buildProductSpecificationsWrite(product, existing);
+  if (specificationsWrite) {
+    writes.push(specificationsWrite);
+    reasons.push("product-specifications");
+  } else {
+    skipped.push({ fieldId: BACKFILL_FIELD_IDS.specifications, reason: "already aligned with source evidence" });
+  }
+
   if (subtitle && subtitleAssessment.refresh) {
     writes.push({
       fieldId: BACKFILL_FIELD_IDS.subtitle,
@@ -1515,7 +1562,7 @@ function buildProductPlan(product, context) {
       type: BACKFILL_FIELDS.googleCustomProduct?.type || "boolean",
       ownerId: toShopifyGid("Product", product.id),
       value: "true",
-      reason: "Default Google custom product flag for SALT catalog",
+      reason: "Default Google custom product flag for Future Light Store catalog",
     });
     reasons.push("google-custom-product");
   } else if (hasMeaningfulValue(existing.googleCustomProduct)) {
@@ -1957,6 +2004,7 @@ export {
   BACKFILL_FIELD_IDS,
   BACKFILL_FIELDS,
   buildBackfillPlan,
+  buildProductSpecificationsWrite,
   buildMetafieldSetBatches,
   buildSearchBoostCandidates,
   createCatalogContext,

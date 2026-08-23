@@ -13,7 +13,7 @@ function shorten(value, maxLength) {
 }
 
 function buildVariantSeoTitle(productTitle, label, collisionNumber = 0) {
-  const normalizedProductTitle = normalizePlainText(productTitle || "SALT product");
+  const normalizedProductTitle = normalizePlainText(productTitle || "Future Light Store product");
   const normalizedLabel = normalizePlainText(label);
   const collisionSuffix = collisionNumber > 1 ? ` (${collisionNumber})` : "";
   const separator = normalizedLabel ? " - " : "";
@@ -46,7 +46,7 @@ export function variantSeoLabel(variant) {
 }
 
 export function buildVariantSeoProfile(product, variant, { currency = "USD" } = {}) {
-  const productTitle = normalizePlainText(product?.title || "SALT product");
+  const productTitle = normalizePlainText(product?.title || "Future Light Store product");
   const label = variantSeoLabel(variant);
   const price = parseMoneyValue(variant?.price);
   const title = buildVariantSeoTitle(productTitle, label);
@@ -72,7 +72,7 @@ export function buildVariantSeoProfiles(product, { currency = "USD" } = {}) {
     : Array.isArray(product?.variants?.nodes)
       ? product.variants.nodes
       : [];
-  const productTitle = normalizePlainText(product?.title || "SALT product");
+  const productTitle = normalizePlainText(product?.title || "Future Light Store product");
   const usedTitles = new Set();
 
   return variants.map((variant) => {

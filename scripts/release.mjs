@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { stableJson } from "./lib/performance-runtime.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,6 +18,12 @@ const releaseName = process.env.SALT_RELEASE_NAME || "Future Light Store";
 const catalogBatchSize = Math.max(1, Math.min(1000, Number(process.env.SALT_CATALOG_BATCH_SIZE || 50)));
 const releaseRunStatePath = resolve(rootDir, "output", "release-run-state.json");
 const releaseHeartbeatMs = Math.max(10_000, Number(process.env.SALT_RELEASE_HEARTBEAT_MS || 30_000));
+
+function releaseStepFingerprint(step, profile) {
+  return createHash("sha256")
+    .update(stableJson({ profile, label: step.label, command: step.command, args: step.args, cwd: step.cwd }))
+    .digest("hex");
+}
 
 const catalogIntegrityArgs = [
   "--reclassify",
@@ -128,13 +136,16 @@ function buildCatalogReleaseSteps({
   const verificationIntegrityArgs = process.env.SALT_RELEASE_REUSE_VERIFIED_PLAN === "1"
     ? [...integrityArgs, "--reuse-prior-manifest"]
     : integrityArgs;
-  // The final gate runs after tag/collection repairs, so it must fetch the
-  // current Shopify catalog instead of reusing the pre-repair checkpoint.
-  const finalIntegrityArgs = [...integrityArgs];
+  // The final gate still fetches current Shopify products, collections, and
+  // memberships. Reuse only the already verified classification plan so the
+  // release does not score the full catalog a second time after step 11.
+  const finalIntegrityArgs = process.env.SALT_RELEASE_REUSE_VERIFIED_PLAN === "1"
+    ? [...verificationIntegrityArgs]
+    : [...integrityArgs];
 
   return [
     {
-      label: "Verify trained 128M-record catalog knowledge model",
+      label: "Verify trained 256M-record catalog knowledge model",
       command: npmBin,
       args: ["run", "catalog:knowledge:model:verify"],
       cwd: releaseRootDir,
@@ -193,6 +204,12 @@ function buildCatalogReleaseSteps({
       args: ["run", "shopify:catalog-integrity:apply", "--", ...integrityArgs],
       cwd: releaseRootDir,
     },
+    ...(supervisedVision ? [{
+      label: "Automatically clear visual classification review with guarded evidence",
+      command: nodeBin,
+      args: [resolve(releaseRootDir, "scripts", "auto-resolve-catalog-visual-review.mjs")],
+      cwd: releaseRootDir,
+    }] : []),
     {
       label: "Refresh Shopify data after collection reconciliation",
       command: npmBin,
@@ -242,9 +259,51 @@ function buildCatalogReleaseSteps({
       cwd: releaseRootDir,
     },
     {
-      label: "Reconcile and verify Shopify SEO/product fields",
+      label: "Run local SEO and product-content quality audit",
       command: npmBin,
-      args: ["run", "shopify:seo:release"],
+      args: ["run", "shopify:seo:local-review"],
+      cwd: releaseRootDir,
+    },
+    {
+      label: "Dry-run full-catalog Shopify SEO and product-field reconciliation",
+      command: nodeBin,
+      args: [
+        resolve(releaseRootDir, "scripts", "shopify-seo-release.mjs"),
+        "--dry-run",
+        "--full-catalog",
+        "--preserve-prices",
+        "--preserve-tags",
+      ],
+      cwd: releaseRootDir,
+    },
+    {
+      label: "Apply full-catalog Shopify SEO and product-field reconciliation with live readback",
+      command: nodeBin,
+      args: [
+        resolve(releaseRootDir, "scripts", "shopify-seo-release.mjs"),
+        "--apply",
+        "--full-catalog",
+        "--preserve-prices",
+        "--preserve-tags",
+      ],
+      cwd: releaseRootDir,
+    },
+    {
+      label: "Apply approved taxonomy tags and metafields with live readback",
+      command: npmBin,
+      args: ["run", "shopify:taxonomy:apply"],
+      cwd: releaseRootDir,
+    },
+    {
+      label: "Dry-run deterministic and visual variant-image mapping",
+      command: npmBin,
+      args: ["run", "shopify:variant-image-mapping:dry-run"],
+      cwd: releaseRootDir,
+    },
+    {
+      label: "Apply resumable variant-image mapping with live readback",
+      command: npmBin,
+      args: ["run", "shopify:variant-image-mapping:apply"],
       cwd: releaseRootDir,
     },
     {
@@ -326,21 +385,21 @@ function buildCatalogReleaseSteps({
       cwd: releaseRootDir,
     },
     {
-      label: "Snapshot and dry-run guarded SALT tag and collection cleanup",
-      command: npmBin,
-      args: ["run", "shopify:tag-collection-cleanup:snapshot"],
+      label: "Verify Future Light managed tag cleanup is out of scope",
+      command: nodeBin,
+      args: ["-e", "process.stdout.write('Future Light Store: legacy cross-store tag cleanup is intentionally disabled.\\n')"],
       cwd: releaseRootDir,
     },
     {
-      label: "Abort on ambiguous SALT tag or collection cleanup changes",
-      command: npmBin,
-      args: ["run", "shopify:tag-collection-cleanup:dry-run"],
+      label: "Verify Future Light managed collection cleanup is out of scope",
+      command: nodeBin,
+      args: ["-e", "process.stdout.write('Future Light Store: legacy cross-store collection cleanup is intentionally disabled.\\n')"],
       cwd: releaseRootDir,
     },
     {
-      label: "Apply verified SALT tag and collection cleanup with live readback",
-      command: npmBin,
-      args: ["run", "shopify:tag-collection-cleanup:apply"],
+      label: "Confirm no cross-store cleanup process is launched",
+      command: nodeBin,
+      args: ["-e", "process.stdout.write('Future Light Store: no cross-store cleanup process launched.\\n')"],
       cwd: releaseRootDir,
     },
     {
@@ -475,7 +534,7 @@ export function buildReleaseSteps({
   return buildCatalogReleaseSteps({
     releaseRootDir,
     includeMobile,
-    supervisedVision: profile === "catalog" && process.env.SALT_CATALOG_VISION_SUPERVISED === "1",
+    supervisedVision: ["catalog", "daily"].includes(profile) && process.env.SALT_CATALOG_VISION_SUPERVISED === "1",
   });
 }
 
@@ -483,6 +542,7 @@ function parseArgs(argv) {
   const args = {
     profile: process.env.SALT_RELEASE_PROFILE || "catalog",
     resume: process.env.SALT_RELEASE_RESUME === "1",
+    fresh: false,
   };
 
   for (let index = 2; index < argv.length; index += 1) {
@@ -510,7 +570,16 @@ function parseArgs(argv) {
 
     if (token === "--resume") {
       args.resume = true;
+      continue;
     }
+
+    if (token === "--fresh") {
+      args.fresh = true;
+    }
+  }
+
+  if (args.resume && args.fresh) {
+    throw new Error("Release cannot use --resume and --fresh together");
   }
 
   if (!["catalog", "daily", "products"].includes(args.profile)) {
@@ -523,6 +592,7 @@ function parseArgs(argv) {
 async function main() {
   let args = { profile: process.env.SALT_RELEASE_PROFILE || "catalog" };
   let heartbeatTimer;
+  const invocationStartedAt = Date.now();
   try {
     args = parseArgs(process.argv);
     if (args.resume) {
@@ -565,6 +635,10 @@ async function main() {
       heartbeatAt: new Date().toISOString(),
       resumed: args.resume,
       resumedFromStep: args.resume ? resumeFromStep : null,
+      fresh: args.fresh,
+      completedSteps: args.resume && Array.isArray(previousRunState?.completedSteps)
+        ? previousRunState.completedSteps
+        : [],
     };
     await writeReleaseRunState();
     heartbeatTimer = setInterval(() => {
@@ -590,7 +664,7 @@ async function main() {
     process.stdout.write(`  shopify-theme: ${shopifyThemeDir}\n`);
     process.stdout.write(`  mobile-sync: ${process.env.SALT_RELEASE_SKIP_MOBILE === "1" ? "skipped" : "included"}\n`);
     process.stdout.write(`  profile: ${args.profile}\n`);
-    process.stdout.write(`  execution: ${args.resume ? `resume from step ${resumeFromStep}` : "full run"}\n`);
+    process.stdout.write(`  execution: ${args.resume ? `resume from step ${resumeFromStep}` : args.fresh ? "fresh run" : "guarded run"}\n`);
 
     if (args.profile === "products") {
       const { productCohortCatalog, productCohortHandles } = getReleasePaths(rootDir);
@@ -603,32 +677,81 @@ async function main() {
     if (resumeFromStep > steps.length) {
       throw new Error(`Cannot resume from step ${resumeFromStep}; release has ${steps.length} steps`);
     }
+    if (args.resume && previousRunState?.totalSteps && previousRunState.totalSteps !== steps.length) {
+      throw new Error(
+        `Cannot resume safely: the release step graph changed from ${previousRunState.totalSteps} to ${steps.length} steps. Use --fresh after reviewing the new graph.`,
+      );
+    }
+    if (args.resume && previousRunState?.stepFingerprint) {
+      const currentStepFingerprint = releaseStepFingerprint(steps[resumeFromStep - 1], args.profile);
+      if (currentStepFingerprint !== previousRunState.stepFingerprint) {
+        throw new Error(
+          `Cannot resume safely: step ${resumeFromStep} changed since the prior run. Use --fresh after reviewing the changed step.`,
+        );
+      }
+    }
     await writeReleaseRunState({ totalSteps: steps.length });
 
     for (const [index, step] of steps.entries()) {
-      if (index + 1 < resumeFromStep) continue;
+      const stepIndex = index + 1;
+      const fingerprint = releaseStepFingerprint(step, args.profile);
+      if (stepIndex < resumeFromStep) {
+        process.stdout.write(`[reuse] ${stepIndex}/${steps.length} ${step.label}\n`);
+        continue;
+      }
       await writeReleaseRunState({
-        stepIndex: index + 1,
+        stepIndex,
         stepLabel: step.label,
+        stepFingerprint: fingerprint,
       });
+      const stepStartedAt = Date.now();
       await runStage({
         ...step,
-        index: index + 1,
+        index: stepIndex,
         total: steps.length,
       });
 
       if (step.label === "Build web app") {
         await ensurePathExists(resolve(rootDir, "dist", "index.html"), "Vite build output");
       }
-      await writeReleaseRunState({ completedStepIndex: index + 1 });
+      const completedSteps = [
+        ...(Array.isArray(releaseRunState.completedSteps) ? releaseRunState.completedSteps : []),
+        {
+          index: stepIndex,
+          label: step.label,
+          fingerprint,
+          completedAt: new Date().toISOString(),
+          durationMs: Date.now() - stepStartedAt,
+        },
+      ].filter((entry, entryIndex, entries) => entries.findIndex((candidate) => candidate.index === entry.index) === entryIndex);
+      await writeReleaseRunState({
+        completedStepIndex: stepIndex,
+        completedStepFingerprint: fingerprint,
+        completedSteps,
+      });
+    }
+
+    const finalIntegrityManifestPath = resolve(rootDir, "output", "shopify-catalog-integrity-manifest.json");
+    try {
+      const finalIntegrityManifest = JSON.parse(await readFile(finalIntegrityManifestPath, "utf8"));
+      const classificationReviewRemaining = Number(finalIntegrityManifest?.summary?.classificationReviewRemaining || 0);
+      if (classificationReviewRemaining > 0) {
+        throw new Error(
+          `Release completion blocked: ${classificationReviewRemaining} active product(s) remain in classification-review. Inspect output/catalog-visual-review-queue.json and resume after visual decisions.`,
+        );
+      }
+    } catch (error) {
+      if (error?.message?.startsWith("Release completion blocked:")) throw error;
+      throw new Error(`Release completion blocked: final catalog integrity manifest is missing or unreadable at ${finalIntegrityManifestPath}.`);
     }
 
     await writeReleaseRunState({
       status: "completed",
       completedAt: new Date().toISOString(),
+      durationMs: Date.now() - invocationStartedAt,
       stepLabel: "complete",
     });
-    process.stdout.write("\nRelease complete.\n");
+    process.stdout.write(`\nRelease complete in ${Math.round((Date.now() - invocationStartedAt) / 1000)}s.\n`);
   } catch (error) {
     await writeReleaseRunState({
       status: "failed",

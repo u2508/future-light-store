@@ -10,6 +10,14 @@ live-readback scripts from the SALT release workflow.
 2. Set `SALT_SHOP_URL` to the Future Light Store Shopify domain.
 3. Set `SHOPIFY_ADMIN_ACCESS_TOKEN`, or configure the Shopify CLI for that
    store. Do not copy the SALT admin token.
+   If the category-metafield dry run reports evidence-backed candidates, the
+   authenticated app also needs Shopify `read_metaobjects` and
+   `write_metaobjects`. The apply remains guarded until that scope and this
+   Future-Light-specific flag are present:
+
+   ```text
+   FUTURE_LIGHT_CATEGORY_METAOBJECTS_APPROVED=1
+   ```
 4. Review and replace the pending approval manifests in `docs/` with
    Future-Light-specific approved manifests. The runner intentionally refuses
    to use SALT approval IDs or a pending manifest for live writes.
@@ -38,8 +46,31 @@ live-readback scripts from the SALT release workflow.
    npm run release
    ```
 
-For the scheduled/full-catalog profile use `npm run release:daily`. To resume
-an interrupted run use `npm run release:daily:resume`.
+The release interface intentionally has only two commands:
+
+```sh
+npm run release
+npm run release --resume
+```
+
+`release` runs the full Future Light Store daily profile and automatically
+continues a matching failed/interrupted run from its last guarded step. Use
+`npm run release --resume` when you explicitly want persisted resume behavior. The
+older `release:daily` and `release:daily:resume` names remain only as
+backward-compatible automation aliases. `npm run release --fresh` is an
+emergency step-1 reset for after the release graph has been reviewed.
+
+The runner applies bounded request concurrency, retry backoff, and local
+in-flight request reuse automatically. You can tune the limits with
+`SALT_SHOPIFY_REQUEST_CONCURRENCY`, `SALT_SHOPIFY_REQUEST_DELAY_MS`, and the
+existing per-workflow concurrency variables without changing the release
+ordering or its live-readback gates.
+
+The release keeps the visual classification queue at
+`output/catalog-visual-review-queue.json` and waits for image decisions rather
+than completing with unresolved products. After decisions are recorded in the
+taxonomy image overrides, the guarded integrity step resumes; completion is
+allowed only when `classificationReviewRemaining` is zero.
 
 ## Isolation guarantees
 

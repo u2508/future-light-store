@@ -143,7 +143,7 @@ function renderPage({ pageNumber, totalPages, records, summary }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SALT image review ${pageNumber}/${totalPages}</title>
+  <title>Future Light Store image review ${pageNumber}/${totalPages}</title>
   <style>
     :root { color-scheme: light; font-family: Georgia, "Times New Roman", serif; background: #f7f2e9; color: #14233b; }
     body { margin: 0; padding: 28px; background: radial-gradient(circle at 0 0, #fffaf0 0, transparent 45%), #f7f2e9; }
@@ -195,7 +195,7 @@ function renderIndex({ pageRecords, summary }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SALT visual taxonomy review</title>
+    <title>Future Light Store visual taxonomy review</title>
   <style>
     :root { font-family: Georgia, "Times New Roman", serif; background: #f7f2e9; color: #14233b; }
     body { max-width: 980px; margin: 0 auto; padding: 44px 24px; }

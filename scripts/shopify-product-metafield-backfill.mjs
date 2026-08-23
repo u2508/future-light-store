@@ -20,7 +20,11 @@ import {
   buildBackfillPlan,
   buildMetafieldSetBatches,
 } from "../src/lib/shopify-product-metafield-backfill.js";
+import {
+  buildCategoryMetafieldPlan,
+} from "../src/lib/shopify-category-metafield-backfill.js";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
+import { createRequestScheduler, envInteger } from "./lib/performance-runtime.mjs";
 
 const DEFAULT_SHOP_BASE = "";
 const DEFAULT_OUTPUT_FILE = resolve(process.cwd(), "output", "product-metafield-backfill-manifest.json");
@@ -31,6 +35,8 @@ const PRODUCT_CUSTOM_DATA_BULK_RESULT = resolve(process.cwd(), "output", ".shopi
 const SHOP_BASE = process.env.SALT_SHOP_URL || DEFAULT_SHOP_BASE;
 const SHOP_DOMAIN = new URL(SHOP_BASE).hostname;
 const SHOPIFY_ADMIN_API_VERSION = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
+const SHOPIFY_ADMIN_ACCESS_TOKEN = String(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim();
+const SHOPIFY_ADMIN_GRAPHQL_URL = `${new URL(SHOP_BASE).origin}/admin/api/${SHOPIFY_ADMIN_API_VERSION}/graphql.json`;
 const SHOPIFY_CLI_AGENT_INFO = process.env.SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:openai";
 const SHOPIFY_CLI_AGENT_IDS =
   process.env.SHOPIFY_CLI_AGENT_IDS || `s:future-light-store|r:${process.pid}|i:future-light-store`;
@@ -41,6 +47,7 @@ const JUDGEME_PUBLIC_TOKEN =
   process.env.SALT_JUDGEME_PUBLIC_TOKEN ||
   "";
 const BACKFILL_APPLY_CONCURRENCY = Math.max(1, Number(process.env.SALT_BACKFILL_APPLY_CONCURRENCY || 4));
+const BACKFILL_READ_CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.SALT_BACKFILL_READ_CONCURRENCY || 4)));
 const BACKFILL_BULK_THRESHOLD = Math.max(1, Number(process.env.SALT_BACKFILL_BULK_THRESHOLD || 500));
 const JUDGEME_SHOP_DOMAINS = Array.from(
   new Set(
@@ -58,7 +65,17 @@ const JUDGEME_SHOP_DOMAINS = Array.from(
 );
 const JUDGEME_FETCH_ENABLED = process.env.SALT_BACKFILL_LIVE_JUDGEME !== "0";
 const JUDGEME_CONCURRENCY = Number(process.env.SALT_BACKFILL_JUDGEME_CONCURRENCY || 8);
+const SHOPIFY_REQUEST_CONCURRENCY = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
+const SHOPIFY_REQUEST_DELAY_MS = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
+const shopifyRequestScheduler = createRequestScheduler({
+  concurrency: SHOPIFY_REQUEST_CONCURRENCY,
+  minIntervalMs: SHOPIFY_REQUEST_DELAY_MS,
+});
 const DIAPER_METAOBJECT_DEFINITION_ID = "gid://shopify/MetaobjectDefinition/9632874595";
+// Shopify's existing standard color entries use Solid when a product has a
+// color but no evidence-backed pattern. This keeps required Color metaobjects
+// valid without inventing a product-specific pattern.
+const DEFAULT_SOLID_PATTERN_TAXONOMY_VALUE_ID = "gid://shopify/TaxonomyValue/2874";
 const execFileAsync = promisify(execFile);
 
 const STAGED_UPLOAD_CREATE_MUTATION = /* GraphQL */ `
@@ -106,12 +123,126 @@ const SHOPIFY_TAXONOMY_SEARCH_QUERY = /* GraphQL */ `
   }
 `;
 
+const CATEGORY_METAFIELD_DEFINITIONS_QUERY = /* GraphQL */ `
+  query CategoryMetafieldDefinitions($first: Int!, $ownerType: MetafieldOwnerType!) {
+    metafieldDefinitions(first: $first, ownerType: $ownerType) {
+      nodes {
+        id
+        namespace
+        key
+      name
+      type { name }
+      validations { name value }
+      standardTemplate { id }
+      constraints { key }
+      }
+    }
+  }
+`;
+
+const CATEGORY_ATTRIBUTES_QUERY = /* GraphQL */ `
+  query CategoryAttributes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on TaxonomyCategory {
+        id
+        name
+        fullName
+        attributes(first: 250) {
+      nodes {
+        __typename
+        ... on TaxonomyAttribute {
+          id
+        }
+            ... on TaxonomyChoiceListAttribute {
+              id
+              name
+              values(first: 250) { nodes { id name } }
+            }
+            ... on TaxonomyMeasurementAttribute {
+              id
+              name
+              options { key value }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const CATEGORY_METAOBJECTS_QUERY = /* GraphQL */ `
+  query CategoryMetaobjects($type: String!, $first: Int!) {
+    metaobjects(type: $type, first: $first) {
+      nodes { id type fields { key value } }
+    }
+  }
+`;
+
+const CATEGORY_METAOBJECT_DEFINITION_QUERY = /* GraphQL */ `
+  query CategoryMetaobjectDefinition($id: ID!) {
+    metaobjectDefinition(id: $id) {
+      id
+      type
+      name
+      fieldDefinitions { key name required type { name } }
+    }
+  }
+`;
+
+const CATEGORY_METAOBJECT_NODES_QUERY = /* GraphQL */ `
+  query CategoryMetaobjectNodes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on Metaobject { id type fields { key value } }
+    }
+  }
+`;
+
+const CATEGORY_METAOBJECT_CREATE_MUTATION = /* GraphQL */ `
+  mutation CategoryMetaobjectCreate($metaobject: MetaobjectCreateInput!) {
+    metaobjectCreate(metaobject: $metaobject) {
+      metaobject { id type fields { key value } }
+      userErrors { field message code }
+    }
+  }
+`;
+
 const BULK_METAFIELDS_SET_MUTATION = /* GraphQL */ `
   mutation BackfillBulkMetafields($metafields: [MetafieldsSetInput!]!) {
     metafieldsSet(metafields: $metafields) {
       metafields { id namespace key }
       userErrors { field message code }
     }
+  }
+`;
+
+// MetafieldReference is a union in the Admin API. Scalar selections such as
+// `id` must be nested under concrete-type fragments; Shopify rejects direct
+// selections on the union during bulk-query validation.
+const METAFIELD_REFERENCE_NODE_FIELDS = /* GraphQL */ `
+  __typename
+  ... on Product {
+    id
+    legacyResourceId
+    handle
+    title
+    productType
+    vendor
+  }
+  ... on ProductVariant {
+    id
+    legacyResourceId
+    title
+  }
+  ... on Metaobject {
+    id
+    handle
+    displayName
+    type
+  }
+  ... on Collection {
+    id
+    handle
+    title
   }
 `;
 
@@ -147,6 +278,19 @@ const BULK_PRODUCT_CUSTOM_DATA_QUERY = /* GraphQL */ `
             }
           }
           category { id name fullName }
+          metafields(first: 250) {
+            edges {
+              node {
+                id
+                namespace
+                key
+                type
+                value
+                jsonValue
+                references(first: 50) { edges { node { ${METAFIELD_REFERENCE_NODE_FIELDS} } } }
+              }
+            }
+          }
           subtitle: metafield(namespace: "descriptors", key: "subtitle") { jsonValue value }
           badgeText: metafield(namespace: "salt-marketing", key: "badge_text") { jsonValue value }
           highlights: metafield(namespace: "salt-marketing", key: "highlights") { jsonValue value }
@@ -181,6 +325,8 @@ function parseArgs(argv) {
     productHandlesFile: "",
     onlyFields: [],
     productOnly: false,
+    categoryOnly: false,
+    categoryMetafieldsOnly: false,
     allActive: false,
     skipLiveReviews: false,
   };
@@ -271,6 +417,16 @@ function parseArgs(argv) {
 
     if (token === "--product-only") {
       args.productOnly = true;
+      continue;
+    }
+
+    if (token === "--category-only") {
+      args.categoryOnly = true;
+      continue;
+    }
+
+    if (token === "--category-metafields-only") {
+      args.categoryMetafieldsOnly = true;
       continue;
     }
 
@@ -378,7 +534,39 @@ function computeCliRetryDelayMs(attempt) {
   return Math.min(60_000, 1500 * 2 ** attempt + jitterMs);
 }
 
-async function runShopifyStoreGraphQL(query, variables = {}, { allowMutations = false } = {}) {
+async function runShopifyStoreGraphQLInternal(query, variables = {}, { allowMutations = false } = {}) {
+  if (SHOPIFY_ADMIN_ACCESS_TOKEN) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const response = await fetch(SHOPIFY_ADMIN_GRAPHQL_URL, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": SHOPIFY_ADMIN_ACCESS_TOKEN,
+        },
+        body: JSON.stringify({ query, variables }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      const graphQlErrors = Array.isArray(payload?.errors) ? payload.errors : [];
+      const errorText = graphQlErrors.map((entry) => entry?.message || "Unknown GraphQL error").join(" | ");
+      const throttled = response.status === 429 || /throttl|rate limit|too many requests/i.test(errorText);
+      if (throttled && attempt < 4) {
+        const delayMs = computeCliRetryDelayMs(attempt);
+        process.stdout.write(`Shopify Admin GraphQL throttled; retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt + 1}/4)\n`);
+        await sleep(delayMs);
+        continue;
+      }
+      if (!response.ok) {
+        throw new Error(`Shopify Admin GraphQL HTTP ${response.status}: ${JSON.stringify(payload).slice(0, 500)}`);
+      }
+      if (graphQlErrors.length) {
+        throw new Error(errorText);
+      }
+      return payload?.data || payload || {};
+    }
+    throw new Error("Shopify Admin GraphQL request exhausted its retry budget.");
+  }
+
   const serializedVariables = variables && Object.keys(variables).length ? variables : null;
   const tempDir = await mkdtemp(join(tmpdir(), "salt-shopify-cli-"));
   const queryFile = join(tempDir, "operation.graphql");
@@ -447,6 +635,10 @@ async function runShopifyStoreGraphQL(query, variables = {}, { allowMutations = 
   }
 }
 
+async function runShopifyStoreGraphQL(query, variables = {}, options = {}) {
+  return shopifyRequestScheduler.run(() => runShopifyStoreGraphQLInternal(query, variables, options));
+}
+
 function parseBadgeNumber(html, pattern) {
   const match = String(html || "").match(pattern);
   if (!match?.[1]) {
@@ -503,6 +695,16 @@ const PRODUCT_CUSTOM_DATA_QUERY = /* GraphQL */ `
           id
           name
           fullName
+        }
+        metafields(first: 250) {
+          nodes {
+            namespace
+            key
+            type
+            value
+            jsonValue
+            references(first: 50) { nodes { ${METAFIELD_REFERENCE_NODE_FIELDS} } }
+          }
         }
         subtitle: metafield(namespace: "descriptors", key: "subtitle") {
           jsonValue
@@ -799,6 +1001,7 @@ function normalizeLiveProductCustomDataNode(node) {
   }
 
   return normalizeProductCustomData({
+    metafields: node.metafields?.nodes || node.metafields?.edges?.map((edge) => edge?.node).filter(Boolean) || [],
     subtitle: node.subtitle?.jsonValue ?? node.subtitle?.value ?? null,
     badgeText: node.badgeText?.jsonValue ?? node.badgeText?.value ?? null,
     highlights: normalizeStringList(node.highlights?.jsonValue ?? node.highlights?.value ?? []),
@@ -831,30 +1034,26 @@ function normalizeLiveProductCustomDataNode(node) {
 async function fetchLiveProductCustomDataMapBatched(products, productIds, fingerprint) {
   const records = new Map();
   const batches = chunkArray(productIds, 50);
-  for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
-    const batch = batches[batchIndex];
-    if (!batch.length) {
-      continue;
-    }
-
-    const payload = await runShopifyStoreGraphQL(PRODUCT_CUSTOM_DATA_QUERY, {
-      ids: batch,
-    });
-
-    const nodes = Array.isArray(payload?.nodes) ? payload.nodes : [];
-    for (const node of nodes) {
-      if (!node?.legacyResourceId) {
-        continue;
+  let nextBatchIndex = 0;
+  let completedBatches = 0;
+  const worker = async () => {
+    while (true) {
+      const batchIndex = nextBatchIndex++;
+      if (batchIndex >= batches.length) return;
+      const batch = batches[batchIndex];
+      const payload = await runShopifyStoreGraphQL(PRODUCT_CUSTOM_DATA_QUERY, { ids: batch });
+      for (const node of Array.isArray(payload?.nodes) ? payload.nodes : []) {
+        if (!node?.legacyResourceId) continue;
+        const customData = normalizeLiveProductCustomDataNode(node) || normalizeProductCustomData({});
+        records.set(Number(node.legacyResourceId), buildLiveCustomDataRecord(node, customData));
       }
-
-      const customData = normalizeLiveProductCustomDataNode(node) || normalizeProductCustomData({});
-      records.set(Number(node.legacyResourceId), buildLiveCustomDataRecord(node, customData));
+      completedBatches += 1;
+      if (completedBatches % 5 === 0 || completedBatches === batches.length) {
+        process.stdout.write(`Read live metafields batches ${completedBatches}/${batches.length} (${records.size} products)\n`);
+      }
     }
-
-    if ((batchIndex + 1) % 10 === 0 || batchIndex + 1 === batches.length) {
-      process.stdout.write(`Read live metafields batch ${batchIndex + 1}/${batches.length} (${records.size} products)\n`);
-    }
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(BACKFILL_READ_CONCURRENCY, batches.length) }, () => worker()));
 
   await writeProductCustomDataCheckpoint(fingerprint, records);
   return records;
@@ -1661,12 +1860,21 @@ function resolveTaxonomyPath(path, categories) {
 
 async function buildCategoryPlans(products) {
   const candidates = (Array.isArray(products) ? products : [])
-    .filter((product) => !product?.shopifyCategory?.id)
     .map((product) => ({
       product,
       category: inferDeterministicShopifyTaxonomyCategory(product),
+      currentCategory: product?.shopifyCategory || null,
     }))
-    .filter((entry) => entry.category);
+    .filter((entry) => {
+      if (!entry.category) return false;
+      if (!entry.currentCategory?.id) return true;
+      const inferredId = String(entry.category.id || "");
+      const currentId = String(entry.currentCategory.id || "");
+      const inferredPath = normalizeTaxonomySegment(entry.category.fullName || entry.category.name);
+      const currentPath = normalizeTaxonomySegment(entry.currentCategory.fullName || entry.currentCategory.name);
+      return (inferredId && currentId && inferredId !== currentId) ||
+        (inferredPath && currentPath && inferredPath !== currentPath);
+    });
 
   const paths = [...new Set(
     candidates
@@ -1703,6 +1911,7 @@ async function buildCategoryPlans(products) {
       categoryFullName: resolved.fullName || category.fullName || "",
       confidence: category.confidence,
       reason: category.reason,
+      action: product.shopifyCategory?.id ? "repair-mismatch" : "assign-missing",
       };
     })
     .filter(Boolean);
@@ -1711,11 +1920,298 @@ async function buildCategoryPlans(products) {
     plans,
     summary: {
       candidates: candidates.length,
+      mismatched: candidates.filter(({ product }) => Boolean(product?.shopifyCategory?.id)).length,
       paths: paths.length,
       resolved: plans.length,
       unresolved: candidates.length - plans.length,
     },
   };
+}
+
+async function fetchCategoryMetafieldDefinitions() {
+  const payload = await runShopifyStoreGraphQL(CATEGORY_METAFIELD_DEFINITIONS_QUERY, {
+    first: 250,
+    ownerType: "PRODUCT",
+  });
+  return (payload?.metafieldDefinitions?.nodes || [])
+    .filter((definition) => definition?.namespace === "shopify" && definition?.key)
+    .map((definition) => ({
+      ...definition,
+      type: definition.type?.name || definition.type || "",
+      metaobjectDefinitionId: (definition.validations || []).find((validation) => validation?.name === "metaobject_definition_id")?.value || null,
+    }));
+}
+
+async function fetchCategoryAttributesMap(categoryIds) {
+  const ids = [...new Set(categoryIds.filter(Boolean).map(String))];
+  const result = new Map();
+  const chunks = chunkArray(ids, 50);
+  let nextChunk = 0;
+  const concurrency = Math.max(1, Math.min(4, Number(process.env.SALT_CATEGORY_READ_CONCURRENCY || 3)));
+  const worker = async () => {
+    while (true) {
+      const index = nextChunk++;
+      if (index >= chunks.length) return;
+      const payload = await runShopifyStoreGraphQL(CATEGORY_ATTRIBUTES_QUERY, { ids: chunks[index] });
+      for (const node of payload?.nodes || []) {
+        if (node?.id) result.set(String(node.id), node);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, chunks.length)) }, () => worker()));
+  return result;
+}
+
+async function buildCategoryMetafieldPlans(products, categoryPlanResult) {
+  const intendedCategories = new Map(
+    (products || [])
+      .filter((product) => product?.shopifyCategory?.id)
+      .map((product) => [Number(product.id), product.shopifyCategory]),
+  );
+  for (const plan of categoryPlanResult?.plans || []) {
+    intendedCategories.set(Number(plan.productId), {
+      id: plan.categoryId,
+      name: plan.categoryName,
+      fullName: plan.categoryFullName,
+    });
+  }
+  const categoryIds = [...new Set([...intendedCategories.values()].map((category) => category?.id).filter(Boolean))];
+  if (!categoryIds.length) {
+    return { plans: [], writes: [], summary: { products: 0, attributes: 0, candidates: 0, plannedWrites: 0, skipped: 0, requiresMetaobjectScopes: false } };
+  }
+  const [definitions, attributesByCategory] = await Promise.all([
+    fetchCategoryMetafieldDefinitions(),
+    fetchCategoryAttributesMap(categoryIds),
+  ]);
+  const plans = [];
+  for (const product of products || []) {
+    const category = intendedCategories.get(Number(product.id));
+    if (!category?.id) continue;
+    const attributes = attributesByCategory.get(String(category.id))?.attributes?.nodes || [];
+    const plan = buildCategoryMetafieldPlan({ product, category, definitions, attributes });
+    plans.push({ ...plan, categoryName: category.name, categoryFullName: category.fullName });
+  }
+  const writes = plans.flatMap((plan) => plan.writes || []);
+  return {
+    plans,
+    writes,
+    definitions,
+    summary: {
+      products: plans.length,
+      attributes: plans.reduce((sum, plan) => sum + (plan.writes?.length || 0) + (plan.skipped?.length || 0), 0),
+      candidates: writes.length,
+      plannedWrites: writes.length,
+      skipped: plans.reduce((sum, plan) => sum + (plan.skipped?.length || 0), 0),
+      requiresMetaobjectScopes: writes.length > 0,
+      scopeNote: writes.length ? "Applying category values requires read_metaobjects and write_metaobjects." : null,
+    },
+  };
+}
+
+function categoryMetafieldBatches(entries, maxEntries = 25) {
+  const batches = [];
+  for (let index = 0; index < entries.length; index += maxEntries) {
+    batches.push({
+      entries: entries.slice(index, index + maxEntries),
+      productIds: [...new Set(entries.slice(index, index + maxEntries).map((entry) => entry.productId))],
+      size: Math.min(maxEntries, entries.length - index),
+    });
+  }
+  return batches;
+}
+
+function categoryMetaobjectFieldValue(write, fieldDefinition = null) {
+  const fieldType = String(fieldDefinition?.type?.name || fieldDefinition?.type || "").toLowerCase();
+  if (fieldType.startsWith("list.") || write.taxonomyFieldKey === "color_taxonomy_reference") {
+    return JSON.stringify([write.taxonomyValueId]);
+  }
+  return write.taxonomyValueId;
+}
+
+function categoryMetaobjectFieldContainsValue(field, taxonomyValueId) {
+  const raw = String(field?.value || "").trim();
+  if (!raw) return false;
+  if (raw === taxonomyValueId) return true;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.map(String).includes(String(taxonomyValueId));
+  } catch {
+    return false;
+  }
+}
+
+async function ensureCategoryMetaobjectDefinition(write, cache) {
+  const definitionId = String(write.metaobjectDefinitionId || "").trim();
+  const cacheKey = `${write.metaobjectType}:${definitionId}`;
+  if (cache.has(cacheKey)) return cache.get(cacheKey);
+  if (!definitionId) {
+    throw new Error(
+      `${write.metaobjectType}: category metafield is missing its metaobject_definition_id validation; refusing to invent or create a Shopify-owned definition.`,
+    );
+  }
+  const payload = await runShopifyStoreGraphQL(CATEGORY_METAOBJECT_DEFINITION_QUERY, { id: definitionId });
+  const definition = payload?.metaobjectDefinition || null;
+  if (!definition?.id) {
+    throw new Error(
+      `${write.metaobjectType}: Shopify did not return metaobject definition ${definitionId}. Re-authorize the CLI with read_metaobjects/read_metaobject_definitions, then resume.`,
+    );
+  }
+  cache.set(cacheKey, definition);
+  return definition;
+}
+
+function categoryMetaobjectTaxonomyFieldDefinition(write, definition) {
+  const fieldDefinitions = Array.isArray(definition?.fieldDefinitions) ? definition.fieldDefinitions : [];
+  const attributeToken = String(write.attributeName || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const taxonomyFields = fieldDefinitions.filter((field) => /taxonomy.*reference|reference.*taxonomy/i.test(String(field?.type?.name || field?.type || "")));
+  return taxonomyFields.find((field) => {
+    const fieldToken = `${field?.key || ""} ${field?.name || ""}`.toLowerCase().replace(/[^a-z0-9]+/g, "");
+    return attributeToken && fieldToken.includes(attributeToken);
+  }) || taxonomyFields[0] || null;
+}
+
+function categoryMetaobjectExpectedFields(writes, definition) {
+  const fieldDefinitions = Array.isArray(definition?.fieldDefinitions) ? definition.fieldDefinitions : [];
+  const taxonomyFields = fieldDefinitions.filter((field) => /taxonomy.*reference|reference.*taxonomy/i.test(String(field?.type?.name || field?.type || "")));
+  const expected = [];
+  for (const fieldDefinition of taxonomyFields) {
+    const fieldToken = `${fieldDefinition?.key || ""} ${fieldDefinition?.name || ""}`.toLowerCase().replace(/[^a-z0-9]+/g, "");
+    const matchingWrite = writes.length === 1 && taxonomyFields.length === 1
+      ? writes[0]
+      : writes.find((write) => {
+      const attributeToken = String(write.attributeName || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+      return attributeToken && fieldToken.includes(attributeToken);
+      });
+    if (matchingWrite) {
+      expected.push({
+        fieldDefinition,
+        value: categoryMetaobjectFieldValue({ ...matchingWrite, taxonomyFieldKey: fieldDefinition.key }, fieldDefinition),
+        taxonomyValueId: matchingWrite.taxonomyValueId,
+      });
+      continue;
+    }
+    // The Shopify Color definition requires both Base color and Base pattern.
+    // A color-only product is valid with the standard Solid pattern, but a
+    // pattern-only product must never receive an invented color reference.
+    if (/pattern/i.test(fieldToken) && writes.some((write) => /color/i.test(String(write.attributeName || "")))) {
+      expected.push({
+        fieldDefinition,
+        value: DEFAULT_SOLID_PATTERN_TAXONOMY_VALUE_ID,
+        taxonomyValueId: DEFAULT_SOLID_PATTERN_TAXONOMY_VALUE_ID,
+      });
+    } else if (fieldDefinition.required) {
+      throw new Error(`${definition?.type || "category metaobject"}: required field ${fieldDefinition.key} has no evidence-backed value.`);
+    }
+  }
+  return expected;
+}
+
+async function resolveCategoryMetaobjectReference(write, cache, definitionCache, definition = null, relatedWrites = [write], metaobjectsCache = new Map()) {
+  const cacheKey = `${write.metaobjectType}:${relatedWrites.map((entry) => `${entry.attributeName}:${entry.taxonomyValueId}`).sort().join("|")}`;
+  if (cache.has(cacheKey)) return cache.get(cacheKey);
+  const resolvedDefinition = definition || await ensureCategoryMetaobjectDefinition(write, definitionCache);
+  const expectedFields = categoryMetaobjectExpectedFields(relatedWrites, resolvedDefinition);
+  const expectedByKey = new Map(expectedFields.map((entry) => [String(entry.fieldDefinition.key), entry]));
+  let metaobjectNodes = metaobjectsCache.get(write.metaobjectType);
+  if (!metaobjectNodes) {
+    const payload = await runShopifyStoreGraphQL(CATEGORY_METAOBJECTS_QUERY, {
+      type: write.metaobjectType,
+      first: 250,
+    });
+    metaobjectNodes = payload?.metaobjects?.nodes || [];
+    metaobjectsCache.set(write.metaobjectType, metaobjectNodes);
+  }
+  const existing = metaobjectNodes.find((node) =>
+    expectedFields.every((expected) => {
+      const field = (node?.fields || []).find((entry) => entry?.key === expected.fieldDefinition.key);
+      return categoryMetaobjectFieldContainsValue(field, expected.taxonomyValueId);
+    }),
+  );
+  if (existing?.id) {
+    cache.set(cacheKey, existing.id);
+    return existing.id;
+  }
+  const fieldKeys = new Set((resolvedDefinition.fieldDefinitions || []).map((field) => String(field?.key || "")).filter(Boolean));
+  const fields = expectedFields.map((entry) => ({ key: entry.fieldDefinition.key, value: entry.value }));
+  if (fieldKeys.has("label")) {
+    const labels = relatedWrites.map((entry) => String(entry.taxonomyValueName || "").trim()).filter(Boolean);
+    fields.push({ key: "label", value: labels.join(" / ") || write.attributeName });
+  }
+  const created = await runShopifyStoreGraphQL(CATEGORY_METAOBJECT_CREATE_MUTATION, {
+    metaobject: {
+      type: write.metaobjectType,
+      fields,
+    },
+  }, { allowMutations: true });
+  const errors = created?.metaobjectCreate?.userErrors || [];
+  if (errors.length) throw new Error(`${write.attributeName}: category metaobject creation failed: ${formatMetafieldUserErrors(errors)}`);
+  const id = created?.metaobjectCreate?.metaobject?.id;
+  if (!id) throw new Error(`${write.attributeName}: Shopify returned no standard category metaobject.`);
+  metaobjectNodes.push(created.metaobjectCreate.metaobject);
+  cache.set(cacheKey, id);
+  return id;
+}
+
+async function resolveCategoryMetafieldWrites(categoryWrites) {
+  if (!categoryWrites.length) return [];
+  const currentIds = [...new Set(categoryWrites.flatMap((write) => write.currentReferenceIds || []))];
+  const existingById = new Map();
+  if (currentIds.length) {
+    const payload = await runShopifyStoreGraphQL(CATEGORY_METAOBJECT_NODES_QUERY, { ids: currentIds });
+    for (const node of payload?.nodes || []) if (node?.id) existingById.set(String(node.id), node);
+  }
+  const cache = new Map();
+  const definitionCache = new Map();
+  const metaobjectsCache = new Map();
+  const resolved = [];
+  const groupedWrites = new Map();
+  for (const write of categoryWrites) {
+    const groupKey = `${write.productId}:${write.namespace}.${write.key}`;
+    const group = groupedWrites.get(groupKey) || [];
+    group.push(write);
+    groupedWrites.set(groupKey, group);
+  }
+  for (const writes of groupedWrites.values()) {
+    const write = writes[0];
+    try {
+      const definition = await ensureCategoryMetaobjectDefinition(write, definitionCache);
+      const expectedFields = categoryMetaobjectExpectedFields(writes, definition);
+      const currentReferenceIds = [...new Set(writes.flatMap((entry) => entry.currentReferenceIds || []))];
+      const currentMatches = currentReferenceIds.some((id) => {
+        const node = existingById.get(String(id));
+        return expectedFields.every((expected) => {
+          const field = (node?.fields || []).find((entry) => entry?.key === expected.fieldDefinition.key);
+          return categoryMetaobjectFieldContainsValue(field, expected.taxonomyValueId);
+        });
+      });
+      if (currentMatches) continue;
+      const referenceId = await resolveCategoryMetaobjectReference(write, cache, definitionCache, definition, writes, metaobjectsCache);
+      resolved.push({
+        ownerId: write.productGid,
+        ownerType: "PRODUCT",
+        ownerHandle: write.handle,
+        ownerTitle: write.handle,
+        namespace: write.namespace,
+        key: write.key,
+        type: "list.metaobject_reference",
+        value: JSON.stringify([referenceId]),
+        fieldId: `${write.namespace}.${write.key}`,
+        label: write.attributeName,
+        reason: write.reason,
+        productId: write.productId,
+        productHandle: write.handle,
+        productTitle: write.handle,
+      });
+    } catch (error) {
+      const message = error?.message || String(error);
+      if (/required field .* has no evidence-backed value|can't be blank|Owner subtype does not match/i.test(message)) {
+        process.stdout.write(`Skipped evidence-incomplete category metafield ${write.namespace}.${write.key} for ${write.handle}: ${message}\n`);
+        continue;
+      }
+      throw error;
+    }
+  }
+  return resolved;
 }
 
 async function applyCategoryPlans(plans) {
@@ -2132,7 +2628,7 @@ async function main() {
     allowShopifySearchBoostWrite: false,
     allowShopifyComplementaryWrite: false,
   });
-  const marketingBackfillPlan = args.productOnly
+  const marketingBackfillPlan = args.productOnly || args.categoryOnly || args.categoryMetafieldsOnly
     ? {
         ownerPlans: [],
         summary: {
@@ -2163,7 +2659,7 @@ async function main() {
             writes: (plan.writes || []).filter((write) => onlyFields.has(write.fieldId)),
           }))
           .filter((plan) => plan.writes.length);
-  const productPlans = scopeWrites(backfillPlan.productPlans);
+  const productPlans = args.categoryOnly || args.categoryMetafieldsOnly ? [] : scopeWrites(backfillPlan.productPlans);
   const marketingPlans = scopeWrites(marketingBackfillPlan.ownerPlans);
   const productBatches = buildMetafieldSetBatches(productPlans, 25);
   const marketingBatches = buildMarketingMetafieldSetBatches(marketingPlans, 25);
@@ -2172,6 +2668,26 @@ async function main() {
     ? { plans: [], summary: { candidates: 0, paths: 0, resolved: 0, unresolved: 0 } }
     : await buildCategoryPlans(hydratedProducts);
   const categoryPlans = categoryPlanResult.plans;
+  const categoryMetafieldPlanResult = args.productOnly || onlyFields.size
+    ? {
+        plans: [],
+        writes: [],
+        summary: { products: 0, attributes: 0, candidates: 0, plannedWrites: 0, skipped: 0, requiresMetaobjectScopes: false },
+      }
+    : await buildCategoryMetafieldPlans(hydratedProducts, categoryPlanResult).catch((error) => ({
+        plans: [],
+        writes: [],
+        summary: {
+          products: 0,
+          attributes: 0,
+          candidates: 0,
+          plannedWrites: 0,
+          skipped: 0,
+          requiresMetaobjectScopes: false,
+          error: error.message || String(error),
+        },
+      }));
+  const categoryMetafieldWrites = categoryMetafieldPlanResult.writes;
   const scopedWritesByField = {};
   for (const plan of productPlans) {
     for (const write of plan.writes || []) {
@@ -2242,11 +2758,15 @@ async function main() {
       marketingBatchesPlanned: marketingBatches.length,
       categoryUpdatesPlanned: categoryPlans.length,
       categoryResolution: categoryPlanResult.summary,
+      categoryMetafieldWritesPlanned: categoryMetafieldWrites.length,
+      categoryMetafieldResolution: categoryMetafieldPlanResult.summary,
     },
     products: productPlans,
     marketing: marketingPlans,
     categories: categoryPlans,
     categoryResolution: categoryPlanResult.summary,
+    categoryMetafields: categoryMetafieldPlanResult.plans,
+    categoryMetafieldResolution: categoryMetafieldPlanResult.summary,
     batches: batches.map((batch, index) => ({
       batch: index + 1,
       owners: batch.ownerDescriptors || batch.productIds || [],
@@ -2268,7 +2788,7 @@ async function main() {
   await writeManifest(args.outputFile, manifest);
   process.stdout.write(`Manifest written to ${args.outputFile}\n`);
   process.stdout.write(
-    `Dry-run plan: ${scopedProductSummary.totalWrites + marketingPlans.reduce((sum, plan) => sum + plan.writes.length, 0)} metafield write(s) and ${categoryPlans.length} category update(s) across ${scopedProductSummary.productsWithWrites} product(s) and ${marketingBackfillPlan.summary.scannedCollections} collection(s)\n`,
+    `Dry-run plan: ${scopedProductSummary.totalWrites + marketingPlans.reduce((sum, plan) => sum + plan.writes.length, 0)} product/marketing metafield write(s), ${categoryMetafieldWrites.length} category metafield candidate(s), and ${categoryPlans.length} category update(s) across ${scopedProductSummary.productsWithWrites} product(s) and ${marketingBackfillPlan.summary.scannedCollections} collection(s)\n`,
   );
 
   if (!args.apply) {
@@ -2276,15 +2796,31 @@ async function main() {
     return;
   }
 
-  if (!batches.length && !categoryPlans.length) {
+  if (categoryMetafieldPlanResult.summary?.error) {
+    throw new Error(`Category metafield discovery gate blocked live apply: ${categoryMetafieldPlanResult.summary.error}`);
+  }
+
+  if (!batches.length && !categoryPlans.length && !categoryMetafieldWrites.length) {
     process.stdout.write("No metafield or category writes were needed.\n");
     return;
   }
 
-  const categoryResults = categoryPlans.length ? await applyCategoryPlans(categoryPlans) : [];
+  if (categoryMetafieldWrites.length && process.env.FUTURE_LIGHT_CATEGORY_METAOBJECTS_APPROVED !== "1") {
+    throw new Error(
+      "Category metafield candidates are ready, but live standard metaobject resolution is held. Authorize read_metaobjects/write_metaobjects and set FUTURE_LIGHT_CATEGORY_METAOBJECTS_APPROVED=1 for the guarded apply.",
+    );
+  }
+
+  const categoryResults = categoryPlans.length && !args.categoryMetafieldsOnly ? await applyCategoryPlans(categoryPlans) : [];
   // Conditional standard metafields validate against the live product category.
   // Categories must be committed and read back before those metafields are set.
-  const applyResults = batches.length ? await applyBatches(batches, args.outputFile) : [];
+  const resolvedCategoryEntries = categoryMetafieldWrites.length
+    ? await resolveCategoryMetafieldWrites(categoryMetafieldWrites)
+    : [];
+  const categoryMetafieldBatchResult = categoryMetafieldBatches(resolvedCategoryEntries, 25);
+  const applyResults = batches.length || categoryMetafieldBatchResult.length
+    ? await applyBatches([...batches, ...categoryMetafieldBatchResult], args.outputFile)
+    : [];
   manifest.applied = {
     completedAt: new Date().toISOString(),
     batchCount: applyResults.length,

@@ -27,6 +27,7 @@ import {
 import { PRICE_REWORK_RULES } from "../src/lib/shopify-price-rework-policy.js";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
+import { createRequestScheduler, envInteger } from "./lib/performance-runtime.mjs";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -72,7 +73,8 @@ const cliBinary = process.env.SHOPIFY_CLI_BINARY || "shopify";
 const cliAgentInfo = process.env.SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:openai";
 const cliAgentIds =
   process.env.SHOPIFY_CLI_AGENT_IDS || `s:future-light-store|r:${process.pid}|i:future-light-store-seo`;
-const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 300));
+const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
+const requestConcurrency = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
 const maxAttempts = Math.max(1, Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
 const maxRetryDelayMs = Math.max(1000, Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));
 const seoApplyBatchSize = Math.max(1, Math.min(5, Number(process.env.SALT_SHOPIFY_SEO_BATCH_SIZE || 5)));
@@ -536,14 +538,9 @@ function parseGraphQlPayload(raw) {
   return payload?.data || payload;
 }
 
-let lastRequestFinishedAt = 0;
+const requestScheduler = createRequestScheduler({ concurrency: requestConcurrency, minIntervalMs: requestDelayMs });
 
-async function runShopifyCliGraphQL(query, variables, { allowMutations = false, operation, retryInfo } = {}) {
-  const now = Date.now();
-  const waitFor = requestDelayMs - (now - lastRequestFinishedAt);
-  if (waitFor > 0) {
-    await sleep(waitFor);
-  }
+async function runShopifyCliGraphQLInternal(query, variables, { allowMutations = false, operation, retryInfo } = {}) {
 
   if (adminAccessToken) {
     let attempt = 0;
@@ -563,10 +560,8 @@ async function runShopifyCliGraphQL(query, variables, { allowMutations = false, 
           throw new Error(`Admin GraphQL HTTP ${response.status}: ${rawOutput.slice(0, 500)}`);
         }
 
-        lastRequestFinishedAt = Date.now();
         return parseGraphQlPayload(rawOutput);
       } catch (error) {
-        lastRequestFinishedAt = Date.now();
         const message = String(error?.message || error);
         const transient = /429|rate limit|throttl|timeout|timed out|5\d\d|network|socket|temporar|aborted|enotfound|eai_again|getaddrinfo|dns/i.test(
           message,
@@ -628,7 +623,6 @@ async function runShopifyCliGraphQL(query, variables, { allowMutations = false, 
           env: getCliEnv(),
           maxBuffer: 20 * 1024 * 1024,
         });
-        lastRequestFinishedAt = Date.now();
         let rawOutput = "";
         try {
           rawOutput = await readFile(outputFile, "utf8");
@@ -637,7 +631,6 @@ async function runShopifyCliGraphQL(query, variables, { allowMutations = false, 
         }
         return parseGraphQlPayload(rawOutput);
       } catch (error) {
-        lastRequestFinishedAt = Date.now();
         const message = String(error?.stderr || error?.stdout || error?.message || error);
         const transient = /429|rate limit|throttl|timeout|timed out|5\d\d|network|socket|temporar|aborted|enotfound|eai_again|getaddrinfo|dns/i.test(message);
         if (!transient || attempt >= maxAttempts - 1) {
@@ -662,6 +655,10 @@ async function runShopifyCliGraphQL(query, variables, { allowMutations = false, 
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+async function runShopifyCliGraphQL(query, variables, options = {}) {
+  return requestScheduler.run(() => runShopifyCliGraphQLInternal(query, variables, options));
 }
 
 async function readJson(relativePath, { required = false } = {}) {

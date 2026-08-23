@@ -120,7 +120,18 @@ export function inferDeterministicShopifyTaxonomyCategory(product) {
 
   const classification = classifyCatalogTaxonomy(product);
   const fullName = normalizePlainText(classification?.shopifyCategory || "");
-  const result = classification?.reviewRequired || !fullName
+  // A category can be deterministic even when the broader SEO taxonomy asks
+  // for review because it has only one evidence lane. Accept that narrow case
+  // when the title/handle directly names the product family and the score is
+  // strong; keep all ambiguity and cross-family conflicts blocked.
+  const reviewReasons = new Set(classification?.reviewReasons || []);
+  const categoryEvidenceIsStrong = Boolean(
+    fullName &&
+    classification?.confidence >= 72 &&
+    classification?.evidence?.directFields?.some((field) => field === "title" || field === "handle") &&
+    [...reviewReasons].every((reason) => reason === "single-evidence-lane"),
+  );
+  const result = (!fullName || (classification?.reviewRequired && !categoryEvidenceIsStrong))
     ? null
     : {
         id: "",

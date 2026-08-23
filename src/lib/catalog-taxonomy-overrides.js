@@ -25,7 +25,9 @@ function normalizeHandle(value) {
 
 function normalizeId(value) {
   const id = String(value || "").trim();
-  return id || "";
+  if (!id) return "";
+  const shopifyProductId = id.match(/(?:gid:\/\/shopify\/Product\/)?(\d+)$/i);
+  return shopifyProductId?.[1] || id;
 }
 
 export function getCatalogTaxonomyOverride(product) {

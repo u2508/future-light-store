@@ -29,6 +29,7 @@ import {
   simpleCatalogTag,
 } from "../src/lib/catalog-simple-tags.js";
 import {
+  classifyCatalogTaxonomy,
   classifyCatalogTaxonomyByRuleId,
   classifyCatalogTaxonomyWithoutOverrides,
   CATALOG_TAXONOMY_VERSION,
@@ -53,11 +54,13 @@ import {
 } from "./shopify-admin-graphql-client.mjs";
 import { readProductCatalogPayload } from "./product-catalog-files-local.mjs";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-local.mjs";
-import { scoreCatalogKnowledgeModelBatch } from "./catalog-knowledge-model-accelerator-local.mjs";
+import { scoreCatalogKnowledgeModelBatch } from "./catalog-knowledge-model-accelerator.mjs";
+import { ensureFutureLightVisionRuntime } from "./future-light-vision-runtime.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const execFileAsync = promisify(execFile);
 const defaultOutputPath = resolve(rootDir, "output", "shopify-catalog-integrity-manifest.json");
+const visualReviewQueuePath = resolve(rootDir, "output", "catalog-visual-review-queue.json");
 const liveInputCheckpointPath = process.env.SALT_CATALOG_INTEGRITY_LIVE_CHECKPOINT ||
   resolve(rootDir, "output", ".shopify-catalog-integrity-live-input.json");
 const collectionApprovalPath = resolve(rootDir, "docs", "catalog-collection-approval.json");
@@ -75,7 +78,7 @@ const visionRequestTimeoutMs = Math.max(30_000, Number(process.env.SALT_CATALOG_
 const visionRequestAttempts = Math.max(1, Math.min(3, Number(process.env.SALT_CATALOG_VISION_REQUEST_ATTEMPTS || 2)));
 const classificationConcurrency = Math.max(
   1,
-  Math.min(8, Number(process.env.SALT_CATALOG_CLASSIFICATION_CONCURRENCY || 3)),
+  Math.min(12, Number(process.env.SALT_CATALOG_CLASSIFICATION_CONCURRENCY || 4)),
 );
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "catalog-integrity" });
 
@@ -716,7 +719,12 @@ function parseVisionJson(rawContent) {
   }
 }
 
+const inFlightImageFetches = new Map();
+
 async function imageAsBase64(url) {
+  const cacheKey = resizeImageUrl(url);
+  if (inFlightImageFetches.has(cacheKey)) return inFlightImageFetches.get(cacheKey);
+  const promise = (async () => {
   let lastError = null;
   for (let attempt = 1; attempt <= visionImageAttempts; attempt += 1) {
     for (const candidate of visionImageCandidates(url)) {
@@ -724,7 +732,7 @@ async function imageAsBase64(url) {
         const response = await fetch(candidate, {
           headers: {
             Accept: "image/avif,image/webp,image/jpeg,image/png,*/*",
-            "User-Agent": "SALT-catalog-supervised-vision/1.0",
+            "User-Agent": "Future-Light-Store-supervised-vision/1.0",
           },
           signal: AbortSignal.timeout(visionImageTimeoutMs),
         });
@@ -739,6 +747,13 @@ async function imageAsBase64(url) {
     if (attempt < visionImageAttempts) await sleep(visionImageRetryDelayMs * attempt);
   }
   throw lastError || new Error("image fetch failed");
+  })();
+  inFlightImageFetches.set(cacheKey, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlightImageFetches.delete(cacheKey);
+  }
 }
 
 function classifyVisionEvidence(product, content, imageUrl = null, imageUrls = []) {
@@ -892,6 +907,51 @@ function resolveDeterministicKnowledge(product, knowledgeModel = null, modelEvid
     return {
       knowledge: regularKnowledge,
       source: regularKnowledge.override ? "approved-override" : "taxonomy",
+    };
+  }
+
+  // A local vision runtime is valuable, but a missing Ollama daemon must not
+  // turn an obvious title-and-handle-backed product into a permanently blocked
+  // queue. Accept only direct evidence with a complete taxonomy path and the
+  // single-evidence-lane warning; ambiguity and reliable model conflicts stay
+  // review-held. This is evidence-backed classification, not a release guess.
+  const taxonomy = classifyCatalogTaxonomy(product);
+  const taxonomyReasons = new Set(taxonomy?.reviewReasons || []);
+  const regularReasons = new Set(regularKnowledge.reviewReasons || []);
+  const hasReliableModelConflict = [...regularReasons].some((reason) => String(reason).startsWith("Trained knowledge model disagrees"));
+  const directFields = new Set(taxonomy?.evidence?.directFields || []);
+  const directEvidence = directFields.has("title") || directFields.has("handle");
+  const onlySingleLane = [...taxonomyReasons].every((reason) => reason === "single-evidence-lane");
+  const completePath = Boolean(
+    taxonomy?.departmentId &&
+    taxonomy?.categoryId &&
+    taxonomy?.subcategoryId &&
+    taxonomy?.canonicalTypeId &&
+    taxonomy?.shopifyCategory,
+  );
+  const evidenceFallbackAllowed = Boolean(
+    !hasReliableModelConflict &&
+    directEvidence &&
+    completePath &&
+    Number(taxonomy?.confidence || 0) >= 72 &&
+    onlySingleLane,
+  );
+  if (evidenceFallbackAllowed) {
+    const evidenceBackedTaxonomy = {
+      ...taxonomy,
+      reviewRequired: false,
+      seoEligible: true,
+      reviewReasons: [],
+      evidence: {
+        ...taxonomy.evidence,
+        lanes: [...new Set([...(taxonomy.evidence?.lanes || []), "deterministic-direct-text"])],
+      },
+    };
+    return {
+      knowledge: buildProductKnowledgeFromTaxonomy(product, evidenceBackedTaxonomy, { knowledgeModel, modelEvidence }),
+      source: "evidence-fallback",
+      evidenceFallback: true,
+      reason: "Strong direct title/handle evidence resolved the only remaining single-evidence-lane hold.",
     };
   }
   return null;
@@ -1523,10 +1583,24 @@ async function verifyCollectionMembership({ targets, products, tagTasks, retryIn
 }
 
 async function run(args) {
+  const applyDuringVerify = args.mode === "verify" &&
+    args.reclassify &&
+    process.env.SALT_CATALOG_INTEGRITY_VERIFY_APPLY === "1";
+  const shouldApply = args.mode === "apply" || applyDuringVerify;
   if (args.supervisedVision && process.env.SALT_CATALOG_VISION_SUPERVISED !== "1") {
     throw new Error("--supervised-vision requires SALT_CATALOG_VISION_SUPERVISED=1; image evidence must be explicitly enabled by the release command.");
   }
-  if (args.mode === "apply") await verifyCollectionApproval();
+  if (args.supervisedVision) {
+    const visionRuntime = await ensureFutureLightVisionRuntime(rootDir);
+    if (visionRuntime.available && visionRuntime.installed) {
+      process.stdout.write(`Future Light local vision runtime ready: ${visionModel}.\n`);
+    } else if (visionRuntime.available) {
+      process.stdout.write(`Future Light local vision runtime is online but ${visionModel} is not installed; guarded deterministic evidence fallback remains enabled.\n`);
+    } else {
+      process.stdout.write(`Future Light local vision runtime unavailable (${visionRuntime.reason || "unknown reason"}); guarded deterministic evidence fallback remains enabled.\n`);
+    }
+  }
+  if (shouldApply) await verifyCollectionApproval();
   const retryInfo = [];
   const priorManifestPath = args.output === defaultOutputPath ? args.output : defaultOutputPath;
   const priorManifest = await readJson(priorManifestPath);
@@ -1597,12 +1671,18 @@ async function run(args) {
   }
   let modelEvidenceByKey = null;
   if (!canReusePriorManifest) {
+    const evidenceProducts = args.reviewOnly
+      ? products.filter((product) => reviewHandles.has(normalizeCollectionHandle(product.handle)))
+      : products;
     try {
-      modelEvidenceByKey = await scoreCatalogKnowledgeModelBatch(knowledgeModel, products);
+      modelEvidenceByKey = await scoreCatalogKnowledgeModelBatch(knowledgeModel, evidenceProducts);
     } catch (error) {
-      modelEvidenceByKey = await readCurrentKnowledgeEvidence(products);
+      modelEvidenceByKey = await readCurrentKnowledgeEvidence(evidenceProducts);
       if (!modelEvidenceByKey) throw error;
       process.stdout.write(`Using current-catalog knowledge evidence cache after model artifact read failure: ${error.message}\n`);
+    }
+    if (args.reviewOnly) {
+      process.stdout.write(`Review-only knowledge scoring completed for ${evidenceProducts.length}/${products.length} products.\n`);
     }
   }
   if (modelEvidenceByKey) {
@@ -1648,7 +1728,14 @@ async function run(args) {
         canReusePriorManifest &&
         prior?.tagTask &&
         Array.isArray(prior.tagTask.desiredManagedTags) &&
-        Array.isArray(prior.classification?.collectionHandles),
+        Array.isArray(prior.classification?.collectionHandles) &&
+        !(
+          prior.tagTask.desiredManagedTags.some((tag) => ["women", "men"].includes(normalizeCollectionHandle(tag))) &&
+          (() => {
+            const currentTaxonomy = classifyCatalogTaxonomy(product);
+            return currentTaxonomy?.familyId === "electronics" && currentTaxonomy?.audience?.id === "unisex";
+          })()
+        ),
       );
       if (canReusePriorTagPlan) {
         resolvedProducts[index] = {
@@ -1728,7 +1815,7 @@ async function run(args) {
     if (!collectionTags.length) {
       throw new Error(`${product.handle} has no semantic collection assignment after classification ${resolved.knowledge?.classificationRule || resolved.priorClassification?.ruleId || "unknown"}.`);
     }
-    const classificationTags = resolved.priorManagedTags ? [] : ["vision", "guess", "existing-vision"].includes(resolved.source)
+    const classificationTags = resolved.priorManagedTags ? [] : ["vision", "guess", "existing-vision", "evidence-fallback"].includes(resolved.source)
       ? [
         simpleCatalogTag("classification-rule", resolved.knowledge.classificationRule),
         simpleCatalogTag("classification-source", resolved.source === "existing-vision" ? "vision" : resolved.source),
@@ -1756,6 +1843,7 @@ async function run(args) {
       visionAlignment: resolved.visionAlignment || resolved.priorClassification?.visionAlignment || null,
       guessedRuleId: resolved.guessedRuleId || resolved.priorClassification?.guessedRuleId || null,
       visionError: resolved.visionError || resolved.priorClassification?.visionError || null,
+      evidenceFallback: Boolean(resolved.evidenceFallback || resolved.priorClassification?.evidenceFallback),
     });
   }
 
@@ -1773,6 +1861,27 @@ async function run(args) {
   assertSpecialCollectionMinimums(specialCollectionCounts);
 
   const targets = resolveCollectionTargets(collections);
+  const visualReviewQueue = classifications
+    .filter((entry) => entry.source === "review")
+    .map((entry) => ({
+      productId: entry.productId,
+      handle: entry.handle,
+      title: products.find((product) => product.handle === entry.handle)?.title || entry.handle,
+      imageUrls: entry.imageUrls || [],
+      reason: entry.visionError || "Visual classification decision required",
+      visualEvidence: entry.visualEvidence || null,
+      status: "pending",
+    }));
+  await writeFile(
+    visualReviewQueuePath,
+    `${JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      policy: "Every release must clear this queue before completion; unresolved items remain held in classification-review.",
+      pending: visualReviewQueue.length,
+      products: visualReviewQueue,
+    }, null, 2)}\n`,
+    "utf8",
+  );
   const onlineStorePublication = publications.find((publication) => normalizeTag(publication?.name) === "online store") || null;
   const actionableTagTasks = tagTasks.filter((task) => task.status === "would-update");
   const manifest = {
@@ -1795,6 +1904,7 @@ async function run(args) {
       semanticCollectionRule: "one canonical simple collection tag condition per collection",
       priceCollections: "exact variant-price source plus exact live membership verification",
       collectionlessProducts: "forbidden",
+      liveApplyDuringVerify: applyDuringVerify,
       stableClassification: "reuse the last completed valid classification rule for unchanged handles and recompute managed tags from current governance",
       auditBatchSize: args.batchSize,
     },
@@ -1810,7 +1920,11 @@ async function run(args) {
       taxonomyClassified: classifications.filter((entry) => entry.source === "taxonomy").length,
       approvedOverrides: classifications.filter((entry) => entry.source === "approved-override").length,
       visionClassified: classifications.filter((entry) => entry.source === "vision").length,
+      evidenceFallbackClassified: classifications.filter((entry) => entry.source === "evidence-fallback").length,
+      classificationReviewRemaining: visualReviewQueue.length,
+      visualReviewQueuePath,
       supervisedVision: Boolean(args.supervisedVision),
+      liveApplyDuringVerify: applyDuringVerify,
       guessedAssignments: classifications.filter((entry) => entry.source === "guess").length,
       reusedClassifications: classifications.filter((entry) => entry.reused).length,
       collectionlessProducts: null,
@@ -1839,7 +1953,10 @@ async function run(args) {
     return manifest;
   }
 
-  if (args.mode === "apply") {
+  if (shouldApply) {
+    if (applyDuringVerify) {
+      process.stdout.write("Catalog integrity: release-only guarded verify-apply enabled; applying evidence-backed tag and collection repairs before live readback.\n");
+    }
     await applyExactTags(tagTasks, retryInfo, args.output, manifest);
     await verifyExactTags(tagTasks, retryInfo);
     await applyCollectionTargets(targets, onlineStorePublication, retryInfo, args.output, manifest);

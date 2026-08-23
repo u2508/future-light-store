@@ -1,4 +1,4 @@
-export const PRODUCT_CONTENT_KNOWLEDGE_VERSION = "2026-08-05.1";
+export const PRODUCT_CONTENT_KNOWLEDGE_VERSION = "2026-08-22.2";
 
 export const MARKETPLACE_CONTENT_POLICY = Object.freeze({
   market: "US",
@@ -135,6 +135,26 @@ export const PRODUCT_CONTENT_FAMILIES = Object.freeze([
     use: "Confirm the stated device or earbud-model compatibility, then pair, fit, clean, or install it according to the supplied instructions.",
     benefit: "Its audio format, compatibility, and included option details help shoppers choose the correct earbuds or accessory.",
     audience: ["Shoppers comparing personal audio formats", "Device owners checking earbud compatibility", "Buyers replacing or maintaining an earbud accessory"],
+  }),
+  family({
+    id: "camera-mounting-arm",
+    terms: ["articulated arm", "double articulated arm", "camera mounting arm", "studio mounting arm", "5/8 hex pin", "1/4-20 female thread", "3/8-16 female thread"],
+    nouns: ["articulated camera mounting arm", "studio mounting arm", "camera support arm"],
+    facts: ["Product focus", "Device compatibility", "Supported features", "Available options"],
+    purpose: "positions a compatible camera, light, or studio accessory using the articulated arm and threaded fittings identified by the product",
+    use: "Confirm the 5/8 hex pin, 1/4-20 female thread, and 3/8-16 female thread against the equipment before ordering. Tighten each fitting securely, support the mounted load, and adjust the arm gradually.",
+    benefit: "Its multi-section arm and clearly listed thread formats help photography and studio users check fit before adding a mounting accessory to their setup.",
+    audience: ["Photography and video users building a camera or lighting rig", "Studio users checking pin and thread compatibility", "DIY creators comparing articulated mounting options"],
+  }),
+  family({
+    id: "audio-cable",
+    terms: ["aux audio cable", "3.5mm aux", "audio extension cable", "audio extension cord", "xh2.54", "xh2 54", "terminal male to male"],
+    nouns: ["AUX audio cable", "audio extension cable", "terminal audio cable"],
+    facts: ["Product focus", "Device compatibility", "Supported features", "Available options"],
+    purpose: "connects the audio source and terminal wiring formats explicitly identified by the product",
+    use: "Confirm the 3.5mm audio plug, XH2.54 3-pin terminal layout, and male-to-male connection before ordering, then connect it only to compatible equipment.",
+    benefit: "Its connector sizes and terminal layout help shoppers check fit before adding it to an audio or electronics setup.",
+    audience: ["Shoppers replacing an AUX or terminal audio lead", "DIY electronics users checking connector compatibility", "Buyers comparing audio extension cable formats"],
   }),
   family({
     id: "keyboard-accessory",

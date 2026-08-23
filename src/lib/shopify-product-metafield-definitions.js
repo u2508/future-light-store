@@ -252,6 +252,21 @@ const PRODUCT_METAFIELD_DEFINITIONS = [
     pin: true,
     description: "Versioned high-confidence catalog taxonomy used for search, filters, and collection mapping.",
   },
+  {
+    id: "salt-product.specifications",
+    kind: "custom",
+    name: "Product specifications",
+    namespace: "salt-product",
+    key: "specifications",
+    type: "json",
+    ownerType: "PRODUCT",
+    access: {
+      admin: "MERCHANT_READ_WRITE",
+      storefront: "PUBLIC_READ",
+    },
+    pin: true,
+    description: "Evidence-backed structured attributes extracted from the supplier description and catalog fields.",
+  },
 ];
 
 function getProductMetafieldDefinitionId(definition) {

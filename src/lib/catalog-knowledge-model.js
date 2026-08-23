@@ -6,9 +6,12 @@ import {
   tokenizeCatalogText,
 } from "./catalog-taxonomy.js";
 
-export const CATALOG_KNOWLEDGE_MODEL_VERSION = `${CATALOG_TAXONOMY_VERSION}.knowledge-model.128m.2`;
-export const CATALOG_KNOWLEDGE_MODEL_RECORDS = 128_000_000;
-export const CATALOG_KNOWLEDGE_MODEL_ALGORITHM = "deterministic-hierarchical-weighted-evidence-v2";
+export const CATALOG_KNOWLEDGE_MODEL_VERSION = `${CATALOG_TAXONOMY_VERSION}.knowledge-model.256m.3`;
+// This is an exact weighted record count, not an in-memory array. Training
+// remains bounded by the taxonomy representatives while the model carries a
+// larger listing-language prior without trading away release speed.
+export const CATALOG_KNOWLEDGE_MODEL_RECORDS = 256_000_000;
+export const CATALOG_KNOWLEDGE_MODEL_ALGORITHM = "deterministic-hierarchical-weighted-listing-evidence-v3";
 export const CATALOG_KNOWLEDGE_MODEL_MIN_MARGIN = 0.35;
 
 const MODEL_FIELD_WEIGHTS = Object.freeze({
@@ -25,6 +28,30 @@ const MODEL_PHRASE_WEIGHTS = Object.freeze({
   alias: 5,
   primary: 8,
   required: 4,
+  // Curated listing phrases are high-signal product nouns, so they can beat
+  // a broad fallback rule when the title/handle contains the phrase in both
+  // direct fields.
+  listing: 48,
+});
+
+// Product-listing language that is common in supplier data but too specific
+// to be represented by the broad taxonomy rule terms alone. These phrases
+// ground the model without allowing them to override the checked taxonomy.
+const MODEL_LISTING_PHRASES = Object.freeze({
+  "camera-accessory": [
+    "articulated arm",
+    "articulated camera arm",
+    "camera mounting arm",
+    "studio mounting arm",
+    "5 8 hex pin arm",
+  ],
+  "electronic-adapter": [
+    "3.5mm aux audio cable",
+    "audio extension cable",
+    "audio extension cord",
+    "xh2.54 terminal cable",
+    "terminal audio cable",
+  ],
 });
 
 const MODEL_SCORING_CACHE = new WeakMap();
@@ -38,7 +65,7 @@ function unique(values) {
 }
 
 function trainingTokens(value) {
-  return unique(tokenizeCatalogText(normalizeCatalogText(value)).filter((token) => token.length >= 2));
+  return unique(tokenizeCatalogText(normalizeCatalogText(value)).filter((token) => token.length >= 2 || /\d/.test(token)));
 }
 
 function normalizePhrases(values) {
@@ -67,18 +94,14 @@ function includesPhrase(tokens, expected) {
 }
 
 function modelFields(product) {
-  const rawTags = Array.isArray(product?.tags)
-    ? product.tags
-    : String(product?.tags || "").split(",");
-  const tags = rawTags
-    .map((tag) => String(tag || "").trim())
-    .filter((tag) => tag && !/^salt:/i.test(tag))
-    .join(" ");
   return {
     title: trainingTokens(product?.title),
     handle: trainingTokens(product?.handle),
     productType: trainingTokens(product?.product_type || product?.productType),
-    tags: trainingTokens(tags),
+    // Supplier tags are retained for audit output but excluded from model
+    // classification features because stale labels are a known source of
+    // wrong audience/category assignments.
+    tags: [],
     description: trainingTokens(product?.body_html || product?.descriptionHtml),
   };
 }
@@ -157,6 +180,16 @@ function representativeCandidates(definition) {
       title: `${definition.canonicalType} ${term}`,
       source: "required",
     }))),
+    ...asArray(MODEL_LISTING_PHRASES[definition.id]).map((phrase) => ({
+      title: `${definition.canonicalType} ${phrase}`,
+      source: "listing-evidence",
+    })),
+    // These templates teach the model how a shopper-facing listing connects
+    // the product noun to its approved hierarchy. They are only retained when
+    // the real taxonomy classifier resolves the template back to this rule.
+    { title: `${definition.canonicalType} ${definition.subcategoryLabel || ""}`.trim(), source: "subcategory-context" },
+    { title: `${definition.canonicalType} for ${definition.categoryLabel || ""}`.trim(), source: "category-context" },
+    { title: `${definition.canonicalType} for ${definition.departmentId || ""}`.trim(), source: "department-context" },
   ];
   const seen = new Set();
   return candidates.filter((candidate) => {
@@ -168,7 +201,8 @@ function representativeCandidates(definition) {
 }
 
 export function buildKnowledgeTrainingRepresentatives(definitions = getCatalogTaxonomyDefinitions()) {
-  return asArray(definitions).map((definition) => {
+  return asArray(definitions).flatMap((definition) => {
+    const accepted = [];
     for (const { title, source } of representativeCandidates(definition)) {
       const classification = classifyCatalogTaxonomyWithoutOverrides({
         id: "representative",
@@ -180,7 +214,7 @@ export function buildKnowledgeTrainingRepresentatives(definitions = getCatalogTa
       if (classification.ruleId !== definition.id || classification.reviewRequired || classification.seoEligible === false) {
         continue;
       }
-      return {
+      accepted.push({
         ruleId: definition.id,
         title,
         source,
@@ -192,10 +226,13 @@ export function buildKnowledgeTrainingRepresentatives(definitions = getCatalogTa
           definition.categoryLabel,
           definition.departmentId,
         ].join(" ")),
-      };
+      });
+      // Cap the per-rule template set so training remains bounded by the
+      // taxonomy vocabulary rather than by arbitrary supplier-string growth.
+      if (accepted.length >= 8) break;
     }
-    return null;
-  }).filter(Boolean);
+    return accepted;
+  });
 }
 
 function profileForRepresentatives(definition, representatives, documentCount) {
@@ -213,6 +250,7 @@ function profileForRepresentatives(definition, representatives, documentCount) {
     ...normalizePhrases(definition.aliases).map((phrase) => [phrase, "alias"]),
     ...normalizePhrases(definition.primaryTerms).map((phrase) => [phrase, "primary"]),
     ...asArray(definition.requires).flatMap((group) => normalizePhrases(group).map((phrase) => [phrase, "required"])),
+    ...asArray(MODEL_LISTING_PHRASES[definition.id]).map((phrase) => [normalizeCatalogText(phrase), "listing"]),
   ];
   for (const [phrase, source] of phrases) {
     phraseCounts[phrase] = {
@@ -293,10 +331,12 @@ export function trainCatalogKnowledgeModel({
     ruleProfiles,
     trainingMode: "bounded deterministic enhanced representative stream with exact record multiplicity; no raw merchant records",
     intelligence: [
-      "field-weighted title, handle, product type, tags, and description evidence",
+      "field-weighted title, handle, product type, and description evidence with supplier tags excluded from classification",
       "phrase anchors, aliases, primary terms, and required-term groups",
       "negative exclusion phrases and taxonomy hierarchy metadata",
       "deterministic priority and evidence-margin conflict holding",
+      "shopper-facing canonical, alias, subcategory, category, and department listing templates",
+      "connector-aware and audience-safe listing evidence; supplier tags never authoritatively set gender",
     ],
   };
 }
@@ -392,6 +432,7 @@ export function scoreCatalogKnowledgeModel(model, product, { modelEvidence = und
       .filter((group) => phraseHits(fields, group).length).length;
     const exclusionMatches = phraseHits(fields, negativePhrases);
     const directFieldCount = ["title", "handle", "productType"].filter((field) => fields[field].length).length;
+    const listingPhraseHits = positiveMatches.filter((match) => profile.phraseCounts?.[match.phrase]?.source === "listing").length;
     for (const match of positiveMatches) {
       const fieldMultiplier = Math.max(...match.fields.map((field) => MODEL_FIELD_WEIGHTS[field] || 1), 1);
       const metadata = profile.phraseCounts?.[match.phrase];
@@ -405,6 +446,7 @@ export function scoreCatalogKnowledgeModel(model, product, { modelEvidence = und
       ruleId: profile.ruleId,
       score,
       positivePhraseHits: positiveMatches.length,
+      listingPhraseHits,
       requiredGroupHits,
       exclusionHits: exclusionMatches.length,
       directFieldCount,
@@ -421,8 +463,11 @@ export function scoreCatalogKnowledgeModel(model, product, { modelEvidence = und
     top.positivePhraseHits > 0 &&
     top.directFieldCount > 0 &&
     top.exclusionHits === 0 &&
-    (top.requiredGroupHits > 0 || top.positivePhraseHits >= 2) &&
-    normalizedMargin >= 0.08,
+    (top.requiredGroupHits > 0 || top.positivePhraseHits >= 2 || top.listingPhraseHits > 0) &&
+    (
+      normalizedMargin >= 0.08 ||
+      (top.listingPhraseHits > 0 && top.directFieldCount >= 2 && normalizedMargin >= 0.06)
+    ),
   );
   return {
     modelVersion: model.modelVersion,

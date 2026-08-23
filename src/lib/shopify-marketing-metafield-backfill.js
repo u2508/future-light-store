@@ -153,7 +153,7 @@ function buildCollectionHeroSummary(collection, featuredProducts = [], catalogPr
     ? Number(catalogProductCount)
     : Number(collection?.products_count || featuredProducts.length || 0);
   if (handle === "all-products") {
-    return `Discover ${count.toLocaleString()} products across the full SALT catalog.`;
+    return `Discover ${count.toLocaleString()} products across the full Future Light Store catalog.`;
   }
 
   const description = stripHtml(collection?.description || "");
@@ -175,7 +175,7 @@ function isGeneratedCollectionHeroSummary(value) {
   const normalized = normalizePlainText(value || "");
   return (
     /^Discover [\d,]+ products in .+ selected for easier browsing and stronger conversion\.$/i.test(normalized) ||
-    /^Discover [\d,]+ products across the full SALT catalog\.$/i.test(normalized)
+    /^Discover [\d,]+ products across the full Future Light Store catalog\.$/i.test(normalized)
   );
 }
 
@@ -302,7 +302,7 @@ function buildShopPlan(shop, context) {
       ownerType: "SHOP",
       id: shopId || "shop",
       handle: "shop",
-      title: normalizePlainText(shop?.name || "SALT"),
+      title: normalizePlainText(shop?.name || "Future Light Store"),
       writes,
       skipped: [{ fieldId: "salt-marketing.banner_text", reason: "shop id unavailable" }],
     };
@@ -342,7 +342,7 @@ function buildShopPlan(shop, context) {
     ownerType: "SHOP",
     id: shop.id,
     handle: "shop",
-    title: normalizePlainText(shop.name || "SALT"),
+    title: normalizePlainText(shop.name || "Future Light Store"),
     writes,
     skipped,
   };
@@ -352,7 +352,7 @@ function buildMarketingBackfillPlan(input = {}) {
   const products = Array.isArray(input.products) ? input.products : [];
   const collections = Array.isArray(input.collections) ? input.collections : [];
   const collectionProducts = input.collectionProducts || { collections: {} };
-  const shop = input.shop || { id: "shop", name: "SALT", customData: null };
+  const shop = input.shop || { id: "shop", name: "Future Light Store", customData: null };
 
   const productsById = new Map(
     products

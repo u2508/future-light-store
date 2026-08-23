@@ -24,6 +24,8 @@ import {
   reconcileManagedMinimumQuantityTags,
 } from "./shopify-seo-managed-tags.js";
 import { classifyProductKnowledge, PRODUCT_KNOWLEDGE_BASE_VERSION } from "./product-knowledge-base.js";
+import { extractLabeledSpecificationFacts } from "./product-specifications.js";
+import { getCatalogTaxonomyDefinitions } from "./catalog-taxonomy.js";
 
 export const PER_ORDER_OVERHEAD = 16;
 const MAX_REASONABLE_RETAIL_PRICE = 14999.99;
@@ -320,6 +322,17 @@ function tokenizeText(value) {
 function titleCase(value) {
   return tokenizeText(value)
     .map((token) => {
+      const brandCase = {
+        airpods: "AirPods",
+        aux: "AUX",
+        hdmi: "HDMI",
+        ipad: "iPad",
+        iphone: "iPhone",
+        xiaomi: "Xiaomi",
+      }[token.toLowerCase()];
+      if (brandCase) {
+        return brandCase;
+      }
       if (/^\d+(?:\.\d+)?(?:v|a|w|mah|ml|gb|tb)$/i.test(token)) {
         return token.toUpperCase();
       }
@@ -637,8 +650,120 @@ function selectHandleFamilyPhrase(signals) {
 
 export function buildHandleAlignedTitle(signals) {
   const handle = normalizeHandleValue(signals.handle);
+  const semanticHandle = normalizeHandleValue([
+    signals.handle,
+    signals.sourceTitle,
+    signals.catalogTitle,
+    signals.sourceProductType,
+    signals.catalogProductType,
+  ].filter(Boolean).join(" "));
   if (/^link-for-price-difference(?:-|$)/i.test(handle)) {
     return "Order Price Difference Adjustment";
+  }
+  if (/(?:3[ .-]?5\s*mm|35mm).*?(?:aux|audio).*cable.*(?:xh2|terminal)|(?:aux|audio).*cable.*(?:xh2|terminal)/i.test(semanticHandle)) {
+    return "3.5mm AUX Audio Cable with XH2.54 3-Pin Male Terminals";
+  }
+  if (/(?:3[ .-]?5\s*mm|35mm).*?(?:aux|audio).*cable/i.test(semanticHandle)) {
+    return /usb[ -]?c.*(?:3[ .-]?5\s*mm|35mm)|(?:3[ .-]?5\s*mm|35mm).*usb[ -]?c/i.test(semanticHandle)
+      ? "USB-C to 3.5mm AUX Audio Cable"
+      : "3.5mm AUX Audio Cable";
+  }
+  if (/3-section-double-articulated-arm.*5-8-hex-pin/i.test(handle)) {
+    return "3-Section Double Articulated Camera Mounting Arm with 5/8 Hex Pin";
+  }
+  if (/anti-lost-ear-hooks|anti-lost-ear-hooks-for-wireless-earbuds/i.test(handle)) {
+    return "Anti-Lost Ear Hooks for Wireless Earbuds";
+  }
+  if (/360-rotatable-car-phone-holder|360-rotation.*car-phone-holder/i.test(handle)) {
+    return "360-Degree Universal Car Phone Holder";
+  }
+  if (/original-xiaomi-focus-stylus|xiaomi.*stylus-pen/i.test(handle)) {
+    return "Xiaomi Focus 8192-Level Magnetic Stylus Pen";
+  }
+  if (/comb-hair-brush-cleaner|hair-brush-cleaner/i.test(handle)) {
+    return "Hairbrush Cleaning Tool with Plastic Handle";
+  }
+  if (/fitness-keychain.*(?:gym|sports)|(?:gym|sports).*fitness-keychain/i.test(handle)) {
+    return "Fitness Keychain for Gym and Sports";
+  }
+  if (/case-for-iphone-13-mini.*shockproof-liquid-silicone/i.test(handle)) {
+    return "Shockproof Liquid Silicone iPhone Case for iPhone 13 Mini and Multiple Models";
+  }
+  if (/luxury-shockproof-transparent-case-for-iphone-17/i.test(handle)) {
+    return "Shockproof Transparent iPhone 17 Case for Multiple Models";
+  }
+  if (/case-for-iphone-17.*cute-little-hearts/i.test(handle)) {
+    return "Cute Hearts iPhone 17 Case for Multiple Models";
+  }
+  if (/case-for-iphone-13-pro.*shockproof-clear-silicone/i.test(handle)) {
+    return "Clear Silicone iPhone 13 Pro Case for Multiple Models";
+  }
+  if (/free-shipping-10pcs.*dcdc-power-module/i.test(handle)) {
+    return "10-Piece DC-DC Power Module Set, 3.3V-24V";
+  }
+  if (/earpads.*house-of-marley/i.test(handle)) {
+    return "House of Marley Headphone Replacement Earpads";
+  }
+  if (/dual-hot-shoes-holder|dual-hot-shoe-holder/i.test(handle)) {
+    return "Camera Flash L-Bracket with Dual Hot-Shoe Mounts";
+  }
+  if (/(?:dcdc|dc-dc).*power-module|power-module.*(?:dcdc|dc-dc)/i.test(handle)) {
+    return "DC-DC Power Module Set, 3.3V-24V";
+  }
+  if (/softbox.*(?:bowens|honeycomb)|(?:bowens|honeycomb).*softbox/i.test(handle)) {
+    return "Bowens Studio Softbox with Honeycomb Grid";
+  }
+  if (/dive-case.*insta360.*x3|insta360.*x3.*(?:dive|underwater).*case/i.test(handle)) {
+    return "Waterproof Insta360 X3 Dive Case";
+  }
+  if (/shutter-release.*(?:nikon|yongnuo)|(?:nikon|yongnuo).*shutter-release/i.test(handle)) {
+    return "Camera Shutter-Release Cable for Nikon Cameras";
+  }
+  if (/usb-extension|usb-extender/i.test(handle)) {
+    return "USB Extension Cable";
+  }
+  if (/(?:lipo|li-ion).*battery.*(?:drone|quadcopter|helicopter|fpv|rc)/i.test(handle)) {
+    return "Rechargeable LiPo Battery for RC Aircraft";
+  }
+  if (/(?:controller|gamepad|joystick).*cover|cover.*(?:controller|gamepad|joystick)/i.test(handle)) {
+    return "Anti-Slip Game Controller Cover";
+  }
+  if (/(?:digital|dvb-t|indoor).*antenna|antenna.*(?:digital|dvb-t|indoor)/i.test(handle)) {
+    return "Indoor Digital TV Antenna";
+  }
+  if (/rubber-plugs?.*console|console.*rubber-(?:plugs?|replacement)/i.test(handle)) {
+    return "Console Replacement Rubber Plugs";
+  }
+  if (/(?:micro-switch|microswitch).*switch|switch.*(?:micro-switch|microswitch)/i.test(handle)) {
+    return "Replacement Micro-Switch for Game Controller";
+  }
+  if (/(?:bluetooth|usb).*aux.*adapter|aux.*adapter.*(?:bluetooth|usb)/i.test(handle)) {
+    return "USB Bluetooth AUX Audio Adapter";
+  }
+  if (/sports-arm-bag|arm-pouch|running-mobile-phone-arm-bag/i.test(handle)) {
+    return "Waterproof Fitness Arm Bag for Running";
+  }
+  if (/acotar.*airpod.*case|airpods?.*(?:case|cover)|(?:case|cover).*airpods?/i.test(handle)) {
+    return "Black AirPods Protective Case for Multiple Models";
+  }
+  if (/powerbank|power-bank|external-battery/i.test(handle)) {
+    const pack = handle.match(/^(\d+)-in-1/i)?.[1];
+    const capacity = handle.match(/(\d{4,6})mah/i)?.[1];
+    const wattage = handle.match(/(\d+)w-wireless-power-bank/i)?.[1];
+    return `${pack ? `${pack}-in-1 ` : ""}${capacity ? `${Number(capacity).toLocaleString()}mAh ` : ""}Magnetic Wireless Power Bank${wattage ? `, ${wattage}W` : ""}`.trim();
+  }
+  if (/galaxy-projector.*(?:disc|film)|(?:disc|film).*galaxy-projector/i.test(handle)) {
+    return "Galaxy Projector Replacement Film Discs";
+  }
+  if (/led-strip.*(?:tv|55|65)|(?:tv|55|65).*led-strip/i.test(handle)) {
+    return "TV LED Backlight Strip";
+  }
+  if (/(?:mixer|mixing-console).*\d+[- ]?channel|\d+[- ]?channel.*(?:mixer|mixing-console)/i.test(handle)) {
+    const channels = handle.match(/(\d+)[- ]?channel/i)?.[1];
+    return `${channels ? `${channels}-Channel ` : ""}Audio Mixer`;
+  }
+  if (/(?:rca|coaxial).*cable|cable.*(?:rca|coaxial)/i.test(handle)) {
+    return "RCA Coaxial Audio Cable";
   }
   if (/desktop-magnetic.*(?:whiteboard|blackboard)|standing-blackboard/i.test(handle)) {
     return "Desktop Magnetic Whiteboard and Standing Display Sign";
@@ -654,6 +779,55 @@ export function buildHandleAlignedTitle(signals) {
   }
   if (/dried-flower-buds.*(?:soap|candle|craft)/i.test(handle)) {
     return "Dried Flower Buds for Soap, Candle and Craft Projects";
+  }
+  if (/(?:phone|smartphone|mobile-phone).*(?:case|holder|mount|pouch)|(?:case|holder|mount|pouch).*(?:phone|smartphone|mobile-phone)/i.test(semanticHandle) && !/tripod|selfie-stick|gimbal/i.test(semanticHandle)) {
+    const features = [
+      /fixed|stationary/i.test(semanticHandle) ? "Fixed" : "",
+      /universal/i.test(semanticHandle) ? "Universal" : "",
+      /waterproof|water-resistant/i.test(semanticHandle) ? "Waterproof" : "",
+      /anti-fog|antifog|fog-resistant/i.test(semanticHandle) ? "Anti-Fog" : "",
+    ].filter(Boolean);
+    const setting = /bathroom|shower/i.test(semanticHandle) ? "Shower" : "";
+    const phoneCase = /(?:iphone|ipad|phone|smartphone|mobile-phone).*(?:case|cover)|(?:case|cover).*(?:iphone|ipad|phone|smartphone|mobile-phone)/i.test(semanticHandle);
+    if (phoneCase) {
+      const caseFeatures = [
+        /custom/i.test(semanticHandle) ? "Custom" : "",
+        /magnetic|magsafe|macsafe/i.test(semanticHandle) ? "Magnetic" : "",
+        /shockproof/i.test(semanticHandle) ? "Shockproof" : "",
+        /waterproof|ip68|water-resistant/i.test(semanticHandle) ? "Waterproof" : "",
+        /transparent|clear/i.test(semanticHandle) ? "Transparent" : "",
+        /denim/i.test(semanticHandle) ? "Denim" : "",
+        /leather/i.test(semanticHandle) ? "Leather" : "",
+        /silicone|silicon|tpu/i.test(semanticHandle) ? "Silicone" : "",
+        /embroidered|illustration|cartoon/i.test(semanticHandle) ? "Illustrated" : "",
+        /leopard/i.test(semanticHandle) ? "Leopard Print" : "",
+        /hearts?|monkey/i.test(semanticHandle) ? "Printed" : "",
+        /floral|flower|wave|star|patchwork/i.test(semanticHandle) ? "Patterned" : "",
+      ].filter(Boolean);
+      const modelMatch = semanticHandle.match(/\biphone-(\d{1,2}e?|x|xr|xs|se|air)(?:-(?:pro|max|plus|mini))*\b/i);
+      const model = modelMatch ? `iPhone ${modelMatch[1].toUpperCase() === "AIR" ? "Air" : modelMatch[1]}` : "iPhone";
+      const multipleModels = /\biphone-(?:\d{1,2}e?|x|xr|xs|se|air)(?:-(?:pro|max|plus|mini))*-(?:\d{1,2}e?|x|xr|xs|se|air)\b/i.test(semanticHandle) || /\bcases?-iphone\b/i.test(semanticHandle);
+      const brand = /\bugreen\b/i.test(semanticHandle) ? "Ugreen " : "";
+      return `${brand}${caseFeatures.slice(0, 3).join(" ")}${caseFeatures.length ? " " : ""}${model} Case${multipleModels ? " for Multiple Models" : ""}`.trim();
+    }
+    const productNoun = /case.*holder|holder.*case/i.test(semanticHandle)
+      ? "Phone Holder Case"
+      : /holder|mount/i.test(semanticHandle)
+        ? "Phone Holder"
+        : "Phone Case";
+    return [...features, setting, productNoun].filter(Boolean).join(" ");
+  }
+  if (/silicone-case-for-xiaomi-redmi-pad-2|redmi-pad-2.*(?:case|cover)/i.test(handle)) {
+    return "Xiaomi Redmi Pad 2 Silicone Case with Trifold Stand";
+  }
+  if (/tripod.*(?:phone|smartphone|camera)|(?:phone|smartphone|camera).*tripod|camera-stand|selfie-stick|gimbal/i.test(semanticHandle) || /(?:^|-)tripod(?:-|$)/i.test(semanticHandle)) {
+    const height = semanticHandle.match(/(?:^|-)(\d{3,4})mm(?:-|$)/i)?.[1];
+    const format = /selfie-stick/i.test(semanticHandle)
+      ? "Selfie Stick"
+      : /gimbal/i.test(semanticHandle)
+        ? "Phone and Camera Gimbal"
+        : "Smartphone and Camera Tripod Stand";
+    return `${height ? `${height}mm ` : ""}${format}`;
   }
   if (/baby-toys?.*(?:drum|piano)|(?:drum|piano).*(?:toddler|baby-toys?)/i.test(handle)) {
     return "Musical Drum and Piano Toy with Lights and Sound for Toddlers";
@@ -1119,6 +1293,18 @@ function selectBestTitleCandidate(candidates, signals, sourceTitle) {
       score -= 12;
     }
 
+    const uniqueTokenCount = new Set(tokens).size;
+    score -= Math.max(0, tokens.length - uniqueTokenCount) * 6;
+    if (tokens.length > 10) {
+      score -= (tokens.length - 10) * 3;
+    }
+    if (/\b(?:high quality|best selling|best seller|wholesale|dropshipping|free shipping|factory direct)\b/i.test(normalizedCandidate)) {
+      score -= 10;
+    }
+    if (/^for\b/i.test(normalizedCandidate)) {
+      score -= 4;
+    }
+
     if (score > bestScore || (score === bestScore && normalizedCandidate.length < bestCandidate.length)) {
       bestScore = score;
       bestCandidate = normalizedCandidate;
@@ -1212,46 +1398,279 @@ function buildSearchPhrases(signals) {
   );
 }
 
+function firstFactValue(facts, labels) {
+  const wanted = new Set(labels);
+  return (facts || []).find((fact) => wanted.has(fact.label))?.value || "";
+}
+
+function humanizeFactList(value) {
+  const items = uniqueValues(normalizePlainText(value).split(/\s*,\s*/).map((item) => item.trim()).filter(Boolean));
+  if (items.length <= 1) return items[0] || "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+}
+
+function polishListingValue(value) {
+  return normalizePlainText(value)
+    .replace(/\biphone\b/gi, "iPhone")
+    .replace(/\biPhone\s*(\d{1,2})\b/gi, "iPhone $1")
+    .replace(/\biPhone\s*air\b/gi, "iPhone Air")
+    .replace(/\bairpods?\s*(pro|3|2)\b/gi, (_, model) => `AirPods ${model[0].toUpperCase()}${model.slice(1)}`)
+    .replace(/\bipad\b/gi, "iPad")
+    .replace(/\bairpods\b/gi, "AirPods")
+    .replace(/\baux\b/gi, "AUX")
+    .replace(/\busb\b/gi, "USB");
+}
+
+function humanProductType(signals, titleText, knowledge) {
+  const evidence = normalizeComparableText(
+    [signals.handle, titleText, signals.sourceProductType, signals.catalogProductType].filter(Boolean).join(" "),
+  );
+  const exactTypes = [
+    [/(?:3\s*5\s*mm|35mm).*?(?:aux|audio).*cable|(?:aux|audio).*cable.*(?:xh2|terminal)/i, "3.5mm AUX audio cable"],
+    [/articulated arm.*(?:hex pin|female thread)|(?:hex pin|female thread).*articulated arm/i, "articulated camera mounting arm"],
+    [/\b(?:ear hooks?|anti lost ear hooks?)\b/i, "earbud ear hooks"],
+    [/\b(?:ear tips?|eartips?)\b/i, "earbud replacement ear tips"],
+    [/(?:earbud|airpods?|buds?).*\b(?:case|cover)\b|\b(?:case|cover).*\b(?:earbud|airpods?|buds?)\b/i, "earbud protective case"],
+    [/\b(?:sports arm bag|arm pouch|running arm bag)\b/i, "fitness arm bag"],
+    [/(?:powerbank|power bank|external battery)/i, "magnetic wireless power bank"],
+    [/(?:\breplacement\b|\brepair\b).*\b(?:microphone|mic)\b|\b(?:microphone|mic)\b.*(?:\breplacement\b|\brepair\b)/i, "replacement headset microphone"],
+    [/\b(?:microphone|mic)\b.*\b(?:headset|headphone|earphone)\b|\b(?:headset|headphone|earphone)\b.*\b(?:microphone|mic)\b/i, "wired headset with microphone"],
+    [/\b(?:ear pads?|earpads?|earphone pads?|headphone pads?)\b/i, "headphone replacement earpads"],
+    [/\b(?:headband cover|earphone bracket|headphone bracket)\b/i, "headphone replacement part"],
+    [/\b(?:eye mask|eye mask pad)\b/i, "eye mask replacement pad"],
+    [/\b(?:hot shoes?|hot shoe|camera shoe)\b/i, "camera hot-shoe mount"],
+    [/(?:dcdc|dc-dc).*power module|power module.*(?:dcdc|dc-dc)/i, "DC-DC power module set"],
+    [/\b(?:crampons?|mountaineering cleats?|ice grips?|traction cleats?)\b/i, "traction cleats"],
+    [/\b(?:running|marathon|trail) shoes?\b/i, "running shoes"],
+    [/\b(?:earphone|headphone) cables?\b/i, "headphone audio cable"],
+    [/\b(?:softbox|honeycomb grid)\b/i, "studio softbox"],
+    [/\b(?:dive case|underwater housing|diving case)\b/i, "underwater camera housing"],
+    [/\b(?:shutter release|remote shutter)\b/i, "camera shutter-release cable"],
+    [/\b(?:usb extension|usb extender)\b/i, "USB extension cable"],
+    [/\b(?:lipo battery|li-ion battery|rechargeable battery)\b/i, "rechargeable battery pack"],
+    [/\b(?:controller cover|gamepad cover|joystick cover)\b/i, "game controller cover"],
+    [/\b(?:digital antenna|tv antenna|dvb-t antenna)\b/i, "digital TV antenna"],
+    [/\b(?:rubber plugs?|rubber replacement)\b/i, "console replacement rubber plugs"],
+    [/\b(?:micro switch|microswitch)\b/i, "controller micro-switch"],
+    [/\b(?:bluetooth aux adapter|aux adapter|audio bluetooth adapter)\b/i, "Bluetooth AUX audio adapter"],
+    [/\b(?:projector disc|galaxy projector disc|film discs?)\b/i, "projector replacement film discs"],
+    [/\b(?:led strip.*tv|tv.*led strip)\b/i, "TV LED backlight strip"],
+    [/\b(?:audio mixer|mixing console)\b/i, "multi-channel audio mixer"],
+    [/\b(?:rca.*cable|coaxial cable)\b/i, "RCA audio cable"],
+    [/\b(?:stylus|digital pen|touch pen)\b/i, "stylus pen"],
+    [/\b(?:pencil case|pencil box|pen holder)\b/i, "stationery case"],
+    [/\b(?:screen protector|tempered glass|hydrogel film)\b/i, "screen protector"],
+    [/silicone-case-for-xiaomi-redmi-pad-2|redmi-pad-2.*(?:case|cover)/i, "Xiaomi Redmi Pad 2 tablet case"],
+    [/\b(?:tripod|selfie stick|gimbal)\b/i, "smartphone and camera support"],
+    [/\b(?:phone holder|phone stand|mobile phone holder|car phone mount)\b/i, "phone holder"],
+    [/\b(?:charger|charging dock|charging stand)\b/i, "device charger"],
+    [/\b(?:pcb board|circuit board|replacement part|repair part)\b/i, "replacement electronic component"],
+    [/\b(?:hair brush cleaner|comb cleaner)\b/i, "hairbrush cleaning tool"],
+    [/\b(?:water bottle|shaker bottle|tumbler|travel mug|thermos)\b/i, "reusable drink container"],
+  ];
+  for (const [pattern, type] of exactTypes) {
+    if (pattern.test(evidence)) return type;
+  }
+
+  const rawType = sanitizeMarketplaceClaims(normalizePlainText(signals.productTypeText || signals.sourceProductType || signals.catalogProductType));
+  if (
+    rawType &&
+    !/^(?:accessories?|item|product|general|miscellaneous|other)$/i.test(rawType) &&
+    isTitleAlignedWithKnowledge(rawType, knowledge)
+  ) {
+    return rawType.toLowerCase();
+  }
+
+  return normalizePlainText(knowledge.productNouns?.[0] || "product").toLowerCase();
+}
+
+function buildHumanProductSummary(titleText, signals, knowledge, facts) {
+  const evidence = normalizeComparableText([signals.handle, titleText].filter(Boolean).join(" "));
+  const typeText = humanProductType(signals, titleText, knowledge);
+  const subject = /(?:hooks|tips|earpads|earbuds|earphones|headphones|shoes|sandals|boots|sneakers|slippers|pants|trousers|glasses|sunglasses|eyelashes|accessories|tools)$/i.test(typeText)
+    ? "These"
+    : "This";
+  const linkingVerb = subject === "These" ? "are" : "is";
+  const device = firstFactValue(facts, ["Device compatibility"]);
+  const devicePhrase = humanizeFactList(device);
+  const setting = firstFactValue(facts, ["Placement or setting", "Use or occasion"]);
+  const size = firstFactValue(facts, ["Size or capacity"]);
+  const descriptor = tokenizeText(titleText)
+    .filter((token) => token.length >= 3 && !GENERIC_TITLE_WORDS.has(token) && !/^\d+$/.test(token))
+    .slice(0, 6)
+    .join(" ");
+
+  if (/(?:3\s*5\s*mm|35mm).*?(?:aux|audio).*cable.*(?:xh2|terminal)|(?:aux|audio).*cable.*(?:xh2|terminal)/i.test(evidence)) {
+    return "This cable connects a 3.5mm AUX audio plug with an XH2.54 3-pin terminal in the male-to-male layout named by the listing.";
+  }
+  if (/(?:3\s*5\s*mm|35mm).*?(?:aux|audio).*cable/i.test(evidence)) {
+    return "This cable carries the 3.5mm AUX audio connection named in the listing; check the device-side connector and cable length before ordering.";
+  }
+  if (/\b(?:hot shoes?|hot shoe|camera shoe)\b/i.test(evidence)) {
+    return "This camera hot-shoe mount holds the compatible accessory format named in the title; check the shoe size and thread details before ordering.";
+  }
+  if (/(?:dcdc|dc-dc).*power module|power module.*(?:dcdc|dc-dc)/i.test(evidence)) {
+    return "This set contains DC-DC power modules for the voltage range listed in the title; check the input, output, pinout, and quantity before wiring.";
+  }
+  if (/\b(?:softbox|honeycomb grid)\b/i.test(evidence)) {
+    return "This studio softbox shapes and softens light for the Bowens-compatible setup named in the listing; check the mount and selected size before ordering.";
+  }
+  if (/\b(?:dive case|underwater housing|diving case)\b/i.test(evidence)) {
+    return "This waterproof camera housing is made for the camera model and underwater use named in the listing; check the fit, seals, and listed depth rating before use.";
+  }
+  if (/\b(?:shutter release|remote shutter)\b/i.test(evidence)) {
+    return "This shutter-release cable connects the camera and remote-control formats named in the listing; match the connector and camera model before ordering.";
+  }
+  if (/\b(?:usb extension|usb extender)\b/i.test(evidence)) {
+    return "This USB extension cable adds reach between the plug and socket formats named in the listing; check the connector, cable length, and device requirements before use.";
+  }
+  if (/\b(?:lipo battery|li-ion battery|rechargeable battery)\b/i.test(evidence)) {
+    return "This rechargeable battery pack is listed for the device or vehicle format named in the title; match the voltage, capacity, connector, and dimensions before use.";
+  }
+  if (/\b(?:controller cover|gamepad cover|joystick cover)\b/i.test(evidence)) {
+    return "This controller cover is shaped for the gamepad format named in the listing; confirm the console model and button layout before fitting.";
+  }
+  if (/\b(?:digital antenna|tv antenna|dvb-t antenna)\b/i.test(evidence)) {
+    return "This digital TV antenna is for receiving the broadcast format named in the listing; check local signal compatibility and the connection before setup.";
+  }
+  if (/\b(?:rubber plugs?|rubber replacement)\b/i.test(evidence)) {
+    return "These replacement rubber plugs cover the console openings and screw points named in the listing; match the console model before fitting.";
+  }
+  if (/\b(?:micro switch|microswitch)\b/i.test(evidence)) {
+    return "This controller micro-switch is a replacement button component for the console or joystick format named in the listing; match the board and switch layout before repair.";
+  }
+  if (/\b(?:bluetooth aux adapter|aux adapter|audio bluetooth adapter)\b/i.test(evidence)) {
+    return "This Bluetooth AUX adapter adds the wireless audio connection named in the listing; check the source, receiver, power, and 3.5mm connector before use.";
+  }
+  if (/\b(?:sports arm bag|arm pouch|running arm bag)\b/i.test(evidence)) {
+    return "This fitness arm bag holds a phone during running or outdoor activity; check the arm fit, pocket size, and water-resistant material before use.";
+  }
+  if (/(?:powerbank|power bank|external battery)/i.test(evidence)) {
+    return "This magnetic wireless power bank is designed for the charging formats named in the listing; check the device, wattage, capacity, and connector before use.";
+  }
+  if (/\b(?:projector disc|galaxy projector disc|film discs?)\b/i.test(evidence)) {
+    return "These replacement projector film discs add the galaxy or meteor scenes named in the listing; confirm the projector model before ordering.";
+  }
+  if (/\b(?:led strip.*tv|tv.*led strip)\b/i.test(evidence)) {
+    return "This LED backlight strip is sized for the TV model range named in the listing; match the screen size, connector, and strip layout before fitting.";
+  }
+  if (/\b(?:audio mixer|mixing console)\b/i.test(evidence)) {
+    return "This multi-channel audio mixer combines the input and control functions listed for a stage, studio, or personal audio setup; check the channel and connection layout before ordering.";
+  }
+  if (/\b(?:rca.*cable|coaxial cable)\b/i.test(evidence)) {
+    return "This RCA audio cable connects the male-to-male equipment formats named in the listing; check the connector type and cable length before ordering.";
+  }
+  if (/articulated arm.*(?:hex pin|female thread)|(?:hex pin|female thread).*articulated arm/i.test(evidence)) {
+    return "This articulated arm positions a compatible camera, light, or studio accessory using the 5/8 hex pin and threaded fittings listed in the title.";
+  }
+  if (/\b(?:tripod|selfie stick|gimbal)\b/i.test(evidence)) {
+    return `${subject} ${typeText} is for supporting ${devicePhrase || "a smartphone or camera"}${setting ? ` in ${setting.toLowerCase()}` : ""}.`;
+  }
+  if (/\b(?:phone holder|phone stand|mobile phone holder|car phone mount)\b/i.test(evidence)) {
+    return `${subject} ${typeText} keeps ${devicePhrase || "a phone"} in the holder format named by the listing${setting ? ` for ${setting.toLowerCase()} use` : ""}.`;
+  }
+  if (/\b(?:screen protector|tempered glass|hydrogel film)\b/i.test(evidence)) {
+    return `${subject} ${typeText} is sized for the device or screen format named in the title${device ? `, including ${device}` : ""}.`;
+  }
+  if (/\b(?:case|cover|pouch|sleeve)\b/i.test(evidence) && device) {
+    return `${subject} ${typeText} is sized for ${devicePhrase}; check the exact model and case or cover fit before ordering.`;
+  }
+  if (/silicone-case-for-xiaomi-redmi-pad-2|redmi-pad-2.*(?:case|cover)/i.test(evidence)) {
+    return "This silicone case is sized for the Xiaomi Redmi Pad 2 11-inch tablet and folds into the trifold stand format named in the listing; check the exact model before ordering.";
+  }
+  if (/\b(?:charger|charging dock|charging stand)\b/i.test(evidence)) {
+    return `${subject} ${typeText} is for charging the battery or device format named in the listing; confirm voltage, connector, and compatibility before use.`;
+  }
+  if (/\b(?:replacement|repair)\b.*\b(?:ear pads?|earpads?|earphone pads?|headphone pads?|ear tips?|ear hooks?|earbuds?|earphones?|headphones?)\b|\b(?:ear pads?|earpads?|earphone pads?|headphone pads?|ear tips?|ear hooks?|earbuds?|earphones?|headphones?)\b.*\b(?:replacement|repair)\b/i.test(evidence)) {
+    return `${subject} ${typeText} ${linkingVerb} replacement audio accessories for the headphone or earbud format named in the title; match the model before ordering.`;
+  }
+  if (/\b(?:replacement|repair|pcb|circuit board|component)\b/i.test(evidence)) {
+    return `${subject} ${typeText} is the replacement or repair component identified by the title, so the listed model and connector details should match before ordering.`;
+  }
+  if (/\b(?:stylus|digital pen|touch pen)\b/i.test(evidence)) {
+    return "This stylus pen is for writing or drawing on a compatible touchscreen device; check the listed model and options before ordering.";
+  }
+  if (/\b(?:eye mask|eye mask pad)\b/i.test(evidence)) {
+    return "This eye mask replacement pad is shaped for the eye-mask format named in the title; match the dimensions and fastening details before ordering.";
+  }
+  if (/\b(?:pencil case|pencil box|pen holder|stationery case)\b/i.test(evidence)) {
+    return "This stationery case keeps pens, pencils, and other small supplies together in the storage format named by the listing.";
+  }
+  if (/\b(?:ear hooks?|ear tips?|earbuds?|earphones?|headphones?|headset)\b/i.test(evidence)) {
+    return `${subject} ${typeText} ${linkingVerb} intended for the personal-audio format named in the title${device ? ` and the listed ${device} compatibility` : ""}.`;
+  }
+  if (/\b(?:dress|shirt|top|blouse|jacket|coat|pants|trousers|jeans|skirt|leggings|hoodie|outfit|romper)\b/i.test(evidence)) {
+    return `${subject} ${typeText} is built around the garment style and options named in the title${setting ? ` for ${setting.toLowerCase()} wear` : ""}.`;
+  }
+  if (/\b(?:crampons?|mountaineering cleats?|ice grips?|traction cleats?)\b/i.test(evidence)) {
+    return "This traction cleat set fits over compatible footwear for hiking or mountaineering; check the listed size and fastening details before ordering.";
+  }
+  if (/\b(?:shoes?|sandals?|boots?|sneakers?|slippers?)\b/i.test(evidence) && !/\bhot shoes?\b/i.test(evidence)) {
+    return `${subject} ${typeText} ${linkingVerb === "are" ? "follow" : "follows"} the footwear style named in the title, with the listed size and color options available for comparison.`;
+  }
+  if (/\b(?:ring|necklace|earring|bracelet|jewelry|brooch|hair clip|headband|scrunchie|scarf|belt|hat|cap)\b/i.test(evidence)) {
+    return `${subject} ${typeText} ${subject === "These" ? "add" : "adds"} the wearable detail named in the title, with the listed design and option details helping you choose the right finish.`;
+  }
+  if (/\b(?:bag|backpack|tote|wallet|purse|organizer|laptop sleeve|card holder)\b/i.test(evidence)) {
+    return `${subject} ${typeText} ${linkingVerb} arranged around the carrying or storage format named in the title${size ? ` and the listed ${size} capacity` : ""}.`;
+  }
+  if (/\b(?:water bottle|shaker bottle|flask|thermos|tumbler|travel mug)\b/i.test(evidence)) {
+    return `${subject} ${typeText} is for carrying drinks in the capacity and lid format named in the listing${size ? `, including ${size}` : ""}.`;
+  }
+  if (/\b(?:dog|cat|pet|aquarium|leash|pet bed)\b/i.test(evidence)) {
+    return `${subject} ${typeText} is for the pet-care task and animal format named in the title, so check the listed size and options before ordering.`;
+  }
+  if (/\b(?:baby|toddler|diaper|stroller|kids|children|bib)\b/i.test(evidence)) {
+    return `${subject} ${typeText} is designed around the child or caregiver use named in the title, with the listed age, size, or option details to check before ordering.`;
+  }
+  if (/\b(?:lamp|light|lighting|lantern|bulb)\b/i.test(evidence)) {
+    return `${subject} ${typeText} ${subject === "These" ? "add" : "adds"} the lighting format and placement named in the title${setting ? ` for ${setting.toLowerCase()} use` : ""}.`;
+  }
+  if (/\b(?:kitchen|cookware|pot|pan|spatula|peeler|cutter|knife|measuring)\b/i.test(evidence)) {
+    return `${subject} ${typeText} ${linkingVerb} for the kitchen preparation or serving task named in the title, with the listed size and material details to check before use.`;
+  }
+  if (/\b(?:comb|brush|trimmer|shaver|razor|clipper|grooming)\b/i.test(evidence)) {
+    return `${subject} ${typeText} ${linkingVerb} for the grooming or hair-care task named in the title and should be used only as directed for that task.`;
+  }
+
+  const safeType = typeText && !/^product$/i.test(typeText) ? typeText : "item";
+  return `This ${safeType} is intended for the task named in the title. Check the listed fit, size, connection, and care details before ordering.`;
+}
+
 function buildSeoDescription(title, signals, searchPhrases) {
   const titleText = normalizePlainText(title);
   const knowledge = resolveProductKnowledge(signals.handle);
   const facts = prioritizeProductFacts(extractSupportedProductFacts(signals), knowledge)
     .filter((fact) => fact.label !== "Product focus");
+  const humanSummary = buildHumanProductSummary(titleText, signals, knowledge, facts);
   const factClauses = facts.slice(0, 3).map((fact) => {
-    if (fact.label === "Device compatibility") return `compatible with ${fact.value}`;
-    if (fact.label === "Size or capacity") return `available in ${fact.value}`;
-    if (fact.label === "Material") return `made with the stated ${fact.value} material`;
-    if (fact.label === "Supported features") return `supported features: ${fact.value}`;
-    if (fact.label === "Available options") return `available options: ${fact.value}`;
-    if (fact.label === "Intended user") return `intended users: ${fact.value}`;
-    if (fact.label === "Use or occasion") return `supported uses: ${fact.value}`;
-    if (fact.label === "Placement or setting") return `supported settings: ${fact.value}`;
-    if (fact.label === "Pack format") return `pack format ${fact.value}`;
-    return `${fact.label.toLowerCase()}: ${fact.value}`;
+    if (fact.label === "Device compatibility") return `compatibility with ${fact.value}`;
+    if (fact.label === "Size or capacity") return `the listed size or capacity (${fact.value})`;
+    if (fact.label === "Material") return `the listed material (${fact.value})`;
+    if (fact.label === "Supported features") return `the listed features (${fact.value})`;
+    if (fact.label === "Available options") return `the available options (${fact.value})`;
+    if (fact.label === "Intended user") return `the stated user group (${fact.value})`;
+    if (fact.label === "Use or occasion") return `the stated use (${fact.value})`;
+    if (fact.label === "Placement or setting") return `the stated setting (${fact.value})`;
+    if (fact.label === "Pack format") return `the pack format (${fact.value})`;
+    return `${fact.label.toLowerCase()} (${fact.value})`;
   });
-  const sentences = [`Shop ${titleText}.`];
+  const sentences = [humanSummary];
   if (signals.reviewSummary) {
     sentences.push(`${signals.reviewSummary.rating.toFixed(1)} stars from ${signals.reviewSummary.ratingCount} trusted reviews.`);
   }
   if (factClauses.length) {
-    sentences.push(`Product details include ${factClauses.slice(0, 2).join(" and ")}.`);
+    sentences.push(`Before ordering, check ${factClauses.slice(0, 2).join(" and ")}.`);
   } else if (signals.productKnowledge?.reviewRequired) {
-    // Review-held products still receive factual SEO, but never inherit a
-    // semantic family's benefit copy before taxonomy review is complete.
-    const handleFacts = uniqueValues([
-      normalizePlainText(signals.handlePhrase),
-      normalizePlainText(signals.sourceProductType),
-      normalizePlainText(signals.catalogProductType),
-    ]).filter(Boolean);
-    sentences.push(`Product details are based on the listed ${handleFacts.join(", ") || "product"} information.`);
+    sentences.push("Check the listed compatibility, size, and care information before ordering.");
   } else {
-    sentences.push(`${knowledge.copy.benefit}`);
+    sentences.push("The listed options and specifications show what to check before ordering.");
   }
-  sentences.push(`Review the listed ${titleText} details and available options at SALT.`);
+  sentences.push("See the full product details at Future Light Store.");
   let sentence = sentences.join(" ");
-  while (sentence.length > 160 && factClauses.length > 1) {
-    factClauses.pop();
-    sentences[signals.reviewSummary ? 2 : 1] = `Product details include ${factClauses.join(" and ")}.`;
+  while (sentence.length > 160 && sentences.length > 1) {
+    sentences.pop();
     sentence = sentences.join(" ");
   }
   const shortened = shortenAtWordBoundary(sentence || titleText, 159)
@@ -1260,13 +1679,36 @@ function buildSeoDescription(title, signals, searchPhrases) {
   return shortened && !/[.!?]$/.test(shortened) ? `${shortened}.` : shortened;
 }
 
+const NON_SHOPPER_SPECIFICATION_KEYS = new Set([
+  "brand",
+  "brand_name",
+  "choice",
+  "high_concerned_chemical",
+  "model",
+  "model_number",
+  "origin",
+  "type",
+]);
+
+function getRawSpecificationSource(signals) {
+  const candidate = signals.sourceBodyHtml || signals.catalogBodyHtml || "";
+  const plain = normalizePlainText(stripHtml(candidate));
+  if (!plain || /^(?:about\b|key details\b)|\b(?:use & care|faqs|salt catalog listing reference)\b/i.test(plain)) {
+    return "";
+  }
+  return candidate;
+}
+
 function extractSupportedProductFacts(signals) {
   // Handles are canonical. Tags, collections, and types can contain unrelated legacy classifications.
-  const source = normalizePlainText(signals.handle || "").toLowerCase().replace(/[-_]+/g, " ");
+  const source = normalizePlainText(signals.handle || "")
+    .toLowerCase()
+    .replace(/[-_]+/g, " ")
+    .replace(/\b3\s+5\s*mm\b/g, "3.5mm");
   const facts = [];
   const hasTerm = (term) => new RegExp(`(?:^|\\s)${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\ /g, "\\s+")}(?:$|\\s)`, "i").test(source);
   const add = (label, values) => {
-    const clean = uniqueValues(values.map((value) => normalizePlainText(value)).filter(Boolean));
+    const clean = uniqueValues(values.map((value) => polishListingValue(value)).filter(Boolean));
     if (clean.length) facts.push({ label, value: clean.slice(0, 5).join(", ") });
   };
   const productFocusTokens = sanitizeMarketplaceClaims(normalizePlainText(signals.handle || "").replace(/[-_]+/g, " "))
@@ -1298,12 +1740,20 @@ function extractSupportedProductFacts(signals) {
     !/\b(?:buy\s*\d+|get\s*\d+)\b/i.test(value),
   );
   add("Available options", optionValues);
+  const labeledFacts = extractLabeledSpecificationFacts(getRawSpecificationSource(signals));
+  for (const fact of labeledFacts) {
+    if (NON_SHOPPER_SPECIFICATION_KEYS.has(fact.key)) continue;
+    add(fact.label, [fact.value]);
+  }
   return prioritizeProductFacts(facts, resolveProductKnowledge(signals.handle));
 }
 
 function factToSentence(fact) {
   const labels = {
     "Size or capacity": `Available size or capacity: ${fact.value}.`,
+    "Connector size": `Connector size: ${fact.value}.`,
+    Connection: `Connection format: ${fact.value}.`,
+    "Connector layout": `Connector layout: ${fact.value}.`,
     Material: `Identified material: ${fact.value}.`,
     "Supported features": `Functional details include ${fact.value}.`,
     "Intended user": `Intended for ${fact.value}.`,
@@ -1317,25 +1767,65 @@ function factToSentence(fact) {
   return labels[fact.label] || `${fact.label}: ${fact.value}.`;
 }
 
+function cleanDescriptionSpecificationFacts(facts) {
+  const seen = new Set();
+  return (facts || []).filter((fact) => {
+    if (!fact?.value || NON_SHOPPER_SPECIFICATION_KEYS.has(fact.key)) return false;
+    const normalizedValue = normalizeComparableText(fact.value);
+    if (!normalizedValue || seen.has(normalizedValue)) return false;
+    seen.add(normalizedValue);
+    return true;
+  });
+}
+
+function formatCustomerSpecificationFact(fact) {
+  const labels = {
+    type: "Format",
+    size: "Size",
+    power_source: "Power source",
+    compatible_brand: "Compatibility",
+    compatible_device: "Compatibility",
+    features: "Features",
+    material: "Material",
+    color: "Color",
+    pattern: "Pattern",
+    closure_type: "Closure",
+    finish: "Finish",
+  };
+  return `${labels[fact.key] || fact.label}: ${fact.value}`;
+}
+
+const MODEL_TAXONOMY_DEFINITIONS = new Map(
+  getCatalogTaxonomyDefinitions().map((definition) => [definition.id, definition]),
+);
+
+function getReliableModelTaxonomyDefinition(signals) {
+  const evidence = signals?.productKnowledge?.modelEvidence;
+  const classificationRule = signals?.productKnowledge?.classificationRule;
+  if (
+    !evidence?.reliable ||
+    !evidence.topRuleId ||
+    evidence.topRuleId !== classificationRule
+  ) {
+    return null;
+  }
+
+  const definition = MODEL_TAXONOMY_DEFINITIONS.get(evidence.topRuleId);
+  if (!definition || definition.id === "unclassified" || definition.generic || !definition.canonicalType) {
+    return null;
+  }
+  return definition;
+}
+
 function buildDescriptionHtml(title, signals) {
   const titleText = normalizePlainText(title);
   const knowledge = resolveProductKnowledge(signals.handle);
-  const rawTypeText = sanitizeMarketplaceClaims(normalizePlainText(signals.productTypeText));
-  const evidence = uniqueValues(
-    (Array.isArray(signals.catalogHighlights) ? signals.catalogHighlights : [])
-      .map((value) => sanitizeMarketplaceClaims(value))
-      .filter((value) => value && !containsUnsafeMarketplaceClaim(value)),
-  ).slice(0, 8);
   const family = normalizePlainText(signals.handle || signals.handlePhrase || "").toLowerCase().replace(/[-_]+/g, " ");
+  const audioCable = /(?:3[ .-]?5\s*mm|35mm).*?(?:aux|audio).*cable|(?:aux|audio).*cable.*(?:xh2|terminal)/i.test(family);
+  const cameraMountingArm = /articulated arm.*(?:hex pin|female thread)|(?:hex pin|female thread).*articulated arm/i.test(family);
+  const classificationHeld = Boolean(signals.productKnowledge?.reviewRequired || signals.productKnowledge?.seoEligible === false);
   const familyHas = (term) => new RegExp(`(?:^|\\s)${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\ /g, "\\s+")}(?:$|\\s)`, "i").test(family);
-  const knowledgeNoun = knowledge.id === "makeup" && /\b(?:lipstick|lipliner|lip gloss|lipgloss|lip balm)\b/.test(family)
-    ? "lip product"
-    : knowledge.productNouns.find((noun) => familyHas(noun)) || knowledge.productNouns[0] || "";
-  const typeText = rawTypeText && isTitleAlignedWithKnowledge(rawTypeText, knowledge)
-    ? rawTypeText
-    : knowledge.id === "general"
-      ? rawTypeText
-      : knowledgeNoun;
+  const typeText = humanProductType(signals, titleText, knowledge);
   const handleIdentity = sanitizeMarketplaceClaims(normalizePlainText(signals.handlePhrase || titleText || "product"));
   const handleDescriptorPhrase = sanitizeMarketplaceClaims(normalizePlainText(signals.handle || "").replace(/[-_]+/g, " "))
     .toLowerCase()
@@ -1343,28 +1833,15 @@ function buildDescriptionHtml(title, signals) {
     .filter((word) => word.length >= 3 && !GENERIC_TITLE_WORDS.has(word) && !/^\d+$/.test(word))
     .slice(0, 7)
     .join(" ");
-  const rawDetailText = normalizePlainText(stripHtml(signals.sourceBodyHtml || signals.catalogBodyHtml || ""));
-  const sourceDetailText = /product overview|key features|who is this for|why customers|faqs|straightforward way|product listing|easy to compare|personal care item|without extra guesswork|material details such as pu/i.test(rawDetailText)
-    ? ""
-    : rawDetailText;
-  const detailSentences = sourceDetailText
-    .split(/[.!?]+/)
-    .map((sentence) => normalizePlainText(sentence))
-    .filter((sentence) => sentence.length >= 24 && !/^product overview$/i.test(sentence))
-    .filter((sentence) => !containsUnsafeMarketplaceClaim(sentence))
-    .slice(0, 3);
-  const detailPhrase = detailSentences.length ? detailSentences.join(". ") : "";
   const fashion = ["dress", "top", "shirt", "blouse", "jacket", "coat", "blazer", "pants", "trouser", "jean", "skirt", "legging", "shoe", "sandal", "boot", "sneaker", "handbag", "bag", "jewelry", "ring", "necklace", "earring", "hat", "scarf", "belt"].some(familyHas);
-  const fallbackDetails = fashion
-    ? "Please refer to the product details or packaging for complete material, sizing, and care information."
-    : "Please refer to the product details or packaging for complete specifications, materials, sizing, and care information.";
+  const fallbackDetails = "Check the exact size, compatibility, materials, and care information listed for this item before ordering.";
   const careText = fashion && /shoe|sandal|boot|sneaker/.test(family)
     ? "Store shoes in a clean, dry place when not in use. Avoid excessive moisture, heavy pressure, and rough storage conditions when possible. Wipe gently with a soft cloth if needed and follow any care instructions provided with the product."
     : fashion && /accessory|bag|jewelry|ring|necklace|earring|hat|scarf|belt|hair/.test(family)
       ? "Store accessories in a clean, dry place when not in use. Keep away from excessive moisture, heavy pressure, and harsh chemicals when possible. Wipe gently with a soft cloth if needed and follow the care instructions provided with the product."
       : fashion
         ? "Wash or clean according to the care instructions provided with the product. Store in a clean, dry place and avoid harsh handling that may affect the fabric, shape, color, or finish."
-        : "Use and store the product according to the care or usage instructions provided with the item. Keep it in a clean, dry place when not in use and avoid harsh handling when possible.";
+        : "Keep it clean and dry between uses, and follow the care instructions supplied with the product.";
   const category = (() => {
     if (["perfume", "fragrance", "cologne", "eau de parfum", "eau de toilette"].some(familyHas)) return "fragrance";
     if (["shampoo", "conditioner", "hair dye", "hair oil", "hair mask", "scalp", "wig"].some(familyHas)) return "hair-care";
@@ -1376,7 +1853,7 @@ function buildDescriptionHtml(title, signals) {
     if (["shoe", "sandal", "boot", "sneaker", "slipper"].some(familyHas)) return "footwear";
     if (["dress", "top", "shirt", "blouse", "jacket", "coat", "blazer", "pants", "trouser", "jean", "skirt", "legging", "raincoat", "swimwear", "sweatshirt", "outfit", "suit"].some(familyHas)) return "apparel";
     if (["ring", "necklace", "earring", "bracelet", "jewelry", "brooch"].some(familyHas)) return "jewelry";
-    if (["phone case", "iphone case", "tablet case", "keyboard", "mouse", "charger", "cable", "headphone", "earphone"].some(familyHas)) return "electronics-accessory";
+    if (["phone case", "iphone case", "tablet case", "keyboard", "mouse", "charger", "cable", "headphone", "earphone", "tripod", "camera", "phone holder", "phone stand", "mount"].some(familyHas)) return "electronics-accessory";
     if (["lamp", "light", "lighting", "lantern"].some(familyHas)) return "lighting";
     if (["kitchen", "cookware", "cook kit", "pan", "pot", "utensil", "measuring cup", "measuring jug", "cutter", "peeler", "spatula"].some(familyHas)) return "kitchen";
     if (["pet", "dog", "cat", "aquarium"].some(familyHas)) return "pet";
@@ -1404,7 +1881,12 @@ function buildDescriptionHtml(title, signals) {
     "fashion-accessory": { purpose: "adds a specific finishing detail to an outfit or daily routine", use: "Style or wear it according to the accessory type and coordinate it with the listed color, size, or design options.", benefit: "Its accessory format makes it easy to compare for everyday, travel, work, or occasion styling.", audience: ["Shoppers finishing a specific outfit", "People comparing accessory styles and listed options", "Gift buyers choosing a wearable or practical accessory"] },
     general: { purpose: "serves the specific everyday task identified by the product name", use: "Use it only for the stated purpose and follow the supplied setup, handling, care, and storage instructions.", benefit: "Its product format and listed options support direct comparison for the intended routine.", audience: ["Shoppers looking for this specific product type", "People comparing options for the stated task", "Gift buyers choosing a practical item"] },
   }[category];
-  categoryCopy = knowledge.copy || categoryCopy;
+  // A model/taxonomy conflict must not leak the wrong family's generic copy
+  // into the product body. Keep the deterministic handle family copy until
+  // the classification gate is resolved.
+  if (!classificationHeld) {
+    categoryCopy = knowledge.copy || categoryCopy;
+  }
   if (category === "makeup") {
     if (/brush|applicator|sponge|tweezer|curler/.test(family)) categoryCopy = { ...categoryCopy, purpose: "applies, blends, shapes, or handles the specific makeup product named in the handle", use: "Use the tool for the stated foundation, powder, blush, lash, brow, or complexion step, then clean and store it according to the supplied care directions." };
     else if (/lip gloss|lipgloss|lip plumper/.test(family)) categoryCopy = { ...categoryCopy, purpose: "adds the stated gloss, tint, or finish to the lips", use: "Apply a light layer to clean lips, build only as needed for the stated finish, and remove it during the usual makeup-cleansing routine." };
@@ -1423,6 +1905,13 @@ function buildDescriptionHtml(title, signals) {
       use: "Confirm device, connector, and power compatibility before ordering, then connect and use it according to the supplied charging instructions.",
       benefit: "Its device and connection details help shoppers confirm compatibility before purchase.",
     };
+  } else if (category === "electronics-accessory" && audioCable) {
+    categoryCopy = {
+      purpose: "connects the 3.5mm AUX audio and XH2.54 3-pin terminal formats named by the product",
+      use: "Check the 3.5mm plug, XH2.54 3-pin spacing, and male-to-male layout against the equipment before ordering. Connect it only to compatible terminals and avoid pulling on the cable or plugs.",
+      benefit: "The connector formats and pin layout make it easier to check fit before adding the cable to an audio or electronics setup.",
+      audience: ["Shoppers replacing an AUX or terminal audio lead", "DIY electronics users checking connector compatibility", "Buyers comparing audio extension cable formats"],
+    };
   }
   if (category === "hair-care" && /hair oil/.test(family)) {
     categoryCopy = { ...categoryCopy, purpose: "adds the stated oil or spray format to a hair-length or styling routine", use: "Apply only the directed amount to the stated hair area, avoid the eyes, and follow the supplied leave-in or rinse-out directions." };
@@ -1435,52 +1924,77 @@ function buildDescriptionHtml(title, signals) {
   } else if (category === "kitchen" && /camping|cook kit/.test(family)) {
     categoryCopy = { ...categoryCopy, purpose: "combines the stated pot or cookware format for camping meal preparation", use: "Use each cookware piece only with a supported heat source and follow the supplied cleaning, packing, and storage guidance." };
   }
+  let productUseText = categoryCopy.use;
+  if (/\b(?:phone holder|phone stand|mobile phone holder|car phone mount)\b/i.test(family)) {
+    productUseText = "Check that the phone fits the holder and secure the mount to a stable surface before use. Recheck the grip and mounting point regularly.";
+  } else if (/\b(?:stylus|digital pen|touch pen)\b/i.test(family)) {
+    productUseText = "Confirm the stylus matches the intended touchscreen device, then use the listed tip or magnetic features according to the supplied instructions.";
+  } else if (/\b(?:pencil case|pencil box|pen holder|stationery case)\b/i.test(family)) {
+    productUseText = "Load pens, pencils, or other suitable stationery without overfilling the case, then close and store it in a dry place.";
+  } else if (/\b(?:comb hair brush cleaner|hair brush cleaner|comb cleaner)\b/i.test(family)) {
+    productUseText = "Use the tool to remove hair and debris from a brush or comb, then clear the tool and store it dry between uses.";
+  } else if (/\b(?:screen protector|tempered glass|hydrogel film)\b/i.test(family)) {
+    productUseText = "Confirm the screen model and size before fitting, clean the display, and apply the protector according to the supplied installation instructions.";
+  } else if (/\b(?:case|cover|pouch|sleeve)\b/i.test(family)) {
+    productUseText = "Confirm the device model and dimensions before fitting the case, cover, pouch, or sleeve, and keep the closure or protective surface clean.";
+  } else if (/\bfitness-keychain\b/i.test(family)) {
+    productUseText = "Use the keychain for the stated gym or sports theme and attach it securely to a bag, keys, or compatible loop.";
+  }
   const facts = prioritizeProductFacts(extractSupportedProductFacts(signals), knowledge);
-  const productFocusFact = facts.find((fact) => fact.label === "Product focus");
-  const visibleFacts = facts.length > 1 ? facts.filter((fact) => fact.label !== "Product focus") : facts;
-  const factText = visibleFacts.map((fact) => `${fact.label.toLowerCase()}: ${fact.value}`).join("; ");
-  const useFact = facts.find((fact) => fact.label === "Use or occasion");
-  const audienceFact = facts.find((fact) => fact.label === "Intended user");
+  const sourceSpecificationFacts = cleanDescriptionSpecificationFacts(
+    extractLabeledSpecificationFacts(getRawSpecificationSource(signals)),
+  );
+  const customerFacts = audioCable
+    ? [
+        { label: "Connector size", value: "3.5mm AUX", key: "size" },
+        { label: "Connection", value: "AUX audio to XH2.54 3-pin terminal", key: "type" },
+        { label: "Connector layout", value: "Male-to-male", key: "features" },
+        ...facts.filter((fact) => fact.label !== "Size or capacity"),
+      ]
+    : cameraMountingArm
+      ? [
+          { label: "Arm format", value: "3-section double articulated arm", key: "type" },
+          { label: "Mounting fittings", value: "5/8 hex pin with 1/4-20 and 3/8-16 female threads", key: "compatible_device" },
+          ...facts.filter((fact) => fact.label !== "Product focus"),
+        ]
+    : facts;
+  const productFocusFact = customerFacts.find((fact) => fact.label === "Product focus");
+  const visibleFacts = customerFacts.length > 1 ? customerFacts.filter((fact) => fact.label !== "Product focus") : customerFacts;
   const focus = productFocusFact?.value || handleDescriptorPhrase || handleIdentity.toLowerCase();
   const reviewText = signals.reviewSummary
     ? ` Current review data records a ${signals.reviewSummary.rating.toFixed(1)}-star average from ${signals.reviewSummary.ratingCount} trusted reviews.`
     : "";
-  const overview = `<p><strong>${escapeHtml(titleText)}</strong> ${escapeHtml(categoryCopy.purpose)}. ${escapeHtml(categoryCopy.benefit)}${escapeHtml(reviewText)}</p>`;
+  const evidenceSummary = uniqueValues([
+    ...sourceSpecificationFacts.slice(0, 4).map(formatCustomerSpecificationFact),
+  ]).slice(0, 5).join("; ");
+  const humanSummary = buildHumanProductSummary(titleText, signals, knowledge, facts);
+  const overview = `<p><strong>${escapeHtml(titleText)}</strong> &mdash; ${escapeHtml(humanSummary)} ${evidenceSummary ? `The listing also notes ${escapeHtml(evidenceSummary)}.` : ""}${escapeHtml(reviewText)}</p>`;
   const factualDetails = uniqueValues([
-    ...visibleFacts.map((fact) => `${fact.label}: ${fact.value}`),
+    ...visibleFacts.map((fact) => audioCable && ["Connector size", "Connection", "Connector layout"].includes(fact.label)
+      ? `${fact.label}: ${fact.value}`
+      : `${fact.label}: ${fact.value}`),
     typeText ? `Product type: ${typeText}` : "",
   ])
     .filter((item) => normalizePlainText(item).length >= 6)
-    .slice(0, 5);
+    .slice(0, 14);
   if (!factualDetails.length) {
     factualDetails.push(`Product focus: ${focus}`);
   }
-  const bestFor = uniqueValues(categoryCopy.audience.slice(0, 2));
-  if (bestFor.length) {
-    factualDetails.push(`Best for: ${bestFor.join("; ")}`);
-  }
   const list = (items) => `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
-  const typePhrase = (() => {
-    const normalizedType = normalizePlainText(typeText).toLowerCase();
-    if (!normalizedType) return handleIdentity;
-    if (/^(?:shoe|shoes|sandals?|boots?|sneakers?|slippers?)$/.test(normalizedType)) return "footwear";
-    if (/^(?:pants|trousers|jeans|shorts|leggings)$/.test(normalizedType)) return "apparel";
-    if (/\b(?:apparel|cookware|footwear|jewelry|equipment|drinkware)$/.test(normalizedType) || /s$/.test(normalizedType)) {
-      return normalizedType;
-    }
-    return `${/^[aeiou]/.test(normalizedType) ? "an" : "a"} ${normalizedType}`;
-  })();
   const orderingDetails = visibleFacts.length
     ? visibleFacts.slice(0, 3).map(factToSentence).join(" ")
     : fallbackDetails;
   const faq = [
-    [`What is ${titleText}?`, `${titleText} is ${typePhrase}. It ${categoryCopy.purpose}.`],
+    [`What is ${titleText}?`, humanSummary],
     ["What should I check before ordering?", orderingDetails],
   ];
   return [
     `<h2>About ${escapeHtml(titleText)}</h2>`, overview,
-    "<h3>Key Details</h3>", list(factualDetails.slice(0, 6)),
-    "<h3>Use &amp; Care</h3>", `<p>${escapeHtml(categoryCopy.use)} ${escapeHtml(careText)}</p>`,
+    "<h3>Key Details</h3>", list(factualDetails.slice(0, 14)),
+    sourceSpecificationFacts.length
+      ? `<h3>Specifications</h3>${list(sourceSpecificationFacts.map(formatCustomerSpecificationFact).slice(0, 12))}`
+      : "",
+    "<h3>Use &amp; Care</h3>", `<p>${escapeHtml(productUseText)} ${escapeHtml(careText)}</p>`,
     "<h3>FAQs</h3>", faq.map(([question, answer]) => `<p><strong>Q: ${escapeHtml(question)}</strong></p><p>A: ${escapeHtml(answer)}</p>`).join("\n"),
   ].filter(Boolean).join("\n");
 }
@@ -1976,6 +2490,7 @@ function computeConfidence(signals) {
     signals.sourceTitle,
     signals.catalogTitle,
     signals.handlePhrase,
+    buildSafeHandleTitle(signals),
   ].reduce((score, value) => {
     const normalized = normalizeComparableText(value);
     if (!normalized) {
@@ -2038,7 +2553,9 @@ function selectCanonicalTitle(signals) {
   const handleAlignedTitle = buildHandleAlignedTitle(signals);
   if (handleAlignedTitle) {
     return {
-      candidate: titleCase(handleAlignedTitle),
+      candidate: /(?:3\.5mm|XH2\.54|USB-C|DC-DC|iPhone|iPad|mAh|\d+-in-\d+|5\/8|1\/4-20|3\/8-16)/i.test(handleAlignedTitle)
+        ? handleAlignedTitle
+        : titleCase(handleAlignedTitle),
       score: 1000,
     };
   }
@@ -2047,6 +2564,7 @@ function selectCanonicalTitle(signals) {
     signals.sourceTitle,
     signals.catalogTitle,
     signals.handlePhrase,
+    buildSafeHandleTitle(signals),
     signals.handlePhrase && signals.sourceProductType
       ? appendProductTypeCandidate(signals.handlePhrase, signals.sourceProductType)
       : "",
@@ -2083,6 +2601,10 @@ function buildCanonicalAltText(signals, canonicalTitle) {
 function buildProductProfile(signals) {
   const confidence = computeConfidence(signals);
   const knowledge = resolveProductKnowledge(signals.handle);
+  const modelDefinition = getReliableModelTaxonomyDefinition(signals);
+  const modelTypeText = modelDefinition?.canonicalType
+    ? sanitizeMarketplaceClaims(normalizePlainText(modelDefinition.canonicalType))
+    : "";
   const classificationHeld = Boolean(
     (signals.productKnowledge?.reviewRequired || signals.productKnowledge?.seoEligible === false) &&
       !HANDLE_TITLE_OVERRIDES.has(signals.handle),
@@ -2099,14 +2621,20 @@ function buildProductProfile(signals) {
           ? "medium"
           : "low";
   const selectedTitle = normalizePlainText(selectCanonicalTitle(signals).candidate || signals.sourceTitle || signals.catalogTitle);
+  const directHandleTitle = buildHandleAlignedTitle(signals);
+  const directHandleTitleCandidate = directHandleTitle
+    ? /(?:3\.5mm|XH2\.54|USB-C|DC-DC|iPhone|iPad|mAh|\d+-in-\d+|5\/8|1\/4-20|3\/8-16|Hot-Shoe)/i.test(directHandleTitle)
+      ? directHandleTitle
+      : titleCase(directHandleTitle)
+    : "";
   const safeHandleTitle = buildSafeHandleTitle(signals);
   const selectedTitleIsWeak =
     selectedTitle.length < 20 ||
     GENERIC_TITLE_PHRASES.some((pattern) => pattern.test(selectedTitle));
-  const titleCandidate = explicitTitle ||
+  const titleCandidate = explicitTitle || directHandleTitleCandidate ||
     ((selectedTitleIsWeak || !isTitleAlignedWithKnowledge(selectedTitle, knowledge)) && safeHandleTitle
       ? safeHandleTitle
-      : selectedTitle);
+      : selectedTitle || modelTypeText);
   const guardedTitle = enforceMarketplaceTitle(
     normalizePlainText(titleCandidate),
     68,
@@ -2115,6 +2643,9 @@ function buildProductProfile(signals) {
   const canonicalTitle = guardedTitle.length >= 20 || safeGuardedTitle.length <= guardedTitle.length
     ? guardedTitle
     : safeGuardedTitle;
+  const contentRewriteLevel = classificationHeld && canonicalTitle.length >= 20 && confidence >= 35
+    ? "high"
+    : rewriteLevel;
   const searchPhrases = buildSearchPhrases(signals);
   const seoTitle = buildCanonicalSeoTitle(canonicalTitle, signals);
   const seoDescription = buildSeoDescription(canonicalTitle, signals, searchPhrases);
@@ -2144,6 +2675,9 @@ function buildProductProfile(signals) {
   if (signals.collectionTitles.length) {
     reasons.push(`collections:${signals.collectionTitles.slice(0, 2).join(" / ")}`);
   }
+  if (modelDefinition) {
+    reasons.push(`model-grounded-listing:${modelDefinition.id}`);
+  }
   if (searchPhrases.length) {
     reasons.push(`search:${searchPhrases.slice(0, 3).join(", ")}`);
   }
@@ -2162,8 +2696,8 @@ function buildProductProfile(signals) {
   };
 
   const desiredProductInput = {
-    title: rewriteLevel === "high" ? canonicalTitle : "",
-    descriptionHtml: rewriteLevel === "high" ? descriptionHtml : "",
+    title: contentRewriteLevel === "high" ? canonicalTitle : "",
+    descriptionHtml: contentRewriteLevel === "high" ? descriptionHtml : "",
     productType,
     seo: {
       title: rewriteLevel !== "low" ? seoTitle : "",
@@ -2171,7 +2705,7 @@ function buildProductProfile(signals) {
     },
   };
 
-  if (rewriteLevel === "high" && canonicalTitle) {
+  if (contentRewriteLevel === "high" && canonicalTitle) {
     if (normalizeComparableText(canonicalTitle) !== normalizeComparableText(signals.sourceTitle)) {
       productInput.title = canonicalTitle;
       changedFields.push("title");
@@ -2192,8 +2726,8 @@ function buildProductProfile(signals) {
       skippedFields.push({ field: "alt", reason: "already aligned" });
     }
   } else {
-    skippedFields.push({ field: "title", reason: rewriteLevel === "high" ? "already aligned" : "confidence below high threshold" });
-    skippedFields.push({ field: "body", reason: rewriteLevel === "high" ? "already aligned" : "confidence below high threshold" });
+    skippedFields.push({ field: "title", reason: contentRewriteLevel === "high" ? "already aligned" : "confidence below high threshold" });
+    skippedFields.push({ field: "body", reason: contentRewriteLevel === "high" ? "already aligned" : "confidence below high threshold" });
     skippedFields.push({ field: "alt", reason: "confidence below high threshold" });
   }
 
@@ -2230,6 +2764,7 @@ function buildProductProfile(signals) {
     handlePhrase: signals.handlePhrase,
     confidence,
     rewriteLevel,
+    contentRewriteLevel,
     canonicalTitle,
     canonicalDescriptionHtml: descriptionHtml,
     canonicalSeoTitle: seoTitle,
@@ -2251,6 +2786,15 @@ function buildProductProfile(signals) {
       modelTopRuleId: signals.productKnowledge?.modelEvidence?.topRuleId || "",
       modelAgreesWithTaxonomy: signals.productKnowledge?.modelEvidence
         ? signals.productKnowledge.modelEvidence.topRuleId === signals.productKnowledge.classificationRule
+        : null,
+      modelEvidenceUsed: Boolean(modelDefinition),
+      modelTaxonomy: modelDefinition
+        ? {
+            ruleId: modelDefinition.id,
+            canonicalType: modelDefinition.canonicalType,
+            categoryLabel: modelDefinition.categoryLabel || "",
+            subcategoryLabel: modelDefinition.subcategoryLabel || "",
+          }
         : null,
       classificationHeld,
       priorityFacts: knowledge.priorityFacts,
@@ -2346,7 +2890,7 @@ function buildVariantPlanFromRow(row, profile, { includeAligned = false, preserv
 }
 
 function buildMediaPlanFromRow(row, profile, { includeAligned = false } = {}) {
-  if ((profile?.rewriteLevel || "low") !== "high") {
+  if ((profile?.contentRewriteLevel || profile?.rewriteLevel || "low") !== "high") {
     return null;
   }
 
@@ -2638,6 +3182,7 @@ export async function buildSeoBatchPlan(
       firstRowIndex: group.firstRowIndex,
       confidence: profile.confidence,
       rewriteLevel: profile.rewriteLevel,
+      contentRewriteLevel: profile.contentRewriteLevel,
       productInput,
       desiredProductInput,
       variantUpdates,
@@ -2659,6 +3204,7 @@ export async function buildSeoBatchPlan(
     sourceRows: rows.length,
     handleGroups: productsOut.length,
     highConfidence: productsOut.filter((entry) => entry.rewriteLevel === "high").length,
+    contentHighConfidence: productsOut.filter((entry) => entry.contentRewriteLevel === "high").length,
     mediumConfidence: productsOut.filter((entry) => entry.rewriteLevel === "medium").length,
     lowConfidence: productsOut.filter((entry) => entry.rewriteLevel === "low").length,
     totalProductWrites: productsOut.reduce(
@@ -2744,7 +3290,7 @@ export function buildSeoBatchExportRows(rows, plan) {
       return shortenAtWordBoundary(withIntent, 60);
     })();
 
-    if (isPrimaryRow && productPlan.rewriteLevel === "high") {
+    if (isPrimaryRow && (productPlan.contentRewriteLevel || productPlan.rewriteLevel) === "high") {
       setPreferredField(nextRow, ["Title"], productPlan.productInput?.title || "");
       setPreferredField(nextRow, ["Body (HTML)"], productPlan.productInput?.descriptionHtml || "");
       setPreferredField(nextRow, ["SEO Title"], exportSeoTitle);
@@ -2758,7 +3304,7 @@ export function buildSeoBatchExportRows(rows, plan) {
       nextRow.Tags = reconcileManagedMinimumQuantityTags(nextRow.Tags, productPlan.desiredQuantityTag).join(", ");
     }
 
-    if (productPlan.rewriteLevel === "high") {
+    if ((productPlan.contentRewriteLevel || productPlan.rewriteLevel) === "high") {
       const mediaUpdate = buildMediaPlanFromRow(row, profile);
       if (mediaUpdate) {
         setPreferredField(nextRow, ["Image Alt Text"], mediaUpdate.alt);
@@ -2799,6 +3345,7 @@ export function buildSeoBatchManifest(plan, { inputPath = "", mode = "dry-run" }
       rowCount: entry.rowCount,
       confidence: entry.confidence,
       rewriteLevel: entry.rewriteLevel,
+      contentRewriteLevel: entry.contentRewriteLevel,
       firstRowIndex: entry.firstRowIndex,
       productId: entry.productId,
       categoryQuery: entry.categoryQuery || "",

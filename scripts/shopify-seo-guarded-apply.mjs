@@ -22,7 +22,7 @@ function run(label, command, args) {
 const resumeAtVariantImage = process.env.SALT_SEO_GUARDED_RESUME_FROM_VARIANT_IMAGE === "1";
 
 if (!resumeAtVariantImage) {
-  run("1. Verify trained 128M-record catalog knowledge model", npmBin, ["run", "catalog:knowledge:model:verify"]);
+  run("1. Verify trained 256M-record catalog knowledge model", npmBin, ["run", "catalog:knowledge:model:verify"]);
   run("2. Verify catalog taxonomy approval", nodeBin, ["scripts/catalog-taxonomy-approval.mjs"]);
   run("3. Validate local catalog taxonomy", npmBin, ["run", "catalog:taxonomy:validate"]);
   run("4. Build the visual taxonomy review queue", npmBin, ["run", "catalog:image-review:build"]);

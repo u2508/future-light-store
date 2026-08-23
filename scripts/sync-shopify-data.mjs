@@ -15,6 +15,12 @@ import { buildProductSearchPayload } from "./product-search-index.mjs";
 import { readProductCatalogPayload, writeProductCatalogPayload } from "./product-catalog-files.mjs";
 import { writeProductSearchPayload } from "./product-search-files.mjs";
 import { filterOnlineStoreProducts, filterProductIdsToCatalog } from "./shopify-publication.mjs";
+import {
+  createInFlightCache,
+  createRequestScheduler,
+  envInteger,
+  stableJson,
+} from "./lib/performance-runtime.mjs";
 
 const baseUrl = process.env.SALT_SHOP_URL;
 if (!baseUrl) throw new Error("SALT_SHOP_URL is required to sync the Future Light Store catalog.");
@@ -38,7 +44,8 @@ const blogHandles = Array.from(
   ),
 );
 const outDir = resolve(process.cwd(), "public", "data");
-const requestSpacingMs = Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS ?? 250);
+const requestSpacingMs = Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS ?? 125);
+const requestConcurrency = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
 const requestTimeoutMs = Number(process.env.SALT_SHOPIFY_REQUEST_TIMEOUT_MS ?? 45_000);
 const maxRequestAttempts = Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS ?? 8);
 const maxRetryDelayMs = Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS ?? 60_000);
@@ -58,7 +65,8 @@ const shopPath = resolve(outDir, "shop.json");
 let forceLiveCollectionHandles = new Set();
 const cliCollectionIdsByHandle = new Map();
 const cliCollectionProductsByHandle = new Map();
-let requestQueue = Promise.resolve();
+const requestScheduler = createRequestScheduler({ concurrency: requestConcurrency, minIntervalMs: requestSpacingMs });
+const inFlightGraphQlReads = createInFlightCache();
 const execFileAsync = promisify(execFile);
 
 function sleep(ms) {
@@ -94,24 +102,7 @@ function computeRetryDelayMs(response, attempt, baseDelayMs) {
 }
 
 async function runSerializedRequest(task) {
-  let releaseQueue;
-  const currentRequest = new Promise((resolve) => {
-    releaseQueue = resolve;
-  });
-
-  const previousRequest = requestQueue;
-  requestQueue = currentRequest;
-  await previousRequest;
-
-  try {
-    const result = await task();
-    if (requestSpacingMs > 0) {
-      await sleep(requestSpacingMs);
-    }
-    return result;
-  } finally {
-    releaseQueue?.();
-  }
+  return requestScheduler.run(task);
 }
 
 async function fetchJsonUrl(url, { attempt = 0, maxAttempts = maxRequestAttempts } = {}) {
@@ -332,7 +323,7 @@ function getShopifyCliEnv() {
   };
 }
 
-async function runShopifyStoreGraphQL(query, variables = {}, { allowMutations = false } = {}) {
+async function runShopifyStoreGraphQLInternal(query, variables = {}, { allowMutations = false } = {}) {
   const tempDir = await mkdtemp(join(tmpdir(), "salt-shopify-sync-"));
   const queryFile = join(tempDir, "operation.graphql");
   const outputFile = join(tempDir, "result.json");
@@ -384,6 +375,13 @@ async function runShopifyStoreGraphQL(query, variables = {}, { allowMutations = 
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+async function runShopifyStoreGraphQL(query, variables = {}, { allowMutations = false } = {}) {
+  const cacheKey = allowMutations ? "" : `${query}\n${stableJson(variables)}`;
+  return inFlightGraphQlReads.getOrCreate(cacheKey, () =>
+    requestScheduler.run(() => runShopifyStoreGraphQLInternal(query, variables, { allowMutations })),
+  );
 }
 
 const SHOP_CUSTOM_DATA_QUERY = /* GraphQL */ `
@@ -2322,7 +2320,7 @@ async function fetchShopForSync() {
     process.stdout.write(`Shop custom data fetch failed; using fallback shop payload (${message})\n`);
     return {
       id: "shop",
-      name: "SALT",
+      name: "Future Light Store",
       customData: normalizeShopCustomData({
         bannerText: "",
         trustStrip: [],

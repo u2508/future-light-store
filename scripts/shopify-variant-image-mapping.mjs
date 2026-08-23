@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 
 import { normalizeHandleValue, normalizePlainText } from "../src/lib/shopify-seo-batch.js";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
+import { createRequestScheduler, envInteger } from "./lib/performance-runtime.mjs";
 
 const execFileAsync = promisify(execFile);
 const rootDir = resolve(import.meta.dirname, "..");
@@ -23,7 +24,9 @@ const apiVersion = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
 const adminAccessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SALT_SHOPIFY_ADMIN_ACCESS_TOKEN || "";
 const adminGraphqlUrl = `${new URL(shopBase).origin}/admin/api/${apiVersion}/graphql.json`;
 const cliBinary = process.env.SHOPIFY_CLI_BINARY || "shopify";
-const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 0));
+const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
+const requestConcurrency = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
+const requestScheduler = createRequestScheduler({ concurrency: requestConcurrency, minIntervalMs: requestDelayMs });
 const maxAttempts = Math.max(1, Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
 const maxBatchProducts = Math.max(1, Math.min(25, Number(process.env.SALT_VARIANT_IMAGE_BATCH_SIZE || 25)));
 const applyConcurrency = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_APPLY_CONCURRENCY || 2));
@@ -771,7 +774,7 @@ function scoreImageMatch(variant, image) {
   return { score, signals };
 }
 
-async function executeGraphQl(query, variables = {}, { mutation = false, operation = "Shopify request" } = {}) {
+async function executeGraphQlInternal(query, variables = {}, { mutation = false, operation = "Shopify request" } = {}) {
   const cliArgs = [
     "store",
     "execute",
@@ -855,6 +858,10 @@ async function executeGraphQl(query, variables = {}, { mutation = false, operati
     }
   }
   throw new Error(`${operation} failed`);
+}
+
+async function executeGraphQl(query, variables = {}, options = {}) {
+  return requestScheduler.run(() => executeGraphQlInternal(query, variables, options));
 }
 
 async function loadHandles(handlesPath) {

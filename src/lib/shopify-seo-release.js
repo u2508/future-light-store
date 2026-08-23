@@ -107,7 +107,7 @@ function appendSeoTitleQualifier(value, qualifier) {
 
 function appendSeoDescriptionQualifier(value, qualifier, isReference) {
   const suffix = isReference
-    ? `SALT catalog reference ${qualifier.replace(/^Ref\s+/i, "")}.`
+    ? `Future Light Store catalog reference ${qualifier.replace(/^Ref\s+/i, "")}.`
     : `Identifying details include ${normalizePlainText(qualifier).toLowerCase()}.`;
   const base = shortenSeoText(String(value || "").replace(/[.!?]+$/g, ""), 168 - suffix.length);
   return `${base}. ${suffix}`;
@@ -115,7 +115,7 @@ function appendSeoDescriptionQualifier(value, qualifier, isReference) {
 
 function appendDescriptionHtmlQualifier(value, qualifier) {
   const safeQualifier = normalizePlainText(qualifier);
-  return `${String(value || "").trim()}\n<p>SALT catalog listing reference ${safeQualifier}.</p>`;
+  return `${String(value || "").trim()}\n<p>Future Light Store catalog listing reference ${safeQualifier}.</p>`;
 }
 
 function updateProductSeoField(product, field, value, qualifier) {
@@ -546,7 +546,7 @@ export async function buildShopifySeoReleasePlan(
       // making the explicit override durable on Shopify.
       const canonicalSeoTitle = canonicalSeoTitleBase && canonicalProductTitle &&
         normalizeComparableText(canonicalSeoTitleBase) === normalizeComparableText(canonicalProductTitle)
-        ? appendSeoTitleQualifier(canonicalSeoTitleBase, "SALT Online")
+        ? appendSeoTitleQualifier(canonicalSeoTitleBase, "Future Light Store")
         : canonicalSeoTitleBase;
       const canonicalSeoDescription = normalizePlainText(
         productPlan.intelligence?.canonicalSeoDescription || desiredProductInput.seo?.description || "",
@@ -602,7 +602,7 @@ export async function buildShopifySeoReleasePlan(
 export function isHandleContentMismatch(productPlan) {
   const intelligence = productPlan?.intelligence || {};
   const canonicalTitle = normalizeComparableText(intelligence.canonicalTitle);
-  if (!canonicalTitle || productPlan?.rewriteLevel !== "high") {
+  if (!canonicalTitle || (productPlan?.contentRewriteLevel || productPlan?.rewriteLevel) !== "high") {
     return false;
   }
 

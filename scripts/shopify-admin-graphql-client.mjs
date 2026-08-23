@@ -3,6 +3,12 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
+import {
+  createInFlightCache,
+  createRequestScheduler,
+  envInteger,
+  stableJson,
+} from "./lib/performance-runtime.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -52,7 +58,8 @@ export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
   const accessToken = (process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SALT_SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim();
   const graphqlUrl = `${new URL(shopBase).origin}/admin/api/${apiVersion}/graphql.json`;
   const cliBinary = process.env.SHOPIFY_CLI_BINARY || "shopify";
-  const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 300));
+  const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
+  const requestConcurrency = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
   const requestTimeoutMs = Math.max(10_000, Number(process.env.SALT_SHOPIFY_REQUEST_TIMEOUT_MS || 180_000));
   const maxAttempts = Math.max(1, Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
   const maxRetryDelayMs = Math.max(1000, Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));
@@ -60,17 +67,17 @@ export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
   const cliAgentIds =
     process.env.SHOPIFY_CLI_AGENT_IDS ||
     `s:${process.env.CONVERSATION_ID || "local"}|r:${process.pid}|i:${agentName}`;
-  let lastRequestFinishedAt = 0;
+  const requestScheduler = createRequestScheduler({ concurrency: requestConcurrency, minIntervalMs: requestDelayMs });
+  const inFlightReads = createInFlightCache();
 
   async function run(query, variables = {}, { allowMutations = false, operation = "Shopify request", retryInfo = [] } = {}) {
-    const waitFor = requestDelayMs - (Date.now() - lastRequestFinishedAt);
-    if (waitFor > 0) await sleep(waitFor);
-
-    let attempt = 0;
-    while (true) {
-      try {
-        if (accessToken) {
-          const response = await fetch(graphqlUrl, {
+    const cacheKey = allowMutations ? "" : `${query}\n${stableJson(variables)}`;
+    return inFlightReads.getOrCreate(cacheKey, () => requestScheduler.run(async () => {
+      let attempt = 0;
+      while (true) {
+        try {
+          if (accessToken) {
+            const response = await fetch(graphqlUrl, {
             method: "POST",
             headers: {
               Accept: "application/json",
@@ -80,24 +87,23 @@ export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
             body: JSON.stringify({ query, variables }),
             signal: AbortSignal.timeout(requestTimeoutMs),
           });
-          const raw = await response.text();
-          if (!response.ok) {
-            throw new Error(`Admin GraphQL HTTP ${response.status}: ${raw.slice(0, 500)}`);
+            const raw = await response.text();
+            if (!response.ok) {
+              throw new Error(`Admin GraphQL HTTP ${response.status}: ${raw.slice(0, 500)}`);
+            }
+            return parseGraphQlPayload(raw);
           }
-          lastRequestFinishedAt = Date.now();
-          return parseGraphQlPayload(raw);
-        }
 
-        const tempDir = await mkdtemp(join(tmpdir(), "salt-shopify-admin-"));
-        const queryPath = join(tempDir, "operation.graphql");
-        const variablesPath = join(tempDir, "variables.json");
-        const outputPath = join(tempDir, "result.json");
-        try {
-          await Promise.all([
-            writeFile(queryPath, query, "utf8"),
-            writeFile(variablesPath, JSON.stringify(variables, null, 2), "utf8"),
-          ]);
-          const args = [
+          const tempDir = await mkdtemp(join(tmpdir(), "salt-shopify-admin-"));
+          const queryPath = join(tempDir, "operation.graphql");
+          const variablesPath = join(tempDir, "variables.json");
+          const outputPath = join(tempDir, "result.json");
+          try {
+            await Promise.all([
+              writeFile(queryPath, query, "utf8"),
+              writeFile(variablesPath, JSON.stringify(variables, null, 2), "utf8"),
+            ]);
+            const args = [
             "store",
             "execute",
             "--store",
@@ -111,9 +117,9 @@ export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
             "--output-file",
             outputPath,
             "--json",
-          ];
-          if (allowMutations) args.push("--allow-mutations");
-          const result = await execFileAsync(cliBinary, args, {
+            ];
+            if (allowMutations) args.push("--allow-mutations");
+            const result = await execFileAsync(cliBinary, args, {
             cwd: rootDir,
             env: {
               ...process.env,
@@ -125,35 +131,34 @@ export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
             maxBuffer: 20 * 1024 * 1024,
             timeout: requestTimeoutMs,
             killSignal: "SIGTERM",
-          });
-          let raw = result.stdout || "";
-          try {
-            raw = await readFile(outputPath, "utf8");
-          } catch {
-            // Older Shopify CLI builds only emit JSON on stdout.
+            });
+            let raw = result.stdout || "";
+            try {
+              raw = await readFile(outputPath, "utf8");
+            } catch {
+              // Older Shopify CLI builds only emit JSON on stdout.
+            }
+            return parseGraphQlPayload(raw);
+          } finally {
+            await rm(tempDir, { recursive: true, force: true });
           }
-          lastRequestFinishedAt = Date.now();
-          return parseGraphQlPayload(raw);
-        } finally {
-          await rm(tempDir, { recursive: true, force: true });
+        } catch (error) {
+          if (!isRetryable(error) || attempt >= maxAttempts - 1) {
+            throw new Error(`${operation} failed: ${normalizeText(error?.message || error)}`);
+          }
+          const delayMs = Math.min(maxRetryDelayMs, Math.max(requestDelayMs, 1000 * 2 ** attempt));
+          retryInfo.push({
+            operation,
+            attempt: attempt + 1,
+            delayMs,
+            message: normalizeText(error?.message || error).slice(0, 500),
+            at: new Date().toISOString(),
+          });
+          await sleep(delayMs);
+          attempt += 1;
         }
-      } catch (error) {
-        lastRequestFinishedAt = Date.now();
-        if (!isRetryable(error) || attempt >= maxAttempts - 1) {
-          throw new Error(`${operation} failed: ${normalizeText(error?.message || error)}`);
-        }
-        const delayMs = Math.min(maxRetryDelayMs, Math.max(requestDelayMs, 1000 * 2 ** attempt));
-        retryInfo.push({
-          operation,
-          attempt: attempt + 1,
-          delayMs,
-          message: normalizeText(error?.message || error).slice(0, 500),
-          at: new Date().toISOString(),
-        });
-        await sleep(delayMs);
-        attempt += 1;
       }
-    }
+    }));
   }
 
   return {

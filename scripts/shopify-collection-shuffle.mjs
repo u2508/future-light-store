@@ -244,18 +244,24 @@ async function main() {
       Array.isArray(priorManifest.collections) &&
       priorManifest.collections.length,
   );
+  const priorFailedHandles = new Set(
+    asArray(priorManifest?.failures)
+      .filter((failure) => failure?.reason === "order-readback-mismatch")
+      .map((failure) => failure.handle)
+      .filter(Boolean),
+  );
+  const autoRepairFailed = args.mode === "apply" && hasReusablePriorPlan && priorFailedHandles.size > 0;
   let canReusePriorPlan = hasReusablePriorPlan;
   let plan;
-  if (args.repairFailed) {
+  if (args.repairFailed || autoRepairFailed) {
     if (args.mode !== "apply" || !hasReusablePriorPlan) {
       throw new Error("--repair-failed requires --apply and a same-seed shuffle manifest.");
     }
-    const failedHandles = new Set(
-      asArray(priorManifest.failures)
-        .filter((failure) => failure?.reason === "order-readback-mismatch")
-        .map((failure) => failure.handle),
-    );
+    const failedHandles = priorFailedHandles;
     if (!failedHandles.size) throw new Error("--repair-failed found no order-readback failures in the shuffle manifest.");
+    if (autoRepairFailed && !args.repairFailed) {
+      process.stdout.write(`Automatically repairing ${failedHandles.size} collection shuffle readback failure(s).\n`);
+    }
     const repairedPlan = [];
     for (const entry of priorManifest.collections) {
       if (!failedHandles.has(entry.handle)) {

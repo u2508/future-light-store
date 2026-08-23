@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promise
 import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
+import { createRequestScheduler, envInteger } from "./lib/performance-runtime.mjs";
 
 import {
   buildCatalogTaxonomyReleasePlan,
@@ -37,7 +38,8 @@ const cliAgentInfo = process.env.SHOPIFY_CLI_AGENT_INFO || "n:future-light-store
 const cliAgentIds =
   process.env.SHOPIFY_CLI_AGENT_IDS ||
   `s:${process.env.CONVERSATION_ID || "local"}|r:${process.pid}|i:catalog-taxonomy-release`;
-const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 300));
+const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
+const requestConcurrency = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
 const maxAttempts = Math.max(1, Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
 const maxRetryDelayMs = Math.max(1000, Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));
 const batchSize = Math.max(1, Math.min(25, Number(process.env.SALT_CATALOG_TAXONOMY_BATCH_SIZE || 20)));
@@ -219,13 +221,9 @@ function isRetryable(error) {
   );
 }
 
-let lastRequestFinishedAt = 0;
+const requestScheduler = createRequestScheduler({ concurrency: requestConcurrency, minIntervalMs: requestDelayMs });
 
-async function runShopifyGraphQL(query, variables, { allowMutations = false, operation = "Shopify request", retryInfo = [] } = {}) {
-  const waitFor = requestDelayMs - (Date.now() - lastRequestFinishedAt);
-  if (waitFor > 0) {
-    await sleep(waitFor);
-  }
+async function runShopifyGraphQLInternal(query, variables, { allowMutations = false, operation = "Shopify request", retryInfo = [] } = {}) {
 
   let attempt = 0;
   while (true) {
@@ -244,7 +242,6 @@ async function runShopifyGraphQL(query, variables, { allowMutations = false, ope
         if (!response.ok) {
           throw new Error(`Admin GraphQL HTTP ${response.status}: ${raw.slice(0, 500)}`);
         }
-        lastRequestFinishedAt = Date.now();
         return parseGraphQlPayload(raw);
       }
 
@@ -286,13 +283,11 @@ async function runShopifyGraphQL(query, variables, { allowMutations = false, ope
         } catch {
           // Some Shopify CLI versions only emit the JSON response on stdout.
         }
-        lastRequestFinishedAt = Date.now();
         return parseGraphQlPayload(raw);
       } finally {
         await rm(tempDir, { recursive: true, force: true });
       }
     } catch (error) {
-      lastRequestFinishedAt = Date.now();
       if (!isRetryable(error) || attempt >= maxAttempts - 1) {
         throw new Error(`${operation} failed: ${normalizeText(error?.message || error)}`);
       }
@@ -310,6 +305,10 @@ async function runShopifyGraphQL(query, variables, { allowMutations = false, ope
       attempt += 1;
     }
   }
+}
+
+async function runShopifyGraphQL(query, variables, options = {}) {
+  return requestScheduler.run(() => runShopifyGraphQLInternal(query, variables, options));
 }
 
 async function verifyApprovalForApply() {

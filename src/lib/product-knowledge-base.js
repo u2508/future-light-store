@@ -183,11 +183,17 @@ export function buildProductKnowledgeFromTaxonomy(
     ? buildFallbackSearchTerms(product, leafType)
     : buildSearchTerms(product, taxonomy, leafType, aliases);
   const resolvedModelEvidence = scoreCatalogKnowledgeModel(knowledgeModel, product, { modelEvidence });
+  const hasApprovedOverride = Boolean(taxonomy.override?.id);
+  // Only curated, product-specific listing evidence is strong enough to hold
+  // a checked-in taxonomy. Broad model disagreement remains audit evidence;
+  // otherwise supplier noise can reopen valid classifications at release time.
   const modelConflict = Boolean(
+    !hasApprovedOverride &&
     resolvedModelEvidence &&
     resolvedModelEvidence.topRuleId &&
     resolvedModelEvidence.topRuleId !== taxonomy.ruleId &&
     resolvedModelEvidence.reliable === true &&
+    Number(resolvedModelEvidence.listingPhraseHits || 0) > 0 &&
     resolvedModelEvidence.margin >= Number(knowledgeModel?.conflictMargin || 0),
   );
   const reviewReasons = unique([
@@ -226,7 +232,7 @@ export function buildProductKnowledgeFromTaxonomy(
     searchTerms,
     negativeTerms: taxonomy.negativeTerms,
     attributes: taxonomy.attributes,
-    // A reliable model conflict is review-only; do not expose the checked-in
+    // A curated model conflict is review-only; do not expose the checked-in
     // taxonomy tags until the product is explicitly resolved.
     proposedTags: modelConflict ? [] : taxonomy.proposedTags,
     collectionTargets: taxonomy.collectionTargets,

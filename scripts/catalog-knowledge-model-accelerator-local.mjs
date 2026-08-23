@@ -1,5 +1,5 @@
 #!/usr/bin/env node
 
-export async function scoreCatalogKnowledgeModelBatch() {
-  throw new Error("Local accelerator artifact is unavailable; use the current-catalog evidence cache.");
-}
+// Compatibility shim for older release entrypoints. The real implementation
+// is the shared MLX/Metal accelerator; callers may still import this path.
+export { scoreCatalogKnowledgeModelBatch } from "./catalog-knowledge-model-accelerator.mjs";
