@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Heart, LogOut, MapPin, Menu, Search, User, X } from "lucide-react";
+import { ChevronRight, Heart, LogOut, Menu, Search, User, X } from "lucide-react";
 import { toast } from "sonner";
 import { VsLogo } from "@/components/vs/VsLogo";
 import { PredictiveSearch } from "@/components/vs/PredictiveSearch";
