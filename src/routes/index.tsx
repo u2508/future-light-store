@@ -66,45 +66,18 @@ function Index() {
   return (
     <div className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[780px] bg-[radial-gradient(circle_at_top,rgba(60,110,255,0.13),transparent_42%),radial-gradient(circle_at_80%_10%,rgba(42,186,170,0.16),transparent_24%),linear-gradient(to_bottom,rgba(255,255,255,0.85),transparent)]" />
-      <section className="mx-auto max-w-7xl px-4 pt-6">
-        <div className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card shadow-[var(--shadow-lift)]">
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(255,255,255,0.18))]" />
-          <div className="absolute -left-24 top-10 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
-          <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-electric/10 blur-3xl" />
-          <img
-            src={heroImage}
-            alt="Curated VS Store everyday-carry collection"
-            width={1600}
-            height={1104}
-            className="h-[420px] w-full object-cover sm:h-[520px]"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(245,247,252,0.97)_0%,rgba(245,247,252,0.82)_38%,rgba(245,247,252,0.2)_68%,rgba(245,247,252,0.02)_100%)]" />
-          <div className="absolute inset-0 flex flex-col justify-center gap-5 p-7 sm:p-14 lg:p-16">
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-foreground shadow-sm backdrop-blur">
-              <Sparkles className="h-3 w-3" /> New season
-            </span>
-            <div className="max-w-2xl space-y-4">
-              <h1 className="max-w-xl font-display text-4xl font-bold leading-[1.02] sm:text-6xl lg:text-7xl">
-                Everyday essentials, engineered forward.
-              </h1>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                to="/shop"
-                className="inline-flex w-fit items-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(38,88,190,0.28)] transition-transform hover:-translate-y-0.5"
-              >
-                Explore the catalog
-              </Link>
-              <Link
-                to="/collections"
-                className="inline-flex w-fit items-center rounded-full border border-border bg-white/70 px-6 py-3 text-sm font-semibold text-foreground backdrop-blur transition-colors hover:border-primary hover:bg-white"
-              >
-                Browse collections
-              </Link>
-            </div>
-          </div>
-        </div>
+      <section className="mx-auto max-w-7xl px-4 pt-8">
+        <h1 className="max-w-3xl font-display text-4xl font-bold leading-[1.03] sm:text-6xl">
+          Everyday essentials, engineered forward.
+        </h1>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground sm:text-base">
+          Shop the collections VS customers order most — tech, travel, home and beauty, with tracked delivery and
+          secure Shopify checkout.
+        </p>
       </section>
+
+      <HeroCarousel slides={heroSlides} />
+
 
       <section className="mx-auto max-w-7xl px-4 pt-8">
         <div className="grid gap-3 sm:grid-cols-3">
