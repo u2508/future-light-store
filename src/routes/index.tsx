@@ -82,16 +82,6 @@ function Index() {
   return (
     <div className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[780px] bg-[radial-gradient(circle_at_top,rgba(60,110,255,0.13),transparent_42%),radial-gradient(circle_at_80%_10%,rgba(42,186,170,0.16),transparent_24%),linear-gradient(to_bottom,rgba(255,255,255,0.85),transparent)]" />
-      <section className="mx-auto max-w-7xl px-4 pt-8">
-        <h1 className="max-w-3xl font-display text-4xl font-bold leading-[1.03] sm:text-6xl">
-          Everyday essentials, engineered forward.
-        </h1>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground sm:text-base">
-          Shop the collections VS customers order most — tech, travel, home and beauty, with tracked
-          delivery and secure Shopify checkout.
-        </p>
-      </section>
-
       <HeroCarousel slides={heroSlides} />
 
       <section className="mx-auto max-w-7xl px-4 pt-8">

@@ -43,7 +43,7 @@ export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
 
   return (
     <section
-      className="mx-auto max-w-7xl px-4 pt-6"
+      className="mx-auto max-w-7xl px-3 pt-3 sm:px-4 sm:pt-6"
       aria-roledescription="carousel"
       aria-label="Featured collections carousel"
       onMouseEnter={() => setIsHovering(true)}
@@ -53,7 +53,7 @@ export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsFocused(false);
       }}
     >
-      <div className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card shadow-[var(--shadow-lift)]">
+      <div className="relative overflow-hidden rounded-[1.5rem] border border-border/70 bg-card shadow-[var(--shadow-lift)] sm:rounded-[2rem]">
         <div
           id="hero-carousel-slides"
           className={`flex ${prefersReducedMotion ? "" : "transition-transform duration-700 ease-out"}`}
@@ -75,32 +75,32 @@ export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
                 width={1600}
                 height={1104}
                 loading={i === 0 ? "eager" : "lazy"}
-                className="h-[420px] w-full object-cover sm:h-[520px]"
+                className="h-[390px] w-full object-cover sm:h-[520px]"
               />
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(245,247,252,0.97)_0%,rgba(245,247,252,0.86)_38%,rgba(245,247,252,0.24)_70%,rgba(245,247,252,0.04)_100%)]" />
-              <div className="absolute inset-0 flex flex-col justify-center gap-5 p-7 sm:p-14 lg:p-16">
-                <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-foreground shadow-sm backdrop-blur">
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(245,247,252,0.04)_20%,rgba(245,247,252,0.78)_64%,rgba(245,247,252,0.98)_100%)] sm:bg-[linear-gradient(90deg,rgba(245,247,252,0.97)_0%,rgba(245,247,252,0.86)_38%,rgba(245,247,252,0.24)_70%,rgba(245,247,252,0.04)_100%)]" />
+              <div className="absolute inset-0 flex flex-col justify-end gap-3 p-5 pb-16 sm:justify-center sm:gap-5 sm:p-14 sm:pb-14 lg:p-16">
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground shadow-sm backdrop-blur sm:text-[11px] sm:tracking-[0.28em]">
                   <Sparkles className="h-3 w-3" /> {slide.eyebrow}
                 </span>
-                <h2 className="max-w-xl font-display text-3xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
+                <h2 className="max-w-xl font-display text-2xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
                   {slide.title}
                 </h2>
-                <p className="max-w-md text-sm leading-6 text-muted-foreground sm:text-base">
+                <p className="max-w-md text-xs leading-5 text-muted-foreground sm:text-base sm:leading-6">
                   {slide.copy}
                 </p>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
                   <Link
                     to="/collections/$handle"
                     params={{ handle: slide.handle }}
                     tabIndex={i === index ? 0 : -1}
-                    className="inline-flex w-fit items-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(38,88,190,0.28)] transition-transform hover:-translate-y-0.5"
+                    className="inline-flex w-full items-center justify-center rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(38,88,190,0.28)] transition-transform hover:-translate-y-0.5 sm:w-fit sm:px-6"
                   >
                     Shop this edit
                   </Link>
                   <Link
                     to="/shop"
                     tabIndex={i === index ? 0 : -1}
-                    className="inline-flex w-fit items-center rounded-full border border-border bg-white/70 px-6 py-3 text-sm font-semibold text-foreground backdrop-blur transition-colors hover:border-primary hover:bg-white"
+                    className="inline-flex w-full items-center justify-center rounded-full border border-border bg-white/70 px-5 py-3 text-sm font-semibold text-foreground backdrop-blur transition-colors hover:border-primary hover:bg-white sm:w-fit sm:px-6"
                   >
                     Explore the catalog
                   </Link>
@@ -115,7 +115,7 @@ export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
           aria-label="Previous slide"
           aria-controls="hero-carousel-slides"
           onClick={() => go(index - 1)}
-          className="absolute left-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-border bg-card/85 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-card"
+          className="absolute left-3 top-5 grid h-9 w-9 place-items-center rounded-full border border-border bg-card/85 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-card sm:top-1/2 sm:h-10 sm:w-10 sm:-translate-y-1/2"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -124,7 +124,7 @@ export function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
           aria-label="Next slide"
           aria-controls="hero-carousel-slides"
           onClick={() => go(index + 1)}
-          className="absolute right-3 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-border bg-card/85 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-card"
+          className="absolute right-3 top-5 grid h-9 w-9 place-items-center rounded-full border border-border bg-card/85 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-card sm:top-1/2 sm:h-10 sm:w-10 sm:-translate-y-1/2"
         >
           <ChevronRight className="h-5 w-5" />
         </button>

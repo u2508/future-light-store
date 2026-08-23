@@ -49,13 +49,13 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-2xl">
-      <div className="border-b border-border/60 bg-surface/70">
+      <div className="hidden border-b border-border/60 bg-surface/70 sm:block">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
           <span>Premium curation, tracked fulfilment, secure checkout</span>
           <span className="hidden sm:inline-flex">Fast support from our help centre</span>
         </div>
       </div>
-      <div className="mx-auto max-w-7xl px-3 py-4 sm:px-4">
+      <div className="mx-auto max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setMobileNav((v) => !v)}
@@ -92,14 +92,18 @@ export function Header() {
               <>
                 <Link
                   to={user ? "/account" : "/auth"}
-                  aria-label={user ? `Account for ${user.email ?? "signed-in user"}` : "Sign in to account"}
+                  aria-label={
+                    user ? `Account for ${user.email ?? "signed-in user"}` : "Sign in to account"
+                  }
                   className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-left text-xs leading-tight shadow-sm transition-colors hover:border-primary md:px-4"
                 >
                   <User className="h-4 w-4 shrink-0" />
                   <span className="hidden max-w-[10rem] truncate sm:block">
                     {user ? (
                       <>
-                        <span className="block truncate font-semibold">{user.email ?? "Signed-in account"}</span>
+                        <span className="block truncate font-semibold">
+                          {user.email ?? "Signed-in account"}
+                        </span>
                         <span className="block text-muted-foreground">Profile &amp; Orders</span>
                       </>
                     ) : (
@@ -151,7 +155,7 @@ export function Header() {
         )}
       </div>
 
-      <nav className="border-t border-border/70 bg-surface/75">
+      <nav className="hidden border-t border-border/70 bg-surface/75 lg:block">
         <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto px-4 py-3 text-sm">
           {NAV.map((item) => (
             <Link
@@ -173,16 +177,20 @@ export function Header() {
           <aside className="fixed inset-y-0 left-0 z-[101] flex h-[100dvh] w-[88%] max-w-[380px] flex-col overflow-hidden border-r border-border bg-card shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
             <div className="flex items-start justify-between bg-[#1f2c57] px-5 py-5 text-white">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.38em] text-white/65">Browse Salt</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.38em] text-white/65">
+                  Browse VS Store
+                </p>
                 <div className="mt-4 flex items-center gap-3">
                   <div className="grid h-12 w-12 place-items-center rounded-full bg-white/90 text-[#1f2c57] shadow-sm">
                     <User className="h-6 w-6" />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-[18px] font-semibold leading-none">
-                      {user ? user.email ?? "Signed in" : "Hello, sign in"}
+                      {user ? (user.email ?? "Signed in") : "Hello, sign in"}
                     </p>
-                    <p className="mt-1 text-[12px] uppercase tracking-[0.22em] text-white/65">Account & orders</p>
+                    <p className="mt-1 text-[12px] uppercase tracking-[0.22em] text-white/65">
+                      Account & orders
+                    </p>
                   </div>
                 </div>
               </div>
@@ -241,8 +249,12 @@ export function Header() {
               <section>
                 <div className="rounded-[1.6rem] border border-[#cfdaf2] bg-white p-4">
                   <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.36em] text-[#3557b9]">Quick links</p>
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#3d68f5]">Explore</span>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.36em] text-[#3557b9]">
+                      Quick links
+                    </p>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#3d68f5]">
+                      Explore
+                    </span>
                   </div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {[

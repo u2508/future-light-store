@@ -9,6 +9,7 @@ import {
 import { useEffect } from "react";
 
 import { Header } from "@/components/vs/Header";
+import { MobileAppNav } from "@/components/vs/MobileAppNav";
 import { Footer } from "@/components/vs/Footer";
 import { Toaster } from "@/components/ui/sonner";
 import { useCartSync } from "@/hooks/useCartSync";
@@ -137,10 +138,11 @@ function StoreLayout() {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
-      <main className="flex-1">
+      <main className="flex-1 pb-20 lg:pb-0">
         <Outlet />
       </main>
       <Footer />
+      <MobileAppNav />
       <Toaster position="top-center" />
     </div>
   );
