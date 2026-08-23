@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, ShieldCheck, Sparkles, Star, Truck, RotateCcw } from "lucide-react";
-import heroImage from "@/assets/vs-hero.jpg";
-import { fetchProducts, discountPercent } from "@/lib/shopify";
+import { BadgeCheck, ShieldCheck, Star, Truck, RotateCcw } from "lucide-react";
+import { fetchProducts, fetchCollections, discountPercent } from "@/lib/shopify";
 import { ProductShelf } from "@/components/vs/ProductShelf";
+import { HeroCarousel } from "@/components/vs/HeroCarousel";
 import { canonicalUrl } from "@/lib/seo";
-import { FEATURED_COLLECTION_LINKS, HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
+import { HERO_COLLECTION_BANNERS, HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -31,7 +31,27 @@ function Index() {
     queryFn: () => fetchProducts(99),
     staleTime: 5 * 60 * 1000,
   });
+  const { data: collections = [] } = useQuery({
+    queryKey: ["collections", "home"],
+    queryFn: () => fetchCollections(100),
+    staleTime: 10 * 60 * 1000,
+  });
   const isLoading = !hydrated || queryLoading;
+
+  const heroSlides = HERO_COLLECTION_BANNERS.map((banner) => {
+    const live = collections.find((c) => c.handle === banner.handle);
+    return {
+      handle: banner.handle,
+      eyebrow: banner.eyebrow,
+      title: banner.title,
+      copy: banner.copy,
+      image: live?.image?.url,
+    };
+  });
+
+  const spotlightCollections = collections
+    .filter((c) => c.handle !== "all-products" && c.handle !== "classification-review")
+    .slice(0, 12);
 
   const offers = products.filter(
     (p) =>
@@ -41,6 +61,7 @@ function Index() {
       ) > 0,
   );
   const underFifty = products.filter((p) => parseFloat(p.node.priceRange.minVariantPrice.amount) <= 50);
+
 
   return (
     <div className="relative overflow-hidden">
