@@ -140,7 +140,7 @@ function Index() {
       <ProductShelf
         title="New arrivals"
         subtitle="Fresh in the VS catalog"
-        products={products.slice(0, 8)}
+        products={products.slice(0, 12)}
         isLoading={isLoading}
         action={{ label: "Shop all", to: "/shop" }}
       />
@@ -148,7 +148,7 @@ function Index() {
       <ProductShelf
         title="Limited-time offers"
         subtitle="Reduced while stock lasts"
-        products={offers.slice(0, 4)}
+        products={offers.slice(0, 12)}
         isLoading={isLoading}
         action={{ label: "All offers", to: "/offers" }}
         emptyMessage="No offers running right now"
@@ -157,10 +157,19 @@ function Index() {
       <ProductShelf
         title="Under $50"
         subtitle="Price-led discovery"
-        products={underFifty.slice(0, 4)}
+        products={underFifty.slice(0, 12)}
         isLoading={isLoading}
         action={{ label: "Shop all", to: "/shop" }}
         emptyMessage="Nothing under $50 yet"
+      />
+
+      <ProductShelf
+        title="Keep exploring"
+        subtitle="More of the catalog, hand-picked"
+        products={products.slice(12, 30)}
+        isLoading={isLoading}
+        action={{ label: "Shop all", to: "/shop" }}
+        emptyMessage="More products coming soon"
       />
 
       <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="home-collection-paths">
@@ -176,20 +185,40 @@ function Index() {
           </Link>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {FEATURED_COLLECTION_LINKS.map((collection) => (
+          {spotlightCollections.map((collection) => (
             <Link
               key={collection.handle}
               to="/collections/$handle"
               params={{ handle: collection.handle }}
-              className="group rounded-3xl border border-border/70 bg-card p-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow-lift)]"
+              className="group overflow-hidden rounded-3xl border border-border/70 bg-card shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow-lift)]"
             >
-              <div className="mb-6 h-12 w-12 rounded-2xl bg-primary/10 transition-colors group-hover:bg-primary/15" />
-              <h3 className="font-semibold">{collection.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{collection.description}</p>
+              {collection.image?.url ? (
+                <img
+                  src={collection.image.url}
+                  alt={collection.image.altText ?? collection.title}
+                  loading="lazy"
+                  className="h-36 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                />
+              ) : (
+                <div className="h-36 w-full bg-gradient-to-br from-primary/10 to-electric/10" />
+              )}
+              <div className="p-5">
+                <h3 className="font-semibold">{collection.title}</h3>
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                  {collection.description || "Explore this edit of everyday upgrades."}
+                </p>
+              </div>
             </Link>
           ))}
         </div>
+        <Link
+          to="/collections"
+          className="mt-6 inline-flex items-center rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold transition-colors hover:border-primary"
+        >
+          Show more collections →
+        </Link>
       </section>
+
 
       <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="vs-store-answers">
         <div className="rounded-[2rem] border border-border/70 bg-card p-6 shadow-[var(--shadow-card)] sm:p-8">
