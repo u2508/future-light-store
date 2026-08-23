@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { ShopifyProduct } from "@/lib/shopify";
 import { ProductCard, ProductGridSkeleton, EmptyProducts } from "@/components/vs/ProductCard";
+import { CatalogErrorState } from "@/components/vs/CatalogState";
 
 export function SectionHeading({
   title,
@@ -18,7 +19,10 @@ export function SectionHeading({
         {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {action && (
-        <Link to={action.to} className="shrink-0 text-sm font-semibold text-primary hover:underline">
+        <Link
+          to={action.to}
+          className="shrink-0 text-sm font-semibold text-primary hover:underline"
+        >
           {action.label} →
         </Link>
       )}
@@ -31,6 +35,8 @@ export function ProductShelf({
   subtitle,
   products,
   isLoading,
+  isError,
+  onRetry,
   action,
   emptyMessage,
 }: {
@@ -38,13 +44,17 @@ export function ProductShelf({
   subtitle?: string | undefined;
   products: ShopifyProduct[];
   isLoading?: boolean | undefined;
+  isError?: boolean | undefined;
+  onRetry?: (() => void) | undefined;
   action?: { label: string; to: "/shop" | "/offers" } | undefined;
   emptyMessage?: string | undefined;
 }) {
   return (
     <section className="mx-auto max-w-7xl px-4 py-10">
       <SectionHeading title={title} subtitle={subtitle} action={action} />
-      {isLoading ? (
+      {isError ? (
+        <CatalogErrorState onRetry={onRetry} />
+      ) : isLoading ? (
         <ProductGridSkeleton count={4} />
       ) : products.length === 0 ? (
         <EmptyProducts message={emptyMessage ?? "No products found"} />

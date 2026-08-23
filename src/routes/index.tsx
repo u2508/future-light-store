@@ -6,6 +6,7 @@ import { ProductShelf } from "@/components/vs/ProductShelf";
 import { HeroCarousel } from "@/components/vs/HeroCarousel";
 import { canonicalUrl } from "@/lib/seo";
 import { HERO_COLLECTION_BANNERS, HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
+import { CatalogErrorState, CollectionGridSkeleton } from "@/components/vs/CatalogState";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -13,10 +14,14 @@ export const Route = createFileRoute("/")({
       { title: "Everyday essentials, engineered forward — VS Store" },
       {
         name: "description",
-        content: "Discover new arrivals, best sellers and limited-time offers at VS Store, with tracked delivery and secure checkout.",
+        content:
+          "Discover new arrivals, best sellers and limited-time offers at VS Store, with tracked delivery and secure checkout.",
       },
       { property: "og:title", content: "Everyday essentials, engineered forward — VS Store" },
-      { property: "og:description", content: "New arrivals, best sellers and limited-time offers, with tracked delivery." },
+      {
+        property: "og:description",
+        content: "New arrivals, best sellers and limited-time offers, with tracked delivery.",
+      },
       { property: "og:url", content: canonicalUrl("/") },
     ],
     links: [{ rel: "canonical", href: canonicalUrl("/") }],
@@ -26,17 +31,27 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const hydrated = useHydrated();
-  const { data: products = [], isLoading: queryLoading } = useQuery({
+  const {
+    data: products = [],
+    isLoading: productsLoading,
+    isError: productsError,
+    refetch: refetchProducts,
+  } = useQuery({
     queryKey: ["products", "all"],
     queryFn: () => fetchProducts(99),
     staleTime: 5 * 60 * 1000,
   });
-  const { data: collections = [] } = useQuery({
+  const {
+    data: collections = [],
+    isLoading: collectionsLoading,
+    isError: collectionsError,
+    refetch: refetchCollections,
+  } = useQuery({
     queryKey: ["collections", "home"],
     queryFn: () => fetchCollections(100),
     staleTime: 10 * 60 * 1000,
   });
-  const isLoading = !hydrated || queryLoading;
+  const isLoading = !hydrated || productsLoading;
 
   const heroSlides = HERO_COLLECTION_BANNERS.map((banner) => {
     const live = collections.find((c) => c.handle === banner.handle);
@@ -60,8 +75,9 @@ function Index() {
         p.node.variants.edges[0]?.node.compareAtPrice?.amount ?? null,
       ) > 0,
   );
-  const underFifty = products.filter((p) => parseFloat(p.node.priceRange.minVariantPrice.amount) <= 50);
-
+  const underFifty = products.filter(
+    (p) => parseFloat(p.node.priceRange.minVariantPrice.amount) <= 50,
+  );
 
   return (
     <div className="relative overflow-hidden">
@@ -71,20 +87,34 @@ function Index() {
           Everyday essentials, engineered forward.
         </h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground sm:text-base">
-          Shop the collections VS customers order most — tech, travel, home and beauty, with tracked delivery and
-          secure Shopify checkout.
+          Shop the collections VS customers order most — tech, travel, home and beauty, with tracked
+          delivery and secure Shopify checkout.
         </p>
       </section>
 
       <HeroCarousel slides={heroSlides} />
 
-
       <section className="mx-auto max-w-7xl px-4 pt-8">
         <div className="grid gap-3 sm:grid-cols-3">
           {[
-            { icon: Truck, title: "Tracked delivery", copy: "Live status on every order", accent: "from-primary/10 to-primary/5" },
-            { icon: RotateCcw, title: "Easy returns", copy: "30-day return window", accent: "from-electric/10 to-electric/5" },
-            { icon: ShieldCheck, title: "Secure checkout", copy: "Payments handled by Shopify", accent: "from-signal/10 to-signal/5" },
+            {
+              icon: Truck,
+              title: "Tracked delivery",
+              copy: "Live status on every order",
+              accent: "from-primary/10 to-primary/5",
+            },
+            {
+              icon: RotateCcw,
+              title: "Easy returns",
+              copy: "30-day return window",
+              accent: "from-electric/10 to-electric/5",
+            },
+            {
+              icon: ShieldCheck,
+              title: "Secure checkout",
+              copy: "Payments handled by Shopify",
+              accent: "from-signal/10 to-signal/5",
+            },
           ].map((item) => (
             <div
               key={item.title}
@@ -112,12 +142,11 @@ function Index() {
             Designed to feel editorial, not transactional.
           </h2>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {[
-              "Silky gradients",
-              "Refined cards",
-              "Luxury spacing",
-            ].map((feature) => (
-              <div key={feature} className="rounded-2xl border border-border/70 bg-white/70 px-4 py-3 text-sm font-medium shadow-sm">
+            {["Silky gradients", "Refined cards", "Luxury spacing"].map((feature) => (
+              <div
+                key={feature}
+                className="rounded-2xl border border-border/70 bg-white/70 px-4 py-3 text-sm font-medium shadow-sm"
+              >
                 {feature}
               </div>
             ))}
@@ -129,7 +158,9 @@ function Index() {
             Trusted shopping
           </div>
           <div className="mt-6 rounded-2xl border border-border bg-muted/60 p-4">
-            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Experience upgrade</p>
+            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
+              Experience upgrade
+            </p>
             <p className="mt-2 text-sm font-medium">
               More depth, more breathing room, and a more premium visual cadence.
             </p>
@@ -142,6 +173,10 @@ function Index() {
         subtitle="Fresh in the VS catalog"
         products={products.slice(0, 12)}
         isLoading={isLoading}
+        isError={productsError}
+        onRetry={() => {
+          void refetchProducts();
+        }}
         action={{ label: "Shop all", to: "/shop" }}
       />
 
@@ -150,6 +185,10 @@ function Index() {
         subtitle="Reduced while stock lasts"
         products={offers.slice(0, 12)}
         isLoading={isLoading}
+        isError={productsError}
+        onRetry={() => {
+          void refetchProducts();
+        }}
         action={{ label: "All offers", to: "/offers" }}
         emptyMessage="No offers running right now"
       />
@@ -159,6 +198,10 @@ function Index() {
         subtitle="Price-led discovery"
         products={underFifty.slice(0, 12)}
         isLoading={isLoading}
+        isError={productsError}
+        onRetry={() => {
+          void refetchProducts();
+        }}
         action={{ label: "Shop all", to: "/shop" }}
         emptyMessage="Nothing under $50 yet"
       />
@@ -168,6 +211,10 @@ function Index() {
         subtitle="More of the catalog, hand-picked"
         products={products.slice(12, 30)}
         isLoading={isLoading}
+        isError={productsError}
+        onRetry={() => {
+          void refetchProducts();
+        }}
         action={{ label: "Shop all", to: "/shop" }}
         emptyMessage="More products coming soon"
       />
@@ -178,39 +225,75 @@ function Index() {
             <h2 id="home-collection-paths" className="font-display text-2xl font-bold">
               Shop by intent
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">Find the right starting point for your next upgrade.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Find the right starting point for your next upgrade.
+            </p>
           </div>
-          <Link to="/collections" className="hidden text-sm font-semibold text-primary hover:underline sm:block">
+          <Link
+            to="/collections"
+            className="hidden text-sm font-semibold text-primary hover:underline sm:block"
+          >
             View all collections →
           </Link>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {spotlightCollections.map((collection) => (
+        {collectionsError ? (
+          <div className="mt-5">
+            <CatalogErrorState
+              title="We couldn’t load the collection paths"
+              onRetry={() => {
+                void refetchCollections();
+              }}
+            />
+          </div>
+        ) : !hydrated || collectionsLoading ? (
+          <div className="mt-5">
+            <CollectionGridSkeleton count={8} />
+          </div>
+        ) : spotlightCollections.length === 0 ? (
+          <div
+            role="status"
+            className="mt-5 rounded-3xl border border-border bg-card p-10 text-center"
+          >
+            <p className="font-display text-lg font-semibold">No collections available yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Browse the full catalog while we prepare the next collection edit.
+            </p>
             <Link
-              key={collection.handle}
-              to="/collections/$handle"
-              params={{ handle: collection.handle }}
-              className="group overflow-hidden rounded-3xl border border-border/70 bg-card shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow-lift)]"
+              to="/shop"
+              className="mt-4 inline-block text-sm font-semibold text-primary hover:underline"
             >
-              {collection.image?.url ? (
-                <img
-                  src={collection.image.url}
-                  alt={collection.image.altText ?? collection.title}
-                  loading="lazy"
-                  className="h-36 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                />
-              ) : (
-                <div className="h-36 w-full bg-gradient-to-br from-primary/10 to-electric/10" />
-              )}
-              <div className="p-5">
-                <h3 className="font-semibold">{collection.title}</h3>
-                <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
-                  {collection.description || "Explore this edit of everyday upgrades."}
-                </p>
-              </div>
+              Browse all products →
             </Link>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {spotlightCollections.map((collection) => (
+              <Link
+                key={collection.handle}
+                to="/collections/$handle"
+                params={{ handle: collection.handle }}
+                className="group overflow-hidden rounded-3xl border border-border/70 bg-card shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow-lift)]"
+              >
+                {collection.image?.url ? (
+                  <img
+                    src={collection.image.url}
+                    alt={collection.image.altText ?? collection.title}
+                    loading="lazy"
+                    className="h-36 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                  />
+                ) : (
+                  <div className="h-36 w-full bg-gradient-to-br from-primary/10 to-electric/10" />
+                )}
+                <div className="p-5">
+                  <h3 className="font-semibold">{collection.title}</h3>
+                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                    {collection.description || "Explore this edit of everyday upgrades."}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
         <Link
           to="/collections"
           className="mt-6 inline-flex items-center rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold transition-colors hover:border-primary"
@@ -218,7 +301,6 @@ function Index() {
           Show more collections →
         </Link>
       </section>
-
 
       <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="vs-store-answers">
         <div className="rounded-[2rem] border border-border/70 bg-card p-6 shadow-[var(--shadow-card)] sm:p-8">
@@ -233,7 +315,10 @@ function Index() {
               </article>
             ))}
           </div>
-          <Link to="/help" className="mt-6 inline-block text-sm font-semibold text-primary hover:underline">
+          <Link
+            to="/help"
+            className="mt-6 inline-block text-sm font-semibold text-primary hover:underline"
+          >
             Read all delivery, returns and tracking answers →
           </Link>
         </div>
@@ -241,7 +326,9 @@ function Index() {
 
       <section className="mx-auto max-w-7xl px-4 py-10">
         <div className="rounded-[2rem] border border-border/70 vs-hero-gradient p-10 text-center text-primary-foreground shadow-[var(--shadow-lift)]">
-          <h2 className="font-display text-2xl font-bold sm:text-3xl">Get drops before anyone else</h2>
+          <h2 className="font-display text-2xl font-bold sm:text-3xl">
+            Get drops before anyone else
+          </h2>
           <p className="mx-auto mt-2 max-w-md text-sm opacity-90">
             Restock alerts, new arrivals and members-only pricing straight to your inbox.
           </p>

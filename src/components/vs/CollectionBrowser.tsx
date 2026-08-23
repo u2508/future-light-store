@@ -6,6 +6,7 @@ import { discountPercent, type ShopifyCollection } from "@/lib/shopify";
 import { searchProducts } from "@/lib/vs-search";
 import { ProductCard, ProductGridSkeleton, EmptyProducts } from "@/components/vs/ProductCard";
 import { cn } from "@/lib/utils";
+import { CatalogErrorState } from "@/components/vs/CatalogState";
 
 export interface BrowserSearch {
   q: string;
@@ -94,13 +95,19 @@ export function CollectionBrowser({
     () => [...new Set(products.map((p) => p.node.productType).filter(Boolean))],
     [products],
   );
-  const vendors = useMemo(() => [...new Set(products.map((p) => p.node.vendor).filter(Boolean))], [products]);
+  const vendors = useMemo(
+    () => [...new Set(products.map((p) => p.node.vendor).filter(Boolean))],
+    [products],
+  );
   const sizes = useMemo(() => variantOptionValues(products, "size"), [products]);
   const colors = useMemo(() => variantOptionValues(products, "color"), [products]);
   const maxCatalogPrice = useMemo(
     () =>
       Math.ceil(
-        products.reduce((max, p) => Math.max(max, parseFloat(p.node.priceRange.minVariantPrice.amount)), 0) || 1000,
+        products.reduce(
+          (max, p) => Math.max(max, parseFloat(p.node.priceRange.minVariantPrice.amount)),
+          0,
+        ) || 1000,
       ),
     [products],
   );
@@ -121,16 +128,29 @@ export function CollectionBrowser({
       if (search.max_price && price > search.max_price) return false;
       if (search.availability === "in-stock" && !n.availableForSale) return false;
       if (search.availability === "out-of-stock" && n.availableForSale) return false;
-      if (search.availability === "low-stock" && !(n.availableForSale && stockQty > 0 && stockQty <= 5)) return false;
+      if (
+        search.availability === "low-stock" &&
+        !(n.availableForSale && stockQty > 0 && stockQty <= 5)
+      )
+        return false;
       if (search.tag && !(n.tags ?? []).includes(search.tag)) return false;
       if (search.category && n.productType !== search.category) return false;
       if (search.vendor && n.vendor !== search.vendor) return false;
       if (search.discount && off < search.discount) return false;
-      if (search.size && !variants.some((v) => v.selectedOptions.some((o) => o.name.toLowerCase() === "size" && o.value === search.size)))
+      if (
+        search.size &&
+        !variants.some((v) =>
+          v.selectedOptions.some((o) => o.name.toLowerCase() === "size" && o.value === search.size),
+        )
+      )
         return false;
       if (
         search.color &&
-        !variants.some((v) => v.selectedOptions.some((o) => o.name.toLowerCase() === "color" && o.value === search.color))
+        !variants.some((v) =>
+          v.selectedOptions.some(
+            (o) => o.name.toLowerCase() === "color" && o.value === search.color,
+          ),
+        )
       )
         return false;
       return true;
@@ -143,14 +163,23 @@ export function CollectionBrowser({
     else if (search.sort === "discount")
       sorted.sort(
         (a, b) =>
-          discountPercent(b.node.priceRange.minVariantPrice.amount, b.node.variants.edges[0]?.node.compareAtPrice?.amount ?? null) -
-          discountPercent(a.node.priceRange.minVariantPrice.amount, a.node.variants.edges[0]?.node.compareAtPrice?.amount ?? null),
+          discountPercent(
+            b.node.priceRange.minVariantPrice.amount,
+            b.node.variants.edges[0]?.node.compareAtPrice?.amount ?? null,
+          ) -
+          discountPercent(
+            a.node.priceRange.minVariantPrice.amount,
+            a.node.variants.edges[0]?.node.compareAtPrice?.amount ?? null,
+          ),
       );
     return sorted;
   }, [products, search]);
 
   const activeChips = [
-    search.availability && { label: search.availability.replace("-", " "), clear: { availability: "" } },
+    search.availability && {
+      label: search.availability.replace("-", " "),
+      clear: { availability: "" },
+    },
     search.tag && { label: `Tag: ${search.tag}`, clear: { tag: "" } },
     search.category && { label: search.category, clear: { category: "" } },
     search.vendor && { label: search.vendor, clear: { vendor: "" } },
@@ -166,7 +195,9 @@ export function CollectionBrowser({
   const FilterPanel = (
     <div className="space-y-6">
       <fieldset>
-        <legend className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Price</legend>
+        <legend className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Price
+        </legend>
         <input
           type="range"
           min={0}
@@ -265,9 +296,15 @@ export function CollectionBrowser({
       <div className="vs-section-shell rounded-[2rem] p-6 sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">Catalog browser</p>
-            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1>
-            {description && <p className="mt-3 text-sm leading-7 text-muted-foreground">{description}</p>}
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+              Catalog browser
+            </p>
+            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+              {title}
+            </h1>
+            {description && (
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">{description}</p>
+            )}
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
@@ -275,11 +312,15 @@ export function CollectionBrowser({
               <p className="mt-1 text-sm font-semibold">Curated by value</p>
             </div>
             <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Filters</p>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                Filters
+              </p>
               <p className="mt-1 text-sm font-semibold">Live search, live stock</p>
             </div>
             <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Catalog</p>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+                Catalog
+              </p>
               <p className="mt-1 text-sm font-semibold">Shopify synced</p>
             </div>
           </div>
@@ -295,7 +336,11 @@ export function CollectionBrowser({
           <div className="sticky top-32 space-y-6 rounded-[2rem] border border-border/70 bg-card p-5 shadow-[var(--shadow-card)]">
             <div className="flex items-center justify-between">
               <p className="font-display font-semibold">Filters</p>
-              <button type="button" onClick={clearAll} className="text-xs text-primary hover:underline">
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs text-primary hover:underline"
+              >
                 Clear all
               </button>
             </div>
@@ -313,7 +358,9 @@ export function CollectionBrowser({
               <SlidersHorizontal className="h-4 w-4" /> Filters
             </button>
             <p className="text-sm text-muted-foreground">
-              {isLoading ? "Loading…" : `${filtered.length} result${filtered.length === 1 ? "" : "s"}`}
+              {isLoading
+                ? "Loading…"
+                : `${filtered.length} result${filtered.length === 1 ? "" : "s"}`}
             </p>
             <select
               value={search.sort}
@@ -341,21 +388,29 @@ export function CollectionBrowser({
                   {chip.label} <X className="h-3 w-3" />
                 </button>
               ))}
-              <button type="button" onClick={clearAll} className="text-xs font-semibold text-primary hover:underline">
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs font-semibold text-primary hover:underline"
+              >
                 Clear all
               </button>
             </div>
           )}
 
           {isError ? (
-            <div className="vs-section-shell rounded-[2rem] p-10 text-center">
-              <p className="font-display text-lg font-semibold">We couldn't reach the catalog</p>
-              <p className="mt-1 text-sm text-muted-foreground">Check your connection and try again.</p>
-            </div>
+            <CatalogErrorState
+              title="We couldn’t reach the catalog"
+              onRetry={() => window.location.reload()}
+            />
           ) : isLoading ? (
             <ProductGridSkeleton />
           ) : filtered.length === 0 ? (
-            <EmptyProducts message={products.length === 0 ? "No products found" : "No products match these filters"} />
+            <EmptyProducts
+              message={
+                products.length === 0 ? "No products found" : "No products match these filters"
+              }
+            />
           ) : (
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
               {filtered.map((p) => (
@@ -442,7 +497,9 @@ function FilterGroup({
 }) {
   return (
     <fieldset>
-      <legend className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</legend>
+      <legend className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </legend>
       <div className="flex flex-wrap gap-1.5">
         {options.map((o) => (
           <button
@@ -451,7 +508,9 @@ function FilterGroup({
             onClick={() => onChange(value === o.value ? "" : o.value)}
             className={cn(
               "rounded-full border px-3 py-1.5 text-xs capitalize transition-colors",
-              value === o.value ? "border-primary bg-accent text-accent-foreground" : "border-border hover:border-primary",
+              value === o.value
+                ? "border-primary bg-accent text-accent-foreground"
+                : "border-border hover:border-primary",
             )}
           >
             {o.label}

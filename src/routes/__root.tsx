@@ -14,7 +14,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { useCartSync } from "@/hooks/useCartSync";
 import { initializeTikTokPixel } from "@/lib/tiktok";
 import ogImage from "@/assets/vs-og.jpg";
-import { canonicalUrl } from "@/lib/seo";
+import { canonicalUrl, GOOGLE_SITE_VERIFICATION } from "@/lib/seo";
 
 function NotFoundComponent() {
   return (
@@ -78,6 +78,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "google-site-verification", content: GOOGLE_SITE_VERIFICATION },
       { title: "VS Store — Future-facing marketplace" },
       {
         name: "description",
