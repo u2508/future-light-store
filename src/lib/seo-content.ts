@@ -57,3 +57,42 @@ export const FEATURED_COLLECTION_LINKS = [
     description: "Practical products for a calmer, safer and better-prepared home.",
   },
 ] as const;
+
+export const HERO_COLLECTION_BANNERS = [
+  {
+    handle: "best-sellers",
+    eyebrow: "Most ordered",
+    title: "Best sellers, restocked weekly.",
+    copy: "The products VS shoppers reorder most — proven picks with tracked delivery and easy returns.",
+  },
+  {
+    handle: "travel-outdoor",
+    eyebrow: "Travel & outdoor",
+    title: "Pack lighter. Go further.",
+    copy: "Compact gear and road-trip upgrades built for commutes, weekends and long-haul days.",
+  },
+  {
+    handle: "portable-gadgets",
+    eyebrow: "Portable tech",
+    title: "Everyday tech that keeps up.",
+    copy: "Chargers, cables and pocket-sized gadgets that keep your setup connected anywhere.",
+  },
+  {
+    handle: "kitchen-gadgets",
+    eyebrow: "Kitchen",
+    title: "Small tools, better cooking.",
+    copy: "Clever kitchen upgrades that save time on prep, storage and everyday cleanup.",
+  },
+  {
+    handle: "beauty-makeup-essentials",
+    eyebrow: "Beauty",
+    title: "Daily beauty essentials.",
+    copy: "Skin, hair and makeup staples curated for a simple, repeatable everyday routine.",
+  },
+  {
+    handle: "home-decor",
+    eyebrow: "Home",
+    title: "Make the space feel finished.",
+    copy: "Decor accents, lighting and calm finishing touches for a warmer, more considered home.",
+  },
+] as const;

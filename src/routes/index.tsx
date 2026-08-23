@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, ShieldCheck, Sparkles, Star, Truck, RotateCcw } from "lucide-react";
-import heroImage from "@/assets/vs-hero.jpg";
-import { fetchProducts, discountPercent } from "@/lib/shopify";
+import { BadgeCheck, ShieldCheck, Star, Truck, RotateCcw } from "lucide-react";
+import { fetchProducts, fetchCollections, discountPercent } from "@/lib/shopify";
 import { ProductShelf } from "@/components/vs/ProductShelf";
+import { HeroCarousel } from "@/components/vs/HeroCarousel";
 import { canonicalUrl } from "@/lib/seo";
-import { FEATURED_COLLECTION_LINKS, HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
+import { HERO_COLLECTION_BANNERS, HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -31,7 +31,27 @@ function Index() {
     queryFn: () => fetchProducts(99),
     staleTime: 5 * 60 * 1000,
   });
+  const { data: collections = [] } = useQuery({
+    queryKey: ["collections", "home"],
+    queryFn: () => fetchCollections(100),
+    staleTime: 10 * 60 * 1000,
+  });
   const isLoading = !hydrated || queryLoading;
+
+  const heroSlides = HERO_COLLECTION_BANNERS.map((banner) => {
+    const live = collections.find((c) => c.handle === banner.handle);
+    return {
+      handle: banner.handle,
+      eyebrow: banner.eyebrow,
+      title: banner.title,
+      copy: banner.copy,
+      image: live?.image?.url,
+    };
+  });
+
+  const spotlightCollections = collections
+    .filter((c) => c.handle !== "all-products" && c.handle !== "classification-review")
+    .slice(0, 12);
 
   const offers = products.filter(
     (p) =>
@@ -42,48 +62,22 @@ function Index() {
   );
   const underFifty = products.filter((p) => parseFloat(p.node.priceRange.minVariantPrice.amount) <= 50);
 
+
   return (
     <div className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[780px] bg-[radial-gradient(circle_at_top,rgba(60,110,255,0.13),transparent_42%),radial-gradient(circle_at_80%_10%,rgba(42,186,170,0.16),transparent_24%),linear-gradient(to_bottom,rgba(255,255,255,0.85),transparent)]" />
-      <section className="mx-auto max-w-7xl px-4 pt-6">
-        <div className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-card shadow-[var(--shadow-lift)]">
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(255,255,255,0.18))]" />
-          <div className="absolute -left-24 top-10 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
-          <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-electric/10 blur-3xl" />
-          <img
-            src={heroImage}
-            alt="Curated VS Store everyday-carry collection"
-            width={1600}
-            height={1104}
-            className="h-[420px] w-full object-cover sm:h-[520px]"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(245,247,252,0.97)_0%,rgba(245,247,252,0.82)_38%,rgba(245,247,252,0.2)_68%,rgba(245,247,252,0.02)_100%)]" />
-          <div className="absolute inset-0 flex flex-col justify-center gap-5 p-7 sm:p-14 lg:p-16">
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-foreground shadow-sm backdrop-blur">
-              <Sparkles className="h-3 w-3" /> New season
-            </span>
-            <div className="max-w-2xl space-y-4">
-              <h1 className="max-w-xl font-display text-4xl font-bold leading-[1.02] sm:text-6xl lg:text-7xl">
-                Everyday essentials, engineered forward.
-              </h1>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                to="/shop"
-                className="inline-flex w-fit items-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[0_12px_30px_rgba(38,88,190,0.28)] transition-transform hover:-translate-y-0.5"
-              >
-                Explore the catalog
-              </Link>
-              <Link
-                to="/collections"
-                className="inline-flex w-fit items-center rounded-full border border-border bg-white/70 px-6 py-3 text-sm font-semibold text-foreground backdrop-blur transition-colors hover:border-primary hover:bg-white"
-              >
-                Browse collections
-              </Link>
-            </div>
-          </div>
-        </div>
+      <section className="mx-auto max-w-7xl px-4 pt-8">
+        <h1 className="max-w-3xl font-display text-4xl font-bold leading-[1.03] sm:text-6xl">
+          Everyday essentials, engineered forward.
+        </h1>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground sm:text-base">
+          Shop the collections VS customers order most — tech, travel, home and beauty, with tracked delivery and
+          secure Shopify checkout.
+        </p>
       </section>
+
+      <HeroCarousel slides={heroSlides} />
+
 
       <section className="mx-auto max-w-7xl px-4 pt-8">
         <div className="grid gap-3 sm:grid-cols-3">
@@ -146,7 +140,7 @@ function Index() {
       <ProductShelf
         title="New arrivals"
         subtitle="Fresh in the VS catalog"
-        products={products.slice(0, 8)}
+        products={products.slice(0, 12)}
         isLoading={isLoading}
         action={{ label: "Shop all", to: "/shop" }}
       />
@@ -154,7 +148,7 @@ function Index() {
       <ProductShelf
         title="Limited-time offers"
         subtitle="Reduced while stock lasts"
-        products={offers.slice(0, 4)}
+        products={offers.slice(0, 12)}
         isLoading={isLoading}
         action={{ label: "All offers", to: "/offers" }}
         emptyMessage="No offers running right now"
@@ -163,10 +157,19 @@ function Index() {
       <ProductShelf
         title="Under $50"
         subtitle="Price-led discovery"
-        products={underFifty.slice(0, 4)}
+        products={underFifty.slice(0, 12)}
         isLoading={isLoading}
         action={{ label: "Shop all", to: "/shop" }}
         emptyMessage="Nothing under $50 yet"
+      />
+
+      <ProductShelf
+        title="Keep exploring"
+        subtitle="More of the catalog, hand-picked"
+        products={products.slice(12, 30)}
+        isLoading={isLoading}
+        action={{ label: "Shop all", to: "/shop" }}
+        emptyMessage="More products coming soon"
       />
 
       <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="home-collection-paths">
@@ -182,20 +185,40 @@ function Index() {
           </Link>
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {FEATURED_COLLECTION_LINKS.map((collection) => (
+          {spotlightCollections.map((collection) => (
             <Link
               key={collection.handle}
               to="/collections/$handle"
               params={{ handle: collection.handle }}
-              className="group rounded-3xl border border-border/70 bg-card p-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow-lift)]"
+              className="group overflow-hidden rounded-3xl border border-border/70 bg-card shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow-lift)]"
             >
-              <div className="mb-6 h-12 w-12 rounded-2xl bg-primary/10 transition-colors group-hover:bg-primary/15" />
-              <h3 className="font-semibold">{collection.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{collection.description}</p>
+              {collection.image?.url ? (
+                <img
+                  src={collection.image.url}
+                  alt={collection.image.altText ?? collection.title}
+                  loading="lazy"
+                  className="h-36 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                />
+              ) : (
+                <div className="h-36 w-full bg-gradient-to-br from-primary/10 to-electric/10" />
+              )}
+              <div className="p-5">
+                <h3 className="font-semibold">{collection.title}</h3>
+                <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
+                  {collection.description || "Explore this edit of everyday upgrades."}
+                </p>
+              </div>
             </Link>
           ))}
         </div>
+        <Link
+          to="/collections"
+          className="mt-6 inline-flex items-center rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold transition-colors hover:border-primary"
+        >
+          Show more collections →
+        </Link>
       </section>
+
 
       <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="vs-store-answers">
         <div className="rounded-[2rem] border border-border/70 bg-card p-6 shadow-[var(--shadow-card)] sm:p-8">

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Heart, LogOut, MapPin, Menu, Search, User, X } from "lucide-react";
+import { ChevronRight, Heart, LogOut, Menu, Search, User, X } from "lucide-react";
 import { toast } from "sonner";
 import { VsLogo } from "@/components/vs/VsLogo";
 import { PredictiveSearch } from "@/components/vs/PredictiveSearch";
@@ -164,9 +164,6 @@ export function Header() {
               {item.label}
             </Link>
           ))}
-          <span className="ml-auto hidden items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground md:flex">
-            <MapPin className="h-3.5 w-3.5" /> Deliver to New York, US
-          </span>
         </div>
       </nav>
 
