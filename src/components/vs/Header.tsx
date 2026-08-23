@@ -164,9 +164,6 @@ export function Header() {
               {item.label}
             </Link>
           ))}
-          <span className="ml-auto hidden items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground md:flex">
-            <MapPin className="h-3.5 w-3.5" /> Deliver to New York, US
-          </span>
         </div>
       </nav>
 
