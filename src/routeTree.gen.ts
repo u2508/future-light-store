@@ -24,6 +24,7 @@ import { Route as AdminFinanceRouteImport } from './routes/admin.finance'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as CollectionsIndexRouteImport } from './routes/collections.index'
 import { Route as CollectionsHandleRouteImport } from './routes/collections.$handle'
+import { Route as PoliciesIndexRouteImport } from './routes/policies.index'
 import { Route as PoliciesSlugRouteImport } from './routes/policies.$slug'
 import { Route as ProductsHandleRouteImport } from './routes/products.$handle'
 
@@ -102,6 +103,11 @@ const CollectionsHandleRoute = CollectionsHandleRouteImport.update({
   path: '/collections/$handle',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PoliciesIndexRoute = PoliciesIndexRouteImport.update({
+  id: '/policies/',
+  path: '/policies/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PoliciesSlugRoute = PoliciesSlugRouteImport.update({
   id: '/policies/$slug',
   path: '/policies/$slug',
@@ -131,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/policies/$slug': typeof PoliciesSlugRoute
   '/products/$handle': typeof ProductsHandleRoute
   '/collections/': typeof CollectionsIndexRoute
+  '/policies/': typeof PoliciesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -150,6 +157,7 @@ export interface FileRoutesByTo {
   '/policies/$slug': typeof PoliciesSlugRoute
   '/products/$handle': typeof ProductsHandleRoute
   '/collections': typeof CollectionsIndexRoute
+  '/policies': typeof PoliciesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -170,6 +178,7 @@ export interface FileRoutesById {
   '/policies/$slug': typeof PoliciesSlugRoute
   '/products/$handle': typeof ProductsHandleRoute
   '/collections/': typeof CollectionsIndexRoute
+  '/policies/': typeof PoliciesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
     | '/policies/$slug'
     | '/products/$handle'
     | '/collections/'
+    | '/policies/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -210,6 +220,7 @@ export interface FileRouteTypes {
     | '/policies/$slug'
     | '/products/$handle'
     | '/collections'
+    | '/policies'
   id:
     | '__root__'
     | '/'
@@ -229,6 +240,7 @@ export interface FileRouteTypes {
     | '/policies/$slug'
     | '/products/$handle'
     | '/collections/'
+    | '/policies/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -249,6 +261,7 @@ export interface RootRouteChildren {
   PoliciesSlugRoute: typeof PoliciesSlugRoute
   ProductsHandleRoute: typeof ProductsHandleRoute
   CollectionsIndexRoute: typeof CollectionsIndexRoute
+  PoliciesIndexRoute: typeof PoliciesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -358,6 +371,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CollectionsHandleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/policies/': {
+      id: '/policies/'
+      path: '/policies'
+      fullPath: '/policies/'
+      preLoaderRoute: typeof PoliciesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/policies/$slug': {
       id: '/policies/$slug'
       path: '/policies/$slug'
@@ -393,17 +413,8 @@ const rootRouteChildren: RootRouteChildren = {
   PoliciesSlugRoute: PoliciesSlugRoute,
   ProductsHandleRoute: ProductsHandleRoute,
   CollectionsIndexRoute: CollectionsIndexRoute,
+  PoliciesIndexRoute: PoliciesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -1,24 +1,34 @@
 import { Link } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+import {
+  ArrowUpRight,
+  Mail,
+  MessageCircle,
+  PackageCheck,
+  Phone,
+  RotateCcw,
+  ShieldCheck,
+} from "lucide-react";
 import { VsLogo } from "@/components/vs/VsLogo";
 import { STORE_CONTACT } from "@/lib/store-contact";
 
 const COLUMNS = [
   {
-    title: "Shop",
+    title: "Company",
     links: [
-      { label: "All products", to: "/shop" as const },
-      { label: "Offers", to: "/offers" as const },
-      { label: "Wishlist", to: "/wishlist" as const },
-      { label: "Bag", to: "/cart" as const },
+      { label: "Home", to: "/" as const },
+      { label: "Contact us", to: "/policies/$slug" as const, params: { slug: "contact" } },
+      { label: "Track order", to: "/track-order" as const },
+      { label: "Help centre", to: "/help" as const },
     ],
   },
   {
-    title: "Account",
+    title: "Explore",
     links: [
-      { label: "Sign in", to: "/account" as const },
-      { label: "Orders", to: "/orders" as const },
-      { label: "Track order", to: "/track-order" as const },
-      { label: "Help centre", to: "/help" as const },
+      { label: "Shop all", to: "/shop" as const },
+      { label: "Collections", to: "/collections" as const },
+      { label: "New arrivals", to: "/shop" as const, search: { sort: "newest" } },
+      { label: "Offers", to: "/offers" as const },
     ],
   },
   {
@@ -29,47 +39,58 @@ const COLUMNS = [
       { label: "Privacy", to: "/policies/$slug" as const, params: { slug: "privacy" } },
       { label: "Terms", to: "/policies/$slug" as const, params: { slug: "terms" } },
       { label: "Legal notice", to: "/policies/$slug" as const, params: { slug: "legal-notice" } },
+      { label: "All policies", to: "/policies" as const },
     ],
   },
 ];
 
 export function Footer() {
   return (
-    <footer className="mt-20 border-t border-border/70 bg-surface">
-      <div className="mx-auto max-w-7xl px-4 py-4">
-        <div className="rounded-[2rem] border border-border/70 vs-section-shell px-6 py-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-                VS Store
-              </p>
-              <p className="max-w-2xl text-sm text-muted-foreground">
-                A future-facing marketplace: precise search, honest pricing, and fulfilment you can
-                track end to end.
-              </p>
-            </div>
-            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-              Premium retail, built for clarity
-            </p>
+    <footer className="mt-20 border-t border-foreground/10 bg-foreground text-background">
+      <div className="mx-auto grid max-w-7xl gap-12 px-4 py-14 sm:py-16 lg:grid-cols-[1.15fr_repeat(3,minmax(0,0.8fr))_1.55fr]">
+        <div className="space-y-6">
+          <VsLogo inverse />
+          <p className="max-w-xs text-sm leading-7 text-background/70">
+            A future-facing marketplace with precise discovery, honest pricing and fulfilment you
+            can follow from checkout to delivery.
+          </p>
+          <div className="flex items-center gap-2" aria-label="VS Store contact shortcuts">
+            <a
+              href={`mailto:${STORE_CONTACT.email}`}
+              aria-label="Email VS Store"
+              className="grid h-10 w-10 place-items-center rounded-full border border-background/15 text-background/75 transition-colors hover:border-background/40 hover:text-background"
+            >
+              <Mail className="h-4 w-4" aria-hidden="true" />
+            </a>
+            <a
+              href={`tel:${STORE_CONTACT.phoneHref}`}
+              aria-label="Call VS Store"
+              className="grid h-10 w-10 place-items-center rounded-full border border-background/15 text-background/75 transition-colors hover:border-background/40 hover:text-background"
+            >
+              <Phone className="h-4 w-4" aria-hidden="true" />
+            </a>
+            <Link
+              to="/help"
+              aria-label="Open VS Store help centre"
+              className="grid h-10 w-10 place-items-center rounded-full border border-background/15 text-background/75 transition-colors hover:border-background/40 hover:text-background"
+            >
+              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+            </Link>
           </div>
-        </div>
-      </div>
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 md:grid-cols-4 lg:grid-cols-5">
-        <div className="space-y-4">
-          <VsLogo />
         </div>
         {COLUMNS.map((col) => (
           <div key={col.title}>
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+            <h3 className="mb-5 text-xs font-semibold uppercase tracking-[0.28em] text-background/55">
               {col.title}
             </h3>
-            <ul className="space-y-3 text-sm">
+            <ul className="space-y-3.5 text-sm">
               {col.links.map((link) => (
                 <li key={link.label}>
                   <Link
                     to={link.to}
                     params={(link as { params?: Record<string, string> }).params as never}
-                    className="text-muted-foreground transition-colors hover:text-primary"
+                    search={(link as { search?: Record<string, string> }).search as never}
+                    className="text-background/75 transition-colors hover:text-background"
                   >
                     {link.label}
                   </Link>
@@ -78,44 +99,97 @@ export function Footer() {
             </ul>
           </div>
         ))}
-        <div>
-          <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+        <div className="rounded-[2rem] border border-background/15 bg-background/5 p-6 sm:p-7">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.28em] text-background/55">
             Contact
           </h3>
-          <ul className="space-y-3 text-sm">
-            <li>
+          <ul className="mt-5 space-y-3.5 text-sm">
+            <li className="flex gap-3">
+              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-background/45" aria-hidden="true" />
               <a
                 href={`mailto:${STORE_CONTACT.email}`}
-                className="break-all text-muted-foreground transition-colors hover:text-primary"
+                className="break-all text-background/80 transition-colors hover:text-background"
               >
                 {STORE_CONTACT.email}
               </a>
             </li>
-            <li>
+            <li className="flex gap-3">
+              <Phone className="mt-0.5 h-4 w-4 shrink-0 text-background/45" aria-hidden="true" />
               <a
                 href={`tel:${STORE_CONTACT.phoneHref}`}
-                className="text-muted-foreground transition-colors hover:text-primary"
+                className="text-background/80 transition-colors hover:text-background"
               >
                 {STORE_CONTACT.phoneDisplay}
               </a>
             </li>
-            <li>
+            <li className="flex gap-3">
+              <ArrowUpRight
+                className="mt-0.5 h-4 w-4 shrink-0 text-background/45"
+                aria-hidden="true"
+              />
+              <span className="text-background/80">{STORE_CONTACT.address}</span>
+            </li>
+          </ul>
+          <div className="mt-6 border-t border-background/15 pt-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-background/55">
+              Newsletter
+            </p>
+            <form className="mt-4 flex gap-2" onSubmit={(event) => event.preventDefault()}>
+              <input
+                type="email"
+                required
+                placeholder="you@email.com"
+                aria-label="Email address for VS Store updates"
+                className="min-w-0 flex-1 rounded-full border border-background/15 bg-background/5 px-4 py-3 text-sm text-background outline-none placeholder:text-background/45 focus:border-background/40"
+              />
+              <button
+                type="submit"
+                className="rounded-full bg-primary px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-primary-foreground transition-transform hover:-translate-y-0.5"
+              >
+                Join
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div className="border-t border-background/10">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-7">
+          <div className="flex flex-wrap gap-2">
+            <TrustBadge
+              icon={<span className="h-2 w-2 rounded-full bg-primary" />}
+              label="Live store"
+            />
+            <TrustBadge icon={<ShieldCheck className="h-3.5 w-3.5" />} label="Secure checkout" />
+            <TrustBadge icon={<PackageCheck className="h-3.5 w-3.5" />} label="Tracked shipping" />
+            <TrustBadge icon={<RotateCcw className="h-3.5 w-3.5" />} label="Easy returns" />
+          </div>
+          <div className="flex flex-col gap-4 text-xs text-background/55 md:flex-row md:items-center md:justify-between">
+            <p>© {new Date().getFullYear()} VS Store. All rights reserved.</p>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 uppercase tracking-[0.18em]">
+              <Link to="/policies" className="transition-colors hover:text-background">
+                Policies
+              </Link>
               <Link
                 to="/policies/$slug"
                 params={{ slug: "contact" }}
-                className="text-muted-foreground transition-colors hover:text-primary"
+                className="transition-colors hover:text-background"
               >
-                Full contact details
+                Contact us
               </Link>
-            </li>
-          </ul>
-        </div>
-      </div>
-      <div className="border-t border-border/70 px-4 py-6">
-        <div className="mx-auto flex max-w-7xl flex-col gap-2 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
-          <p>© {new Date().getFullYear()} VS Store. All rights reserved.</p>
+              <span>Powered by Shopify</span>
+            </div>
+          </div>
         </div>
       </div>
     </footer>
+  );
+}
+
+function TrustBadge({ icon, label }: { icon: ReactNode; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-background/15 bg-background/5 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-background/70">
+      <span className="text-background/75">{icon}</span>
+      {label}
+    </span>
   );
 }
