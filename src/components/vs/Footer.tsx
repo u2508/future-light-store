@@ -40,7 +40,6 @@ const COLUMNS = [
       { label: "Privacy", to: "/policies/$slug" as const, params: { slug: "privacy" } },
       { label: "Terms", to: "/policies/$slug" as const, params: { slug: "terms" } },
       { label: "Legal notice", to: "/policies/$slug" as const, params: { slug: "legal-notice" } },
-      { label: "All policies", to: "/policies" as const },
     ],
   },
 ];
@@ -134,18 +133,15 @@ export function Footer() {
         </div>
       </div>
       <div className="border-t border-background/10">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-7">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-7 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap gap-2">
-            <TrustBadge
-              icon={<span className="h-2 w-2 rounded-full bg-primary" />}
-              label="Live store"
-            />
             <TrustBadge icon={<ShieldCheck className="h-3.5 w-3.5" />} label="Secure checkout" />
             <TrustBadge icon={<PackageCheck className="h-3.5 w-3.5" />} label="Tracked shipping" />
             <TrustBadge icon={<RotateCcw className="h-3.5 w-3.5" />} label="Easy returns" />
           </div>
-          <div className="flex flex-col gap-4 text-xs text-background/55 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col items-start gap-4 text-xs text-background/55 md:items-end">
             <p>© {new Date().getFullYear()} VS Store. All rights reserved.</p>
+            <PaymentMethods />
             <div className="flex flex-wrap gap-x-5 gap-y-2 uppercase tracking-[0.18em]">
               <Link to="/policies" className="transition-colors hover:text-background">
                 Policies
@@ -172,5 +168,57 @@ function TrustBadge({ icon, label }: { icon: ReactNode; label: string }) {
       <span className="text-background/75">{icon}</span>
       {label}
     </span>
+  );
+}
+
+const PAYMENT_METHODS = [
+  "Visa",
+  "Mastercard",
+  "Maestro",
+  "American Express",
+  "Diners Club",
+  "RuPay",
+] as const;
+
+function PaymentMethods() {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" aria-label="Accepted payment methods">
+      {PAYMENT_METHODS.map((method) => (
+        <span
+          key={method}
+          role="img"
+          aria-label={method}
+          title={method}
+          className="grid h-7 min-w-11 place-items-center rounded-md border border-background/15 bg-white px-1.5 text-[9px] font-black leading-none tracking-tight text-[#172554] shadow-sm"
+        >
+          {method === "Visa" && <span className="text-[13px] italic">VISA</span>}
+          {method === "Mastercard" && (
+            <span className="flex -space-x-1">
+              <span className="h-3.5 w-3.5 rounded-full bg-[#eb001b]" />
+              <span className="h-3.5 w-3.5 rounded-full bg-[#f79e1b]" />
+            </span>
+          )}
+          {method === "Maestro" && (
+            <span className="flex -space-x-1">
+              <span className="h-3 w-3 rounded-full bg-[#ed1c2e]" />
+              <span className="h-3 w-3 rounded-full bg-[#0099df]" />
+            </span>
+          )}
+          {method === "American Express" && (
+            <span className="rounded-sm bg-[#1476c6] px-1 py-0.5 text-[8px] leading-[0.85] text-white">
+              AM
+              <br />
+              EX
+            </span>
+          )}
+          {method === "Diners Club" && (
+            <span className="grid h-4 w-4 place-items-center rounded-full border-2 border-[#1476c6] text-[8px] text-[#1476c6]">
+              D
+            </span>
+          )}
+          {method === "RuPay" && <span className="text-[10px] italic text-[#243b8f]">RuPay</span>}
+        </span>
+      ))}
+    </div>
   );
 }
