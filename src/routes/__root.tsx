@@ -16,6 +16,7 @@ import { useCartSync } from "@/hooks/useCartSync";
 import { initializeTikTokPixel } from "@/lib/tiktok";
 import ogImage from "@/assets/vs-og.jpg";
 import { canonicalUrl, GOOGLE_SITE_VERIFICATION } from "@/lib/seo";
+import { STORE_CONTACT } from "@/lib/store-contact";
 
 function NotFoundComponent() {
   return (
@@ -101,6 +102,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@type": "Organization",
           name: "VS Store",
           url: canonicalUrl("/"),
+          email: `mailto:${STORE_CONTACT.email}`,
+          telephone: STORE_CONTACT.phoneDisplay,
+          contactPoint: {
+            "@type": "ContactPoint",
+            contactType: "customer support",
+            email: STORE_CONTACT.email,
+            telephone: STORE_CONTACT.phoneDisplay,
+          },
+          address: {
+            "@type": "PostalAddress",
+            streetAddress: STORE_CONTACT.address,
+            addressCountry: "IN",
+          },
         }),
       },
       {
