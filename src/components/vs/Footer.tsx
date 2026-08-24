@@ -17,6 +17,7 @@ const COLUMNS = [
     title: "Company",
     links: [
       { label: "Home", to: "/" as const },
+      { label: "About us", to: "/about" as const },
       { label: "Contact us", to: "/policies/$slug" as const, params: { slug: "contact" } },
       { label: "Track order", to: "/track-order" as const },
       { label: "Help centre", to: "/help" as const },
@@ -108,7 +109,7 @@ export function Footer() {
               <Mail className="mt-0.5 h-4 w-4 shrink-0 text-background/45" aria-hidden="true" />
               <a
                 href={`mailto:${STORE_CONTACT.email}`}
-                className="break-all text-background/80 transition-colors hover:text-background"
+                className="whitespace-nowrap text-xs text-background/80 transition-colors hover:text-background sm:text-sm"
               >
                 {STORE_CONTACT.email}
               </a>
@@ -130,26 +131,6 @@ export function Footer() {
               <span className="text-background/80">{STORE_CONTACT.address}</span>
             </li>
           </ul>
-          <div className="mt-6 border-t border-background/15 pt-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-background/55">
-              Newsletter
-            </p>
-            <form className="mt-4 flex gap-2" onSubmit={(event) => event.preventDefault()}>
-              <input
-                type="email"
-                required
-                placeholder="you@email.com"
-                aria-label="Email address for VS Store updates"
-                className="min-w-0 flex-1 rounded-full border border-background/15 bg-background/5 px-4 py-3 text-sm text-background outline-none placeholder:text-background/45 focus:border-background/40"
-              />
-              <button
-                type="submit"
-                className="rounded-full bg-primary px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] text-primary-foreground transition-transform hover:-translate-y-0.5"
-              >
-                Join
-              </button>
-            </form>
-          </div>
         </div>
       </div>
       <div className="border-t border-background/10">

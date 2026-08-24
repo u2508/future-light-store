@@ -17,6 +17,7 @@ const NAV = [
   { label: "Offers", to: "/offers" as const },
   { label: "Track order", to: "/track-order" as const },
   { label: "Support", to: "/help" as const },
+  { label: "Contact us", to: "/policies/$slug" as const, params: { slug: "contact" } },
 ];
 
 export function Header() {
@@ -161,6 +162,7 @@ export function Header() {
             <Link
               key={item.label}
               to={item.to}
+              params={(item as { params?: Record<string, string> }).params as never}
               search={item.search as never}
               className="whitespace-nowrap rounded-full border border-transparent px-3.5 py-1.5 font-medium text-muted-foreground transition-colors hover:border-border hover:bg-card hover:text-foreground"
               activeProps={{ className: "text-foreground" }}
@@ -282,6 +284,7 @@ export function Header() {
                     <Link
                       key={item.label}
                       to={item.to}
+                      params={(item as { params?: Record<string, string> }).params as never}
                       search={item.search as never}
                       onClick={() => setMobileNav(false)}
                       className="rounded-xl px-3 py-3 text-[15px] font-medium hover:bg-muted"
