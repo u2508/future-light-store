@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Heart, Loader2, ShoppingBag, Star } from "lucide-react";
+import { ArrowUpRight, Heart, Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { discountPercent, formatMoney, type ShopifyProduct } from "@/lib/shopify";
 import { useCartStore } from "@/stores/cartStore";
@@ -139,9 +139,13 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
             {lowStock && !soldOut && <span className="font-semibold text-signal">Low stock</span>}
             {n.productType && <span className="truncate">{n.productType}</span>}
-            <span className="ml-auto inline-flex items-center gap-1">
-              <Star className="h-2.5 w-2.5" /> No reviews yet
-            </span>
+            <Link
+              to="/products/$handle"
+              params={{ handle: n.handle }}
+              className="ml-auto inline-flex items-center gap-1 font-semibold text-primary transition-colors hover:text-foreground"
+            >
+              View details <ArrowUpRight className="h-2.5 w-2.5" aria-hidden="true" />
+            </Link>
           </div>
         </div>
       </article>

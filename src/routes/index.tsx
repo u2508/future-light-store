@@ -1,12 +1,28 @@
 import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { BadgeCheck, ShieldCheck, Star, Truck, RotateCcw } from "lucide-react";
-import { fetchProducts, fetchCollections, discountPercent } from "@/lib/shopify";
+import {
+  fetchProducts,
+  fetchCollections,
+  discountPercent,
+  type ShopifyProduct,
+} from "@/lib/shopify";
 import { ProductShelf } from "@/components/vs/ProductShelf";
 import { HeroCarousel } from "@/components/vs/HeroCarousel";
 import { canonicalUrl } from "@/lib/seo";
 import { HERO_COLLECTION_BANNERS, HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
 import { CatalogErrorState, CollectionGridSkeleton } from "@/components/vs/CatalogState";
+
+function takeDistinctProducts(source: ShopifyProduct[], usedIds: Set<string>, limit: number) {
+  const picked: ShopifyProduct[] = [];
+  for (const product of source) {
+    if (usedIds.has(product.node.id)) continue;
+    usedIds.add(product.node.id);
+    picked.push(product);
+    if (picked.length === limit) break;
+  }
+  return picked;
+}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -68,7 +84,7 @@ function Index() {
     .filter((c) => c.handle !== "all-products" && c.handle !== "classification-review")
     .slice(0, 12);
 
-  const offers = products.filter(
+  const discountedProducts = products.filter(
     (p) =>
       discountPercent(
         p.node.priceRange.minVariantPrice.amount,
@@ -78,6 +94,11 @@ function Index() {
   const underFifty = products.filter(
     (p) => parseFloat(p.node.priceRange.minVariantPrice.amount) <= 50,
   );
+  const usedProductIds = new Set<string>();
+  const newArrivals = takeDistinctProducts(products, usedProductIds, 12);
+  const offers = takeDistinctProducts(discountedProducts, usedProductIds, 12);
+  const valuePicks = takeDistinctProducts(underFifty, usedProductIds, 12);
+  const moreToExplore = takeDistinctProducts(products, usedProductIds, 18);
 
   return (
     <div className="relative overflow-hidden">
@@ -161,7 +182,7 @@ function Index() {
       <ProductShelf
         title="New arrivals"
         subtitle="Fresh in the VS catalog"
-        products={products.slice(0, 12)}
+        products={newArrivals}
         isLoading={isLoading}
         isError={productsError}
         onRetry={() => {
@@ -173,7 +194,7 @@ function Index() {
       <ProductShelf
         title="Limited-time offers"
         subtitle="Reduced while stock lasts"
-        products={offers.slice(0, 12)}
+        products={offers}
         isLoading={isLoading}
         isError={productsError}
         onRetry={() => {
@@ -186,7 +207,7 @@ function Index() {
       <ProductShelf
         title="Under $50"
         subtitle="Price-led discovery"
-        products={underFifty.slice(0, 12)}
+        products={valuePicks}
         isLoading={isLoading}
         isError={productsError}
         onRetry={() => {
@@ -199,7 +220,7 @@ function Index() {
       <ProductShelf
         title="Keep exploring"
         subtitle="More of the catalog, hand-picked"
-        products={products.slice(12, 30)}
+        products={moreToExplore}
         isLoading={isLoading}
         isError={productsError}
         onRetry={() => {

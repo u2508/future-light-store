@@ -14,7 +14,10 @@ const PRODUCT_DESCRIPTION_TAGS = new Set(["h2", "h3", "p", "ul", "ol", "li", "st
 function sanitizeProductDescriptionHtml(value: string) {
   return String(value || "")
     .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<\s*(script|style|iframe|object|embed|form|svg|math)\b[^>]*>[\s\S]*?<\/\s*\1\s*>/gi, "")
+    .replace(
+      /<\s*(script|style|iframe|object|embed|form|svg|math)\b[^>]*>[\s\S]*?<\/\s*\1\s*>/gi,
+      "",
+    )
     .replace(/<[^>]*>/g, (tag) => {
       const tagName = tag.match(/^<\s*\/?\s*([a-z0-9]+)/i)?.[1]?.toLowerCase();
       if (!tagName || !PRODUCT_DESCRIPTION_TAGS.has(tagName)) return "";
@@ -23,11 +26,20 @@ function sanitizeProductDescriptionHtml(value: string) {
     });
 }
 
-function ProductDescription({ description, descriptionHtml }: { description: string; descriptionHtml?: string }) {
+function ProductDescription({
+  description,
+  descriptionHtml,
+}: {
+  description: string;
+  descriptionHtml?: string;
+}) {
   const structuredDescription = sanitizeProductDescriptionHtml(descriptionHtml || "");
 
   return (
-    <section aria-label="Product description" className="rounded-[2rem] border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
+    <section
+      aria-label="Product description"
+      className="rounded-[2rem] border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6"
+    >
       {structuredDescription ? (
         <div
           className={cn(
@@ -50,9 +62,15 @@ export const Route = createFileRoute("/products/$handle")({
   head: ({ params }) => ({
     meta: [
       { title: `${params.handle.replace(/-/g, " ")} — VS Store` },
-      { name: "description", content: `Buy ${params.handle.replace(/-/g, " ")} at VS Store with secure checkout and tracked delivery.` },
+      {
+        name: "description",
+        content: `Buy ${params.handle.replace(/-/g, " ")} at VS Store with secure checkout and tracked delivery.`,
+      },
       { property: "og:title", content: `${params.handle.replace(/-/g, " ")} — VS Store` },
-      { property: "og:description", content: "Secure checkout and tracked delivery from VS Store." },
+      {
+        property: "og:description",
+        content: "Secure checkout and tracked delivery from VS Store.",
+      },
       { property: "og:type", content: "product" },
       { property: "og:url", content: canonicalUrl(`/products/${params.handle}`) },
     ],
@@ -63,7 +81,11 @@ export const Route = createFileRoute("/products/$handle")({
 
 function ProductPage() {
   const { handle } = Route.useParams();
-  const { data: product, isLoading, isError } = useQuery({
+  const {
+    data: product,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["product", handle],
     queryFn: () => fetchProduct(handle),
   });
@@ -88,7 +110,6 @@ function ProductPage() {
     }
   }, [product, pushRecent]);
 
-
   if (isLoading) {
     return (
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-2">
@@ -106,8 +127,13 @@ function ProductPage() {
     return (
       <div className="mx-auto max-w-xl px-4 py-24 text-center">
         <h1 className="font-display text-2xl font-bold">Product unavailable</h1>
-        <p className="mt-2 text-sm text-muted-foreground">This item may have been removed from the catalog.</p>
-        <Link to="/shop" className="mt-4 inline-block text-sm font-semibold text-primary hover:underline">
+        <p className="mt-2 text-sm text-muted-foreground">
+          This item may have been removed from the catalog.
+        </p>
+        <Link
+          to="/shop"
+          className="mt-4 inline-block text-sm font-semibold text-primary hover:underline"
+        >
           Browse all products →
         </Link>
       </div>
@@ -120,6 +146,10 @@ function ProductPage() {
   const price = selected?.price ?? product.priceRange.minVariantPrice;
   const compareAt = selected?.compareAtPrice?.amount ?? null;
   const off = discountPercent(price.amount, compareAt);
+  const productSummary = (product.description ?? "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
   const handleAdd = async () => {
     if (!selected) {
@@ -163,7 +193,12 @@ function ProductPage() {
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "Home", item: canonicalUrl("/") },
           { "@type": "ListItem", position: 2, name: "Shop all", item: canonicalUrl("/shop") },
-          { "@type": "ListItem", position: 3, name: product.title, item: canonicalUrl(`/products/${handle}`) },
+          {
+            "@type": "ListItem",
+            position: 3,
+            name: product.title,
+            item: canonicalUrl(`/products/${handle}`),
+          },
         ],
       },
     ],
@@ -171,20 +206,42 @@ function ProductPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 lg:px-6">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+      <nav
+        aria-label="Breadcrumb"
+        className="mb-5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+      >
+        <Link to="/" className="transition-colors hover:text-primary">
+          Home
+        </Link>
+        <span aria-hidden="true">/</span>
+        <Link to="/shop" className="transition-colors hover:text-primary">
+          Shop all
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="max-w-[18rem] truncate text-foreground">{product.title}</span>
+      </nav>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
         <div className="space-y-3 lg:sticky lg:top-24">
           <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-border/70 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),rgba(241,245,249,0.98))] shadow-[var(--shadow-lift)]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.14),transparent_32%),radial-gradient(circle_at_80%_80%,rgba(14,165,233,0.12),transparent_28%)]" />
             {images[imageIndex] ? (
-              <img src={images[imageIndex]!.url} alt={images[imageIndex]!.altText ?? product.title} className="h-full w-full object-cover" />
+              <img
+                src={images[imageIndex]!.url}
+                alt={images[imageIndex]!.altText ?? product.title}
+                className="h-full w-full object-cover"
+              />
             ) : (
               <div className="grid h-full place-items-center p-10 text-center">
                 <div className="max-w-xs space-y-2">
                   <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10" />
                   <p className="font-display text-lg font-semibold">Visual coming soon</p>
                   <p className="text-sm leading-6 text-muted-foreground">
-                    Product media is unavailable for this item, so the page now stays visually anchored with a premium placeholder.
+                    Product media is unavailable for this item, so the page now stays visually
+                    anchored with a premium placeholder.
                   </p>
                 </div>
               </div>
@@ -211,26 +268,50 @@ function ProductPage() {
 
         <div className="space-y-5 lg:pt-3">
           <div className="space-y-3">
-            <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">{product.vendor || product.productType}</p>
-            <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">{product.title}</h1>
-            <p className="max-w-2xl text-sm leading-7 text-muted-foreground">
-              A refined product layout with better balance, so the content reads more like a premium storefront and less like a blank split screen.
+            <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">
+              {product.vendor || product.productType}
             </p>
+            <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+              {product.title}
+            </h1>
+            <p className="max-w-2xl text-sm leading-7 text-muted-foreground">
+              {productSummary
+                ? `${productSummary.slice(0, 220)}${productSummary.length > 220 ? "…" : ""}`
+                : "A considered everyday upgrade, ready for a secure checkout."}
+            </p>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-full border border-border bg-card px-3 py-1.5 text-muted-foreground">
+                {product.availableForSale ? "In stock" : "Currently unavailable"}
+              </span>
+              {product.productType && (
+                <span className="rounded-full border border-border bg-card px-3 py-1.5 text-muted-foreground">
+                  {product.productType}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex items-baseline gap-3 rounded-[1.5rem] border border-border bg-card px-4 py-3 shadow-[var(--shadow-card)]">
-            <span className="font-display text-3xl font-bold">{formatMoney(price.amount, price.currencyCode)}</span>
+            <span className="font-display text-3xl font-bold">
+              {formatMoney(price.amount, price.currencyCode)}
+            </span>
             {off > 0 && compareAt && (
               <>
-                <span className="text-muted-foreground line-through">{formatMoney(compareAt, price.currencyCode)}</span>
-                <span className="rounded-full bg-signal px-2.5 py-1 text-xs font-bold text-signal-foreground">{off}% off</span>
+                <span className="text-muted-foreground line-through">
+                  {formatMoney(compareAt, price.currencyCode)}
+                </span>
+                <span className="rounded-full bg-signal px-2.5 py-1 text-xs font-bold text-signal-foreground">
+                  {off}% off
+                </span>
               </>
             )}
           </div>
 
           {variants.length > 1 && (
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Select option</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Select option
+              </p>
               <div className="flex flex-wrap gap-2">
                 {variants.map((v) => (
                   <button
@@ -239,7 +320,9 @@ function ProductPage() {
                     onClick={() => setSelectedId(v.id)}
                     className={cn(
                       "rounded-xl border px-4 py-2 text-sm transition-colors",
-                      v.id === selectedId ? "border-primary bg-accent text-accent-foreground" : "border-border hover:border-primary",
+                      v.id === selectedId
+                        ? "border-primary bg-accent text-accent-foreground"
+                        : "border-border hover:border-primary",
                       !v.availableForSale && "cursor-not-allowed opacity-40 line-through",
                     )}
                   >
@@ -252,15 +335,28 @@ function ProductPage() {
 
           <div className="flex items-center gap-3 rounded-[1.5rem] border border-border bg-card px-4 py-3 shadow-[var(--shadow-card)]">
             <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-background p-1">
-              <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} aria-label="Decrease quantity" className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted">
+              <button
+                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                aria-label="Decrease quantity"
+                className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted"
+              >
                 <Minus className="h-4 w-4" />
               </button>
               <span className="w-8 text-center text-sm">{quantity}</span>
-              <button onClick={() => setQuantity((q) => q + 1)} aria-label="Increase quantity" className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted">
+              <button
+                onClick={() => setQuantity((q) => q + 1)}
+                aria-label="Increase quantity"
+                className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted"
+              >
                 <Plus className="h-4 w-4" />
               </button>
             </div>
-            <span className={cn("text-sm", product.availableForSale ? "text-muted-foreground" : "text-signal")}>
+            <span
+              className={cn(
+                "text-sm",
+                product.availableForSale ? "text-muted-foreground" : "text-signal",
+              )}
+            >
               {product.availableForSale ? "In stock" : "Sold out"}
             </span>
           </div>
@@ -276,7 +372,9 @@ function ProductPage() {
             <button
               onClick={() => {
                 const added = toggleWishlist({ node: product });
-                toast(added ? "Saved to wishlist" : "Removed from wishlist", { position: "top-center" });
+                toast(added ? "Saved to wishlist" : "Removed from wishlist", {
+                  position: "top-center",
+                });
               }}
               aria-label="Toggle wishlist"
               className="grid h-13 w-13 place-items-center rounded-xl border border-border px-4 transition-colors hover:border-signal"
@@ -286,19 +384,38 @@ function ProductPage() {
           </div>
 
           {product.description && (
-            <ProductDescription description={product.description} descriptionHtml={product.descriptionHtml} />
+            <ProductDescription
+              description={product.description}
+              descriptionHtml={product.descriptionHtml}
+            />
           )}
 
           <div className="grid gap-2 rounded-[1.5rem] border border-border bg-card p-4 text-xs text-muted-foreground shadow-[var(--shadow-card)]">
-            <p className="flex items-center gap-2"><Truck className="h-3.5 w-3.5" /> Delivery estimate at checkout</p>
-            <p className="flex items-center gap-2"><RotateCcw className="h-3.5 w-3.5" /> 30-day returns</p>
-            <p className="flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5" /> Secure Shopify checkout</p>
+            <p className="flex items-center gap-2">
+              <Truck className="h-3.5 w-3.5" /> Delivery estimate at checkout
+            </p>
+            <p className="flex items-center gap-2">
+              <RotateCcw className="h-3.5 w-3.5" /> 30-day returns
+            </p>
+            <p className="flex items-center gap-2">
+              <ShieldCheck className="h-3.5 w-3.5" /> Secure Shopify checkout
+            </p>
           </div>
 
-          <section>
-            <h2 className="font-display text-lg font-semibold">Reviews</h2>
-            <div className="mt-2 rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-muted-foreground">
-              No reviews yet.
+          <section className="rounded-[1.5rem] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+              Need a hand?
+            </p>
+            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Questions about delivery, returns or checkout?
+              </p>
+              <Link
+                to="/help"
+                className="shrink-0 text-sm font-semibold text-primary hover:underline"
+              >
+                Visit help centre →
+              </Link>
             </div>
           </section>
         </div>

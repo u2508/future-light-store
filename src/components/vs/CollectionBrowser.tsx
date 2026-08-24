@@ -309,19 +309,25 @@ export function CollectionBrowser({
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
               <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Sort</p>
-              <p className="mt-1 text-sm font-semibold">Curated by value</p>
+              <p className="mt-1 text-sm font-semibold">
+                {isLoading ? "Loading catalog" : `${filtered.length} products`}
+              </p>
             </div>
             <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
               <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
                 Filters
               </p>
-              <p className="mt-1 text-sm font-semibold">Live search, live stock</p>
+              <p className="mt-1 text-sm font-semibold">
+                {activeChips.length ? `${activeChips.length} active` : "Ready to refine"}
+              </p>
             </div>
             <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
               <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
                 Catalog
               </p>
-              <p className="mt-1 text-sm font-semibold">Shopify synced</p>
+              <p className="mt-1 text-sm font-semibold">
+                {collectionsLoading ? "Syncing collections" : `${collections.length} collections`}
+              </p>
             </div>
           </div>
         </div>
