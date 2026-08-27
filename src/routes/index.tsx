@@ -7,11 +7,61 @@ import {
   discountPercent,
   type ShopifyProduct,
 } from "@/lib/shopify";
-import { ProductShelf } from "@/components/vs/ProductShelf";
+import { SectionHeading } from "@/components/vs/ProductShelf";
 import { HeroCarousel } from "@/components/vs/HeroCarousel";
 import { canonicalUrl } from "@/lib/seo";
 import { HERO_COLLECTION_BANNERS, HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
-import { CatalogErrorState, CollectionGridSkeleton } from "@/components/vs/CatalogState";
+import {
+  CatalogEmptyState,
+  CatalogRequestError,
+  CollectionCardGridSkeleton,
+  ProductCatalogGridState,
+} from "@/components/vs/CatalogGridState";
+
+interface HomeProductShelfProps {
+  title: string;
+  subtitle: string;
+  products: ShopifyProduct[];
+  isLoading: boolean;
+  isError: boolean;
+  isRetrying: boolean;
+  onRetry: () => void;
+  action: { label: string; to: "/shop" | "/offers" };
+  emptyTitle: string;
+  emptyDescription: string;
+}
+
+function HomeProductShelf({
+  title,
+  subtitle,
+  products,
+  isLoading,
+  isError,
+  isRetrying,
+  onRetry,
+  action,
+  emptyTitle,
+  emptyDescription,
+}: HomeProductShelfProps) {
+  return (
+    <section className="mx-auto max-w-7xl px-4 py-10" aria-label={title}>
+      <SectionHeading title={title} subtitle={subtitle} action={action} />
+      <ProductCatalogGridState
+        products={products}
+        isLoading={isLoading}
+        isError={isError}
+        isRetrying={isRetrying}
+        onRetry={onRetry}
+        loadingLabel={`Loading ${title.toLowerCase()}`}
+        errorTitle={`We couldn’t load ${title.toLowerCase()}`}
+        emptyTitle={emptyTitle}
+        emptyDescription={emptyDescription}
+        skeletonCount={6}
+        gridClassName="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6"
+      />
+    </section>
+  );
+}
 
 function takeDistinctProducts(source: ShopifyProduct[], usedIds: Set<string>, limit: number) {
   const picked: ShopifyProduct[] = [];
@@ -51,6 +101,7 @@ function Index() {
     data: products = [],
     isLoading: productsLoading,
     isError: productsError,
+    isFetching: productsFetching,
     refetch: refetchProducts,
   } = useQuery({
     queryKey: ["products", "all"],
@@ -61,6 +112,7 @@ function Index() {
     data: collections = [],
     isLoading: collectionsLoading,
     isError: collectionsError,
+    isFetching: collectionsFetching,
     refetch: refetchCollections,
   } = useQuery({
     queryKey: ["collections", "home"],
@@ -179,55 +231,64 @@ function Index() {
         </div>
       </section>
 
-      <ProductShelf
+      <HomeProductShelf
         title="New arrivals"
         subtitle="Fresh in the VS catalog"
         products={newArrivals}
         isLoading={isLoading}
         isError={productsError}
+        isRetrying={productsError && productsFetching}
         onRetry={() => {
           void refetchProducts();
         }}
         action={{ label: "Shop all", to: "/shop" }}
+        emptyTitle="New arrivals are being prepared"
+        emptyDescription="The next catalog drop will appear here as soon as it is ready."
       />
 
-      <ProductShelf
+      <HomeProductShelf
         title="Limited-time offers"
         subtitle="Reduced while stock lasts"
         products={offers}
         isLoading={isLoading}
         isError={productsError}
+        isRetrying={productsError && productsFetching}
         onRetry={() => {
           void refetchProducts();
         }}
         action={{ label: "All offers", to: "/offers" }}
-        emptyMessage="No offers running right now"
+        emptyTitle="No offers running right now"
+        emptyDescription="New promotions will appear here automatically when they go live."
       />
 
-      <ProductShelf
+      <HomeProductShelf
         title="Under $50"
         subtitle="Price-led discovery"
         products={valuePicks}
         isLoading={isLoading}
         isError={productsError}
+        isRetrying={productsError && productsFetching}
         onRetry={() => {
           void refetchProducts();
         }}
         action={{ label: "Shop all", to: "/shop" }}
-        emptyMessage="Nothing under $50 yet"
+        emptyTitle="Nothing under $50 yet"
+        emptyDescription="Explore the full catalog while we prepare more value-led picks."
       />
 
-      <ProductShelf
+      <HomeProductShelf
         title="Keep exploring"
         subtitle="More of the catalog, hand-picked"
         products={moreToExplore}
         isLoading={isLoading}
         isError={productsError}
+        isRetrying={productsError && productsFetching}
         onRetry={() => {
           void refetchProducts();
         }}
         action={{ label: "Shop all", to: "/shop" }}
-        emptyMessage="More products coming soon"
+        emptyTitle="More products coming soon"
+        emptyDescription="You’ve reached the end of this edit. The full catalog is still available."
       />
 
       <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="home-collection-paths">
@@ -249,8 +310,9 @@ function Index() {
         </div>
         {collectionsError ? (
           <div className="mt-5">
-            <CatalogErrorState
+            <CatalogRequestError
               title="We couldn’t load the collection paths"
+              isRetrying={collectionsFetching}
               onRetry={() => {
                 void refetchCollections();
               }}
@@ -258,23 +320,19 @@ function Index() {
           </div>
         ) : !hydrated || collectionsLoading ? (
           <div className="mt-5">
-            <CollectionGridSkeleton count={8} />
+            <CollectionCardGridSkeleton count={8} label="Loading collection paths" />
           </div>
         ) : spotlightCollections.length === 0 ? (
-          <div
-            role="status"
-            className="mt-5 rounded-3xl border border-border bg-card p-10 text-center"
-          >
-            <p className="font-display text-lg font-semibold">No collections available yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Browse the full catalog while we prepare the next collection edit.
-            </p>
-            <Link
-              to="/shop"
-              className="mt-4 inline-block text-sm font-semibold text-primary hover:underline"
-            >
-              Browse all products →
-            </Link>
+          <div className="mt-5">
+            <CatalogEmptyState
+              title="No collections available yet"
+              description="Browse the full catalog while we prepare the next collection edit."
+              action={
+                <Link to="/shop" className="text-sm font-semibold text-primary hover:underline">
+                  Browse all products →
+                </Link>
+              }
+            />
           </div>
         ) : (
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

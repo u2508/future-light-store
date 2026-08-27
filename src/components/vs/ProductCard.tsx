@@ -6,6 +6,10 @@ import { discountPercent, formatMoney, type ShopifyProduct } from "@/lib/shopify
 import { useCartStore } from "@/stores/cartStore";
 import { useWishlistStore } from "@/stores/wishlistStore";
 import { QuickActionsSheet } from "@/components/vs/QuickActionsSheet";
+import {
+  getProductCardImageDelivery,
+  PRODUCT_CARD_IMAGE_SIZES,
+} from "@/components/vs/productCardImage";
 import { cn } from "@/lib/utils";
 
 export function ProductCard({ product }: { product: ShopifyProduct }) {
@@ -17,6 +21,7 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
   const toggleWishlist = useWishlistStore((s) => s.toggle);
 
   const image = n.images.edges[0]?.node;
+  const imageDelivery = image ? getProductCardImageDelivery(image.url) : null;
   const variants = n.variants.edges.map((e) => e.node);
   const firstVariant = variants[0];
   const price = firstVariant?.price ?? n.priceRange.minVariantPrice;
@@ -53,9 +58,15 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
           <Link to="/products/$handle" params={{ handle: n.handle }} aria-label={n.title}>
             {image ? (
               <img
-                src={image.url}
+                src={imageDelivery?.src ?? image.url}
+                srcSet={imageDelivery?.srcSet}
+                sizes={PRODUCT_CARD_IMAGE_SIZES}
                 alt={image.altText ?? n.title}
+                width={640}
+                height={640}
                 loading="lazy"
+                decoding="async"
+                fetchPriority="low"
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
               />
             ) : (

@@ -166,7 +166,18 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
-    initializeTikTokPixel();
+    let pixelTimer: number | undefined;
+    const initializeDeferredPixel = () => {
+      pixelTimer = window.setTimeout(initializeTikTokPixel, 1_500);
+    };
+
+    if (document.readyState === "complete") initializeDeferredPixel();
+    else window.addEventListener("load", initializeDeferredPixel, { once: true });
+
+    return () => {
+      window.removeEventListener("load", initializeDeferredPixel);
+      if (pixelTimer !== undefined) window.clearTimeout(pixelTimer);
+    };
   }, []);
 
   return (

@@ -4,9 +4,12 @@ import { ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import type { ShopifyProduct } from "@/lib/shopify";
 import { discountPercent, type ShopifyCollection } from "@/lib/shopify";
 import { searchProducts } from "@/lib/vs-search";
-import { ProductCard, ProductGridSkeleton, EmptyProducts } from "@/components/vs/ProductCard";
 import { cn } from "@/lib/utils";
-import { CatalogErrorState } from "@/components/vs/CatalogState";
+import {
+  CatalogEmptyState,
+  CollectionListSkeleton,
+  ProductCatalogGridState,
+} from "@/components/vs/CatalogGridState";
 
 export interface BrowserSearch {
   q: string;
@@ -310,7 +313,11 @@ export function CollectionBrowser({
             <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
               <p className="text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Sort</p>
               <p className="mt-1 text-sm font-semibold">
-                {isLoading ? "Loading catalog" : `${filtered.length} products`}
+                {isError
+                  ? "Catalog unavailable"
+                  : isLoading
+                    ? "Loading catalog"
+                    : `${filtered.length} products`}
               </p>
             </div>
             <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">
@@ -364,9 +371,11 @@ export function CollectionBrowser({
               <SlidersHorizontal className="h-4 w-4" /> Filters
             </button>
             <p className="text-sm text-muted-foreground">
-              {isLoading
-                ? "Loading…"
-                : `${filtered.length} result${filtered.length === 1 ? "" : "s"}`}
+              {isError
+                ? "Unable to load results"
+                : isLoading
+                  ? "Loading…"
+                  : `${filtered.length} result${filtered.length === 1 ? "" : "s"}`}
             </p>
             <select
               value={search.sort}
@@ -404,26 +413,37 @@ export function CollectionBrowser({
             </div>
           )}
 
-          {isError ? (
-            <CatalogErrorState
-              title="We couldn’t reach the catalog"
-              onRetry={() => window.location.reload()}
-            />
-          ) : isLoading ? (
-            <ProductGridSkeleton />
-          ) : filtered.length === 0 ? (
-            <EmptyProducts
-              message={
-                products.length === 0 ? "No products found" : "No products match these filters"
-              }
-            />
-          ) : (
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-              {filtered.map((p) => (
-                <ProductCard key={p.node.id} product={p} />
-              ))}
-            </div>
-          )}
+          <ProductCatalogGridState
+            products={filtered}
+            isLoading={isLoading}
+            isError={Boolean(isError)}
+            onRetry={() => window.location.reload()}
+            loadingLabel="Loading catalog products"
+            errorTitle="We couldn’t reach the catalog"
+            emptyTitle={
+              products.length === 0
+                ? "No products available yet"
+                : "No products match these filters"
+            }
+            emptyDescription={
+              products.length === 0
+                ? "The next catalog drop will appear here as soon as it is available."
+                : "Try removing one or more filters to widen your results."
+            }
+            emptyAction={
+              products.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="text-sm font-semibold text-primary hover:underline"
+                >
+                  Clear all filters
+                </button>
+              ) : undefined
+            }
+            skeletonCount={12}
+            gridClassName="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"
+          />
         </div>
 
         <aside className="hidden 2xl:block">
@@ -437,11 +457,13 @@ export function CollectionBrowser({
             </div>
             <div className="mt-4 space-y-2">
               {collectionsLoading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="h-12 animate-pulse rounded-2xl bg-muted" />
-                  ))}
-                </div>
+                <CollectionListSkeleton count={6} />
+              ) : collections.length === 0 ? (
+                <CatalogEmptyState
+                  compact
+                  title="No collection shortcuts yet"
+                  description="Use the filters or browse the product grid while collections are prepared."
+                />
               ) : (
                 collections.map((collection) => (
                   <Link

@@ -93,7 +93,7 @@ const AdminFinanceRoute = AdminFinanceRouteImport.update({
   id: '/admin/finance',
   path: '/admin/finance',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() => import('./routes/admin.finance.lazy').then((d) => d.Route))
 const AdminOrdersRoute = AdminOrdersRouteImport.update({
   id: '/admin/orders',
   path: '/admin/orders',
