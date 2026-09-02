@@ -141,6 +141,38 @@ async function fetchAllProducts(): Promise<Array<{ handle: string; updatedAt?: s
   return handles;
 }
 
+function loadLocalCatalogEntries(): {
+  collections: Array<{ handle: string; updatedAt?: string }>;
+  products: Array<{ handle: string; updatedAt?: string }>;
+} {
+  try {
+    const dataDir = resolve("public", "data");
+    const productsManifest = JSON.parse(readFileSync(resolve(dataDir, "products.json"), "utf-8")) as {
+      shards?: Array<{ file?: string }>;
+    };
+    const products = (productsManifest.shards ?? []).flatMap((shard) => {
+      const file = String(shard.file ?? "").replace(/^.*\//, "");
+      if (!/^products-\d{4}\.json$/.test(file)) return [];
+      const payload = JSON.parse(readFileSync(resolve(dataDir, file), "utf-8")) as {
+        products?: Array<{ handle?: string; updated_at?: string; updatedAt?: string; status?: string }>;
+      };
+      return (payload.products ?? [])
+        .filter((product) => product.handle && String(product.status ?? "").toLowerCase() !== "draft")
+        .map((product) => ({ handle: String(product.handle), updatedAt: product.updatedAt ?? product.updated_at }));
+    });
+    const collectionsPayload = JSON.parse(readFileSync(resolve(dataDir, "collections.json"), "utf-8")) as {
+      collections?: Array<{ handle?: string; updatedAt?: string; updated_at?: string }>;
+    };
+    const collections = (collectionsPayload.collections ?? [])
+      .filter((collection) => collection.handle)
+      .map((collection) => ({ handle: String(collection.handle), updatedAt: collection.updatedAt ?? collection.updated_at }));
+    return { collections, products };
+  } catch (error) {
+    console.warn("Could not load local catalog sitemap fallback:", error instanceof Error ? error.message : error);
+    return { collections: [], products: [] };
+  }
+}
+
 function generateSitemap(entries: SitemapEntry[]) {
   const urls = entries.map((e) =>
     [
@@ -172,6 +204,9 @@ async function main() {
 
   try {
     const [collections, products] = await Promise.all([fetchAllCollections(), fetchAllProducts()]);
+    if (!collections.length || !products.length) {
+      throw new Error(`Shopify returned an incomplete sitemap catalog (${collections.length} collections, ${products.length} products)`);
+    }
 
     for (const collection of collections) {
       entries.push({
@@ -193,7 +228,27 @@ async function main() {
 
     console.log(`Fetched ${collections.length} collections and ${products.length} products from Shopify.`);
   } catch (error) {
-    console.warn("Could not fetch dynamic Shopify entries for sitemap:", error instanceof Error ? error.message : error);
+    const fallback = loadLocalCatalogEntries();
+    for (const collection of fallback.collections) {
+      entries.push({
+        path: `/collections/${collection.handle}`,
+        changefreq: "weekly",
+        priority: "0.7",
+        lastmod: collection.updatedAt ? collection.updatedAt.split("T")[0] : undefined,
+      });
+    }
+    for (const product of fallback.products) {
+      entries.push({
+        path: `/products/${product.handle}`,
+        changefreq: "weekly",
+        priority: "0.8",
+        lastmod: product.updatedAt ? product.updatedAt.split("T")[0] : undefined,
+      });
+    }
+    console.warn(
+      `Could not fetch dynamic Shopify entries for sitemap; used local fallback (${fallback.collections.length} collections, ${fallback.products.length} products):`,
+      error instanceof Error ? error.message : error,
+    );
   }
 
   writeFileSync(resolve("public/sitemap.xml"), generateSitemap(entries));

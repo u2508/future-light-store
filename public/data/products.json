@@ -1,0 +1,1 @@
+{"format":"salt-product-catalog-shards","version":1,"generatedAt":"2026-09-02T09:15:49.955Z","source":"https://vs-future-store-0jl2t-jxu6tnr3.myshopify.com","total":2999,"shardCount":1,"shardMaxBytes":47185920,"shards":[{"file":"products-0001.json","path":"/data/products-0001.json","index":0,"count":2999,"bytes":35310594}]}
