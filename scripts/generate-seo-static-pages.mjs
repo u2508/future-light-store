@@ -144,12 +144,29 @@ function productKnowledgeByHandle(knowledge) {
 
 function productType(product, knowledge) {
   const listingType = extractListingFact(product, "Product type");
+  const knowledgeType = knowledge?.canonicalTypeId || knowledge?.specificType || "";
+  const broadListingTypes = new Set([
+    "bag",
+    "baby product",
+    "home decor",
+    "item",
+    "lamp",
+    "makeup product",
+    "pet product",
+    "product",
+  ]);
+  const titleAndHandle = `${product.title || ""} ${product.handle || ""}`.toLowerCase();
+  const garmentConflict = /\b(?:dress|gown)\b/i.test(listingType)
+    && /\b(?:top|pants|trousers|shirt|shorts|clothing|underwear|set)\b/i.test(titleAndHandle)
+    && !/\b(?:dress|gown)\b/i.test(titleAndHandle);
+  const preferredType = knowledgeType && (broadListingTypes.has(listingType.toLowerCase()) || garmentConflict)
+    ? knowledgeType
+    : listingType;
   return titleCase(
-    listingType
+    preferredType
       || product.product_type
       || product.productType
-      || knowledge?.canonicalType
-      || knowledge?.specificType
+      || knowledgeType
       || "product",
   );
 }
@@ -158,9 +175,16 @@ function extractListingFacts(product) {
   const text = htmlToText(product.body_html || product.descriptionHtml || "");
   const labels = [
     "Product type",
+    "Connector size",
+    "Connection",
+    "Connector layout",
     "Material",
     "Style or design",
     "Size or capacity",
+    "Color",
+    "Pattern",
+    "Power source",
+    "Frequency",
     "Supported features",
     "Device compatibility",
     "Use or occasion",
@@ -187,6 +211,76 @@ function extractListingFact(product, label) {
   return extractListingFacts(product).find((fact) => fact.label === label)?.value || "";
 }
 
+function relevantListingFacts(product, knowledge) {
+  const titleAndHandle = `${product.title || ""} ${product.handle || ""}`.toLowerCase();
+  const taxonomyText = `${knowledge?.departmentId || ""} ${knowledge?.categoryId || ""} ${knowledge?.subcategoryId || ""} ${knowledge?.canonicalTypeId || ""}`.toLowerCase();
+  const personalProduct = /\b(?:apparel|clothing|fashion|jewelry|watches|wearable|kids|baby|women|men|personal)\b/i.test(taxonomyText);
+  return extractListingFacts(product).filter((fact) => {
+    if (fact.label !== "Intended user") return true;
+    const audienceValue = fact.value.toLowerCase();
+    const audienceTerms = /\b(?:women|woman|men|man|girls|girl|boys|boy|baby|babies|kids|children)\b/i;
+    if (!audienceTerms.test(audienceValue) || personalProduct) return true;
+    return audienceValue.split(/[^a-z]+/i).some((term) => term.length > 2 && titleAndHandle.includes(term));
+  });
+}
+
+function naturalList(values) {
+  const items = values.filter(Boolean);
+  if (items.length < 2) return items[0] || "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+}
+
+function normalizeFactValue(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/\b(\d+)\s*-\s*(\d+)\b/g, "$1–$2")
+    .trim();
+}
+
+function factPhrase(fact) {
+  const value = normalizeFactValue(fact.value);
+  if (!value) return "";
+  switch (fact.label) {
+    case "Material":
+      return `${value} construction`;
+    case "Connector size":
+      return `${value} connector`;
+    case "Connection":
+      return `${value} connection`;
+    case "Connector layout":
+      return `a ${value} connector layout`;
+    case "Style or design":
+      return `a ${value} design`;
+    case "Intended user":
+      return `options for ${value.replace(/\bbaby\b/gi, "babies")}`;
+    case "Size or capacity":
+      return `${value} sizing`;
+    case "Color":
+      return `${value} color`;
+    case "Pattern":
+      return `${value} pattern`;
+    case "Power source":
+      return `${value} power`;
+    case "Frequency":
+      return `${value} frequency`;
+    case "Supported features":
+      return `${value} support`;
+    case "Device compatibility":
+      return `compatibility with ${value}`;
+    case "Use or occasion":
+      return `use for ${value}`;
+    case "Placement or setting":
+      return `placement in ${value}`;
+    case "Available options":
+      return `options including ${value}`;
+    case "Pack format":
+      return `${value} pack format`;
+    default:
+      return `${fact.label.toLowerCase()}: ${value}`;
+  }
+}
+
 function removeGenericProductCopy(value, title) {
   const escapedTitle = escapeRegExp(title);
   return String(value || "")
@@ -202,15 +296,15 @@ function removeGenericProductCopy(value, title) {
 function usefulProductSummary(product, knowledge) {
   const title = String(product.title || titleCase(product.handle));
   const type = productType(product, knowledge);
-  const facts = extractListingFacts(product);
+  const facts = relevantListingFacts(product, knowledge);
   const usefulFacts = facts
     .filter((fact) => fact.label !== "Product type")
     .filter((fact) => fact.value.length >= 2)
+    .map(factPhrase)
+    .filter(Boolean)
     .slice(0, 4);
   const article = /^[aeiou]/i.test(type) ? "an" : "a";
-  const factSentence = usefulFacts.length
-    ? `Listed details include ${usefulFacts.slice(0, 3).map((fact) => `${fact.label.toLowerCase()}: ${fact.value}`).join("; ")}.`
-    : "Check the listed specifications, options and compatibility details before ordering.";
+  const factSentence = usefulFacts.length ? ` It includes ${naturalList(usefulFacts)}.` : "";
   const sourceText = htmlToText(product.body_html || product.descriptionHtml || "");
   const contentBeforeSections = sourceText.split(/\b(?:Key Details|Specifications|Use & Care|FAQs)\b/i)[0];
   const raw = removeGenericProductCopy(contentBeforeSections, title)
@@ -223,7 +317,7 @@ function usefulProductSummary(product, knowledge) {
   const detailSentence = detail && !/\b(?:listed details|available options)\b/i.test(detail)
     ? ` ${detail}`
     : "";
-  return `${title} is listed as ${article} ${type.toLowerCase()}.${factSentence}${detailSentence}`
+  return `${title} is ${article} ${type.toLowerCase()}.${factSentence}${detailSentence}`
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -331,19 +425,36 @@ function staticBody(page) {
 }
 
 function productBody(product, knowledge) {
-  const safeBody = sanitizeDescriptionHtml(product.body_html || product.descriptionHtml || "")
-    .replace(/<p>[\s\S]*?(?:is presented for the use|is intended for the use|serves the specific function)[\s\S]*?<\/p>/gi, "")
-    .replace(/\n\s*\n/g, "\n")
-    .trim();
   const type = productType(product, knowledge);
+  const listingFacts = relevantListingFacts(product, knowledge);
   const facts = [
     ["Product type", type],
     product.vendor ? ["Brand or supplier", product.vendor] : null,
+    ...listingFacts
+      .filter((fact) => !["Product type", "Brand or supplier"].includes(fact.label))
+      .slice(0, 8)
+      .map((fact) => [fact.label, normalizeFactValue(fact.value)]),
     knowledge?.categoryId ? ["Category", titleCase(knowledge.categoryId)] : null,
     knowledge?.subcategoryId ? ["Subcategory", titleCase(knowledge.subcategoryId)] : null,
   ].filter(Boolean);
   const factsMarkup = facts.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join("");
-  return `<main><article><h1>${escapeHtml(product.title)}</h1><p>${escapeHtml(usefulProductSummary(product, knowledge))}</p><dl>${factsMarkup}</dl>${safeBody ? `<section aria-label="Product details">${safeBody}</section>` : ""}</article></main>`;
+  const optionValues = [...new Set((product.variants || [])
+    .map((variant) => String(variant?.title || "").trim())
+    .filter((title) => title && !/^default title$/i.test(title)))].slice(0, 8);
+  const optionsMarkup = optionValues.length
+    ? `<section aria-label="Available options"><h2>Available options</h2><p>Choose from ${escapeHtml(naturalList(optionValues))} where offered.</p></section>`
+    : "";
+  const checks = listingFacts
+    .filter((fact) => ["Size or capacity", "Device compatibility", "Available options", "Material"].includes(fact.label))
+    .map((fact) => fact.label.toLowerCase());
+  const orderingText = checks.length
+    ? `Before ordering, check the listed ${naturalList(checks)} so you can choose the right product details and option.`
+    : "Before ordering, review the listed product details and available options to make the right choice.";
+  const summary = usefulProductSummary(product, knowledge).replace(
+    new RegExp(`^${escapeRegExp(product.title)}`),
+    `The ${product.title}`,
+  );
+  return `<main><article><h1>${escapeHtml(product.title)}</h1><p>${escapeHtml(summary)}</p><section aria-label="Product details"><h2>Product details</h2><dl>${factsMarkup}</dl></section>${optionsMarkup}<section aria-label="Before ordering"><h2>Before ordering</h2><p>${escapeHtml(orderingText)}</p></section></article></main>`;
 }
 
 function collectionBody(collection) {

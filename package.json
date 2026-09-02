@@ -7,7 +7,7 @@
     "predev": "node scripts/generate-sitemap.ts",
     "dev": "vite dev",
     "prebuild": "node scripts/generate-sitemap.ts",
-    "build": "vite build && node scripts/generate-seo-static-pages.mjs",
+    "build": "node scripts/build-web-release.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "test:e2e": "playwright test",

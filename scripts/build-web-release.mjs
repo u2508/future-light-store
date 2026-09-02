@@ -115,7 +115,23 @@ async function main() {
     await run(
       nodeBin,
       [resolve(rootDir, "node_modules", "vite", "bin", "vite.js"), "build"],
-      { ...process.env, SALT_BUILD_SKIP_PUBLIC_COPY: "0" },
+      { ...process.env, SALT_BUILD_SKIP_PUBLIC_COPY: "1" },
+      rootDir,
+    );
+    // Vite's public-directory copy can block on OneDrive's provider. Rsync
+    // the already-built public assets after the compiler has finished so the
+    // build remains deterministic without keeping the compiler in that I/O.
+    await syncDirectory(resolve(rootDir, "public"), resolve(rootDir, "dist"));
+    await run(nodeBin, [resolve(rootDir, "scripts", "postbuild-compat.mjs")], process.env, rootDir);
+    await run(nodeBin, [resolve(rootDir, "scripts", "generate-seo-static-pages.mjs")], process.env, rootDir);
+    return;
+  }
+
+  if (!rootDir.includes("OneDrive") && existsSync(resolve(rootDir, "node_modules", "vite", "bin", "vite.js"))) {
+    await run(
+      nodeBin,
+      [resolve(rootDir, "node_modules", "vite", "bin", "vite.js"), "build"],
+      process.env,
       rootDir,
     );
     await run(nodeBin, [resolve(rootDir, "scripts", "postbuild-compat.mjs")], process.env, rootDir);
