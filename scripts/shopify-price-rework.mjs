@@ -11,15 +11,17 @@ import {
 import {
   PRICE_REWORK_RULES,
   PRICE_REWORK_STRATEGY_ID,
-  priceMultiplierFor,
-  scalePrice,
+  compareAtPriceFor,
+  costBasedPriceFor,
+  multiplierForCost,
 } from "../src/lib/shopify-price-rework-policy.js";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const defaultOutputPath = resolve(rootDir, "output", "shopify-price-rework-manifest.json");
-const defaultThreshold = PRICE_REWORK_RULES.threshold;
+const defaultMinimumSellPrice = PRICE_REWORK_RULES.minimumSellPrice;
 const pageSize = 250;
 const batchProductSize = Math.max(1, Math.min(25, Number(process.env.SALT_PRICE_REWORK_BATCH_SIZE || 10)));
+const mutationRetryLimit = Math.max(1, Math.min(5, Number(process.env.SALT_PRICE_REWORK_MUTATION_RETRIES || 3)));
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "price-rework" });
 
 const PRODUCTS_QUERY = /* GraphQL */ `
@@ -37,6 +39,7 @@ const PRODUCTS_QUERY = /* GraphQL */ `
             sku
             price
             compareAtPrice
+            inventoryItem { unitCost { amount currencyCode } }
           }
           pageInfo {
             hasNextPage
@@ -64,6 +67,7 @@ const PRODUCT_VARIANTS_QUERY = /* GraphQL */ `
             id
             price
             compareAtPrice
+            inventoryItem { unitCost { amount currencyCode } }
           }
           pageInfo {
             hasNextPage
@@ -87,6 +91,7 @@ const PRODUCT_BATCH_READBACK_QUERY = /* GraphQL */ `
             id
             price
             compareAtPrice
+            inventoryItem { unitCost { amount currencyCode } }
           }
           pageInfo {
             hasNextPage
@@ -118,10 +123,14 @@ function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
+function isTransientMutationFailure(message) {
+  return /(ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|timed out|timeout|rate limit|throttl|HTTP 429|HTTP 502|HTTP 503|HTTP 504)/i.test(message);
+}
+
 function parseArgs(argv) {
   const args = {
     mode: "dry-run",
-    threshold: defaultThreshold,
+    minimumSellPrice: defaultMinimumSellPrice,
     output: defaultOutputPath,
     outputExplicit: false,
     verifyManifest: "",
@@ -136,8 +145,8 @@ function parseArgs(argv) {
       args.mode = "dry-run";
     } else if (token === "--verify") {
       args.mode = "verify";
-    } else if (token === "--threshold" && next) {
-      args.threshold = Number(next);
+    } else if (token === "--minimum-sell-price" && next) {
+      args.minimumSellPrice = Number(next);
       index += 1;
     } else if (token === "--output" && next) {
       args.output = resolve(rootDir, next);
@@ -156,8 +165,8 @@ function parseArgs(argv) {
     throw new Error("Price rework verification requires --verify-manifest <path>." );
   }
 
-  if (!Number.isFinite(args.threshold) || args.threshold <= 0) {
-    throw new Error("Price rework threshold must be a positive number.");
+  if (!Number.isFinite(args.minimumSellPrice) || args.minimumSellPrice <= 0) {
+    throw new Error("Minimum sell price must be a positive number.");
   }
   return args;
 }
@@ -168,7 +177,7 @@ function normalizeMoney(value) {
   return Number.isFinite(amount) ? amount.toFixed(2) : null;
 }
 
-async function loadPriorLedger(outputPath, threshold = defaultThreshold) {
+async function loadPriorLedger(outputPath) {
   try {
     const parsed = JSON.parse(await readFile(outputPath, "utf8"));
     if (parsed?.strategyId !== PRICE_REWORK_STRATEGY_ID) return new Map();
@@ -242,74 +251,110 @@ async function fetchProducts(retryInfo) {
 
 function buildPlan(products, args, priorLedger) {
   const plannedProducts = [];
+  const auditProducts = [];
   const summary = {
     productsScanned: products.length,
     variantsScanned: 0,
-    eligibleVariants: 0,
     variantsToUpdate: 0,
     productsWithUpdates: 0,
-    variantsAlreadyReworked: 0,
+    variantsAlreadyAligned: 0,
     invalidPriceVariants: 0,
-    variantsAtOrAboveThreshold: 0,
-    variantsUnderTwenty: 0,
-    variantsTwentyToThirtyFive: 0,
+    missingCostVariants: 0,
+    priceChanges: 0,
+    compareAtChanges: 0,
   };
 
   for (const product of products) {
     const variants = asArray(product?.variants?.nodes);
     const plannedVariants = [];
+    const auditVariants = [];
     for (const variant of variants) {
       summary.variantsScanned += 1;
       const currentPrice = normalizeMoney(variant?.price);
       const compareAtPrice = normalizeMoney(variant?.compareAtPrice);
+      const cost = normalizeMoney(variant?.inventoryItem?.unitCost?.amount);
       if (!currentPrice || Number(currentPrice) <= 0) {
         summary.invalidPriceVariants += 1;
+        auditVariants.push({
+          variantId: String(variant?.id || ""),
+          title: normalizeText(variant?.title),
+          sku: normalizeText(variant?.sku),
+          cost,
+          currentPrice: currentPrice || "",
+          currentCompareAtPrice: compareAtPrice || "",
+          plannedPrice: null,
+          plannedCompareAtPrice: null,
+          status: "blocked-invalid-price",
+          failure: "current Shopify variant price is missing or invalid",
+        });
         continue;
       }
-      if (Number(currentPrice) >= args.threshold) {
-        summary.variantsAtOrAboveThreshold += 1;
+      if (!cost || Number(cost) <= 0) {
+        summary.missingCostVariants += 1;
+        auditVariants.push({
+          variantId: String(variant?.id || ""),
+          title: normalizeText(variant?.title),
+          sku: normalizeText(variant?.sku),
+          cost: cost || "",
+          currentPrice,
+          currentCompareAtPrice: compareAtPrice || "",
+          plannedPrice: null,
+          plannedCompareAtPrice: null,
+          status: "blocked-missing-cost",
+          failure: "Shopify inventory item cost is missing or invalid",
+        });
         continue;
       }
-      summary.eligibleVariants += 1;
-      const multiplier = priceMultiplierFor(Number(currentPrice));
-      if (Number(currentPrice) < PRICE_REWORK_RULES.lowPriceCeiling) summary.variantsUnderTwenty += 1;
-      else summary.variantsTwentyToThirtyFive += 1;
-      const plannedPrice = scalePrice(currentPrice, multiplier);
-      const plannedCompareAtPrice = compareAtPrice ? scalePrice(compareAtPrice, multiplier) : null;
+      const multiplier = multiplierForCost(Number(cost));
+      const targetPrice = costBasedPriceFor(Number(cost));
+      const targetCompareAtPrice = compareAtPrice
+        ? compareAtPriceFor(Number(targetPrice), Number(compareAtPrice))
+        : null;
       const prior = priorLedger.get(String(variant?.id || ""));
       const priorMatchesCurrent = prior?.price === currentPrice &&
         (prior?.compareAtPrice || null) === (compareAtPrice || null);
-      if (priorMatchesCurrent && Number(currentPrice) >= args.threshold) {
-        summary.variantsAlreadyReworked += 1;
+      const priceChanged = currentPrice !== targetPrice;
+      const compareAtChanged = (compareAtPrice || null) !== (targetCompareAtPrice || null);
+      const auditStatus = !priceChanged && !compareAtChanged ? "already-aligned" : "pending";
+      auditVariants.push({
+        variantId: String(variant?.id || ""),
+        title: normalizeText(variant?.title),
+        sku: normalizeText(variant?.sku),
+        cost,
+        currentPrice,
+        currentCompareAtPrice: compareAtPrice || "",
+        multiplier: Number(multiplier.toFixed(6)),
+        plannedPrice: targetPrice,
+        plannedCompareAtPrice: targetCompareAtPrice,
+        status: auditStatus,
+        failure: "",
+      });
+      if (!priceChanged && !compareAtChanged) {
+        summary.variantsAlreadyAligned += 1;
         continue;
       }
-      const floorOnlyRepair = priorMatchesCurrent && Number(currentPrice) < args.threshold;
-      const targetPrice = floorOnlyRepair
-        ? args.threshold.toFixed(2)
-        : Number(plannedPrice) < args.threshold
-          ? args.threshold.toFixed(2)
-          : plannedPrice;
-      const targetCompareAtPrice = compareAtPrice
-        ? floorOnlyRepair
-          ? Math.max(Number(targetPrice), Number(scalePrice(targetPrice, Number(compareAtPrice) / Number(currentPrice)))).toFixed(2)
-          : Math.max(Number(targetPrice), Number(plannedCompareAtPrice || targetPrice)).toFixed(2)
-        : null;
       plannedVariants.push({
         variantId: String(variant?.id || ""),
         title: normalizeText(variant?.title),
         sku: normalizeText(variant?.sku),
+        cost,
         currentPrice,
-        multiplier: floorOnlyRepair ? 1 : Number(multiplier.toFixed(6)),
+        multiplier: Number(multiplier.toFixed(6)),
         plannedPrice: targetPrice,
         currentCompareAtPrice: compareAtPrice,
         plannedCompareAtPrice: targetCompareAtPrice,
-        pricingAdjustment: floorOnlyRepair || Number(plannedPrice) < args.threshold ? "floor-enforced" : "tiered-multiplier",
+        pricingAdjustment: "cost-based-normalization",
+        priceChanged,
+        compareAtChanged,
+        priorPlanMatchedCurrent: priorMatchesCurrent,
         status: "pending",
         actualPrice: "",
         actualCompareAtPrice: "",
         failure: "",
       });
       summary.variantsToUpdate += 1;
+      if (priceChanged) summary.priceChanges += 1;
+      if (compareAtChanged) summary.compareAtChanges += 1;
     }
 
     if (plannedVariants.length) {
@@ -323,9 +368,18 @@ function buildPlan(products, args, priorLedger) {
         failure: "",
       });
     }
+    if (auditVariants.length) {
+      auditProducts.push({
+        productId: String(product?.id || ""),
+        handle: normalizeText(product?.handle),
+        title: normalizeText(product?.title),
+        status: auditVariants.some((variant) => variant.status.startsWith("blocked-")) ? "blocked" : "ready",
+        variants: auditVariants,
+      });
+    }
   }
 
-  return { plannedProducts, summary };
+  return { plannedProducts, auditProducts, summary };
 }
 
 async function writeManifest(filePath, manifest) {
@@ -399,7 +453,11 @@ function buildUpdateBatch(batch) {
     variables[`v${index}`] = product.variants.map((variant) => ({
       id: variant.variantId,
       price: variant.plannedPrice,
-      ...(variant.plannedCompareAtPrice ? { compareAtPrice: variant.plannedCompareAtPrice } : {}),
+      ...(variant.plannedCompareAtPrice
+        ? { compareAtPrice: variant.plannedCompareAtPrice }
+        : variant.currentCompareAtPrice
+          ? { compareAtPrice: null }
+          : {}),
     }));
     fields.push(
       `p${index}: productVariantsBulkUpdate(productId: $p${index}, variants: $v${index}) { ` +
@@ -451,33 +509,52 @@ async function applyPlan(manifest) {
     const totalBatches = Math.ceil(products.length / batchProductSize);
     process.stdout.write(`Applying price rework batch ${batchNumber}/${totalBatches} (${batch.length} products)\n`);
     const retryInfo = [];
-    const failures = new Map();
+    let failures = new Map();
     const mutation = buildUpdateBatch(batch);
-    try {
-      const data = await client.run(
-        mutation.query,
-        mutation.variables,
-        { allowMutations: true, operation: `price rework mutation batch ${batchNumber}`, retryInfo },
-      );
-      const verifiedByMutation = [];
-      batch.forEach((product, index) => {
-        const payload = data?.[`p${index}`];
-        const errors = formatErrors(payload?.userErrors);
-        if (errors) {
-          failures.set(product.productId, errors);
-          return;
+    let batchVerified = false;
+    for (let attempt = 1; attempt <= mutationRetryLimit; attempt += 1) {
+      const attemptFailures = new Map();
+      try {
+        const data = await client.run(
+          mutation.query,
+          mutation.variables,
+          { allowMutations: true, operation: `price rework mutation batch ${batchNumber} attempt ${attempt}`, retryInfo },
+        );
+        const verifiedByMutation = [];
+        batch.forEach((product, index) => {
+          const payload = data?.[`p${index}`];
+          const errors = formatErrors(payload?.userErrors);
+          if (errors) {
+            attemptFailures.set(product.productId, errors);
+            return;
+          }
+          const mismatch = checkVariantReadback(product, payload?.productVariants);
+          if (mismatch) attemptFailures.set(product.productId, `Mutation readback mismatch: ${mismatch}`);
+          else verifiedByMutation.push(product);
+        });
+        if (verifiedByMutation.length) {
+          const readbackFailures = await verifyBatch(verifiedByMutation, retryInfo, batchNumber);
+          for (const [productId, failure] of readbackFailures) attemptFailures.set(productId, failure);
         }
-        const mismatch = checkVariantReadback(product, payload?.productVariants);
-        if (mismatch) failures.set(product.productId, `Mutation readback mismatch: ${mismatch}`);
-        else verifiedByMutation.push(product);
-      });
-      if (verifiedByMutation.length) {
-        const readbackFailures = await verifyBatch(verifiedByMutation, retryInfo, batchNumber);
-        for (const [productId, failure] of readbackFailures) failures.set(productId, failure);
+      } catch (error) {
+        const failure = normalizeText(error?.message || error);
+        for (const product of batch) attemptFailures.set(product.productId, failure);
       }
-    } catch (error) {
-      const failure = normalizeText(error?.message || error);
-      for (const product of batch) failures.set(product.productId, failure);
+
+      failures = attemptFailures;
+      if (!attemptFailures.size) {
+        batchVerified = true;
+        break;
+      }
+      const failureText = [...attemptFailures.values()].join(" | ");
+      if (attempt >= mutationRetryLimit || !isTransientMutationFailure(failureText)) break;
+      const delayMs = Math.min(15000, 1500 * (2 ** (attempt - 1)));
+      retryInfo.push({ batchNumber, attempt, delayMs, reason: "transient mutation transport failure" });
+      process.stdout.write(`Transient Shopify mutation failure in batch ${batchNumber}; retrying attempt ${attempt + 1}/${mutationRetryLimit} after ${delayMs}ms\n`);
+      await sleep(delayMs);
+    }
+    if (!batchVerified && !failures.size) {
+      for (const product of batch) failures.set(product.productId, "Price rework batch did not produce a verified result.");
     }
 
     for (const product of batch) {
@@ -531,30 +608,64 @@ async function loadVerificationTargets(manifestPath) {
     });
   }
 
-  // A clean, idempotent apply legitimately produces an empty target list. The
-  // live catalog floor pass in verifyTargets remains authoritative in that case.
-  return products;
+  const auditProducts = [];
+  for (const product of asArray(parsed?.auditProducts)) {
+    const variants = asArray(product?.variants)
+      .map((variant) => ({
+        variantId: String(variant?.variantId || ""),
+        cost: normalizeMoney(variant?.cost),
+        currentPrice: normalizeMoney(variant?.currentPrice),
+        currentCompareAtPrice: normalizeMoney(variant?.currentCompareAtPrice),
+        plannedPrice: normalizeMoney(variant?.plannedPrice),
+        plannedCompareAtPrice: normalizeMoney(variant?.plannedCompareAtPrice),
+        status: normalizeText(variant?.status),
+        failure: normalizeText(variant?.failure),
+      }))
+      .filter((variant) => variant.variantId);
+    if (!variants.length) continue;
+    auditProducts.push({
+      productId: String(product?.productId || ""),
+      handle: normalizeText(product?.handle),
+      title: normalizeText(product?.title),
+      variants,
+    });
+  }
+
+  if (!auditProducts.length) {
+    throw new Error(`Price rework manifest ${manifestPath} has no full-catalog audit targets.`);
+  }
+  return { products, auditProducts };
 }
 
-async function verifyTargets(products, manifestPath, outputPath, threshold = defaultThreshold) {
-  const expectedProducts = await loadVerificationTargets(manifestPath);
+async function verifyTargets(products, manifestPath, outputPath) {
+  const { products: expectedProducts, auditProducts } = await loadVerificationTargets(manifestPath);
   const liveProductsById = new Map(products.map((product) => [String(product?.id || ""), product]));
+  const auditProductsById = new Map(auditProducts.map((product) => [product.productId, product]));
   const verificationProducts = [];
   const failures = [];
+  const addFailure = (failure) => {
+    if (failures.length < 200) failures.push(failure);
+  };
   const summary = {
     catalogProducts: products.length,
     catalogVariants: products.reduce((count, product) => count + asArray(product?.variants?.nodes).length, 0),
     expectedProducts: expectedProducts.length,
     expectedVariants: 0,
+    auditProducts: auditProducts.length,
+    auditVariants: auditProducts.reduce((count, product) => count + product.variants.length, 0),
     verifiedProducts: 0,
     verifiedVariants: 0,
     failedProducts: 0,
     failedVariants: 0,
     missingProducts: 0,
     mismatchProducts: 0,
-    catalogUnderFloorVariants: 0,
+    catalogTargetMismatches: 0,
+    catalogMissingAuditVariants: 0,
+    catalogMissingLiveVariants: 0,
+    catalogMissingCostVariants: 0,
     catalogInvalidPriceVariants: 0,
-    catalogFloorThreshold: threshold,
+    catalogUnderMinimumSellPriceVariants: 0,
+    minimumSellPrice: PRICE_REWORK_RULES.minimumSellPrice,
   };
 
   for (const expectedProduct of expectedProducts) {
@@ -593,7 +704,7 @@ async function verifyTargets(products, manifestPath, outputPath, threshold = def
       } else {
         summary.failedVariants += 1;
         productFailure ||= `${expectedVariant.variantId}: ${failure}`;
-        failures.push({
+        addFailure({
           productId: expectedProduct.productId,
           variantId: expectedVariant.variantId,
           failure,
@@ -619,33 +730,79 @@ async function verifyTargets(products, manifestPath, outputPath, threshold = def
     });
   }
 
-  // The target manifest proves repaired variants retained their exact planned
-  // values; this separate pass proves no other live variant remains below the
-  // approved floor and prevents stale manifests from masking defects.
+  // The full-catalog audit is authoritative for every live variant, including
+  // variants that were already aligned and therefore were not mutation targets.
+  const seenAuditVariants = new Set();
   for (const product of products) {
+    const productId = String(product?.id || "");
+    const auditProduct = auditProductsById.get(productId);
+    const auditByVariantId = new Map(asArray(auditProduct?.variants).map((variant) => [variant.variantId, variant]));
     for (const variant of asArray(product?.variants?.nodes)) {
+      const variantId = String(variant?.id || "");
+      const auditVariant = auditByVariantId.get(variantId);
       const actualPrice = normalizeMoney(variant?.price);
+      const actualCompareAtPrice = normalizeMoney(variant?.compareAtPrice);
+      if (!auditVariant) {
+        summary.catalogMissingAuditVariants += 1;
+        addFailure({ productId, variantId, handle: normalizeText(product?.handle), failure: "variant is missing from the full-catalog pricing audit" });
+        continue;
+      }
+      seenAuditVariants.add(variantId);
       if (!actualPrice) {
         summary.catalogInvalidPriceVariants += 1;
-        if (failures.length < 100) {
-          failures.push({
-            productId: String(product?.id || ""),
-            variantId: String(variant?.id || ""),
-            handle: normalizeText(product?.handle),
-            failure: "variant price is missing or invalid",
-          });
-        }
-      } else if (Number(actualPrice) < threshold) {
-        summary.catalogUnderFloorVariants += 1;
-        if (failures.length < 100) {
-          failures.push({
-            productId: String(product?.id || ""),
-            variantId: String(variant?.id || ""),
-            handle: normalizeText(product?.handle),
-            actualPrice,
-            failure: `variant price ${actualPrice} is below floor ${threshold.toFixed(2)}`,
-          });
-        }
+        addFailure({ productId, variantId, handle: normalizeText(product?.handle), failure: "variant price is missing or invalid" });
+        continue;
+      }
+      if (auditVariant.status.startsWith("blocked-") || !auditVariant.plannedPrice) {
+        summary.catalogMissingCostVariants += 1;
+        addFailure({
+          productId,
+          variantId,
+          handle: normalizeText(product?.handle),
+          actualPrice,
+          failure: auditVariant.failure || "variant has no valid cost-based pricing target",
+        });
+        continue;
+      }
+      const expectedCompareAtPrice = auditVariant.plannedCompareAtPrice || null;
+      if (actualPrice !== auditVariant.plannedPrice || actualCompareAtPrice !== expectedCompareAtPrice) {
+        summary.catalogTargetMismatches += 1;
+        addFailure({
+          productId,
+          variantId,
+          handle: normalizeText(product?.handle),
+          actualPrice,
+          actualCompareAtPrice: actualCompareAtPrice || "",
+          expectedPrice: auditVariant.plannedPrice,
+          expectedCompareAtPrice: expectedCompareAtPrice || "",
+          failure: "live variant does not match its cost-based pricing audit target",
+        });
+      }
+      if (Number(actualPrice) < PRICE_REWORK_RULES.minimumSellPrice) {
+        summary.catalogUnderMinimumSellPriceVariants += 1;
+        addFailure({
+          productId,
+          variantId,
+          handle: normalizeText(product?.handle),
+          actualPrice,
+          failure: `variant price ${actualPrice} is below minimum sell price ${PRICE_REWORK_RULES.minimumSellPrice.toFixed(2)}`,
+        });
+      }
+    }
+  }
+
+  for (const auditProduct of auditProducts) {
+    const liveProduct = liveProductsById.get(auditProduct.productId);
+    const liveVariantIds = new Set(asArray(liveProduct?.variants?.nodes).map((variant) => String(variant?.id || "")));
+    for (const auditVariant of auditProduct.variants) {
+      if (!seenAuditVariants.has(auditVariant.variantId) || !liveVariantIds.has(auditVariant.variantId)) {
+        summary.catalogMissingLiveVariants += 1;
+        addFailure({
+          productId: auditProduct.productId,
+          variantId: auditVariant.variantId,
+          handle: auditProduct.handle,
+          failure: "audited variant was not returned by the live Shopify catalog",
+        });
       }
     }
   }
@@ -664,7 +821,9 @@ async function verifyTargets(products, manifestPath, outputPath, threshold = def
       targetManifest: manifestPath,
     },
     policy: {
-      verification: "every planned variant must match both its planned price and planned compare-at price; every live variant must have a valid price at or above the approved floor",
+      verification: "every planned variant and every full-catalog audit target must match its cost-based price and compare-at price; missing or invalid live costs block verification",
+      strategy: PRICE_REWORK_STRATEGY_ID,
+      minimumSellPrice: PRICE_REWORK_RULES.minimumSellPrice,
       salesChannelState: "not changed by verification",
     },
     summary,
@@ -681,20 +840,25 @@ async function main() {
   const retryInfo = [];
   const [products, priorLedger] = await Promise.all([
     fetchProducts(retryInfo),
-    loadPriorLedger(args.output, args.threshold),
+    loadPriorLedger(args.output),
   ]);
 
   if (args.mode === "verify") {
-    const manifest = await verifyTargets(products, args.verifyManifest, args.output, args.threshold);
-    const catalogFloorFailures = manifest.summary.catalogUnderFloorVariants + manifest.summary.catalogInvalidPriceVariants;
-    if (manifest.summary.failedProducts || catalogFloorFailures) {
-      throw new Error(`Price rework verification failed for ${manifest.summary.failedVariants} planned variant(s) and ${catalogFloorFailures} catalog floor violation(s); see ${args.output}.`);
+    const manifest = await verifyTargets(products, args.verifyManifest, args.output);
+    const catalogFailures = manifest.summary.catalogTargetMismatches +
+      manifest.summary.catalogMissingAuditVariants +
+      manifest.summary.catalogMissingLiveVariants +
+      manifest.summary.catalogMissingCostVariants +
+      manifest.summary.catalogInvalidPriceVariants +
+      manifest.summary.catalogUnderMinimumSellPriceVariants;
+    if (manifest.summary.failedProducts || catalogFailures) {
+      throw new Error(`Cost-based pricing verification failed for ${manifest.summary.failedVariants} planned variant(s) and ${catalogFailures} full-catalog violation(s); see ${args.output}.`);
     }
-    process.stdout.write(`Price rework verification complete: ${manifest.summary.verifiedVariants} variant target(s) verified across ${manifest.summary.verifiedProducts} product(s).\n`);
+    process.stdout.write(`Cost-based pricing verification complete: ${manifest.summary.catalogVariants} live variant(s) matched full-catalog targets.\n`);
     return;
   }
 
-  const { plannedProducts, summary } = buildPlan(products, args, priorLedger);
+  const { plannedProducts, auditProducts, summary } = buildPlan(products, args, priorLedger);
   const manifest = {
     schemaVersion: 1,
     startedAt: new Date().toISOString(),
@@ -708,18 +872,21 @@ async function main() {
       freshLiveRead: true,
     },
     policy: {
-      scope: "all Shopify products and variants with current price below $35",
-      formula: "price < $20: linearly scale from 2.00x toward 1.80x; $20 <= price < $35: linearly scale from 1.70x toward 1.40x; price >= $35 unchanged",
-      compareAtPrices: "existing compare-at prices receive the same variant multiplier; absent values remain absent",
-      variantPricing: "variant-specific prices are preserved; no product-level flattening",
+      scope: "all Shopify products and variants with a valid live inventory cost",
+      formula: "max(cost + $16 overhead, cost multiplied by the cost band multiplier), then psychological rounding",
+      costBands: PRICE_REWORK_RULES.costBands.map(({ maxCostExclusive, multiplier }) => ({
+        maxCostExclusive: Number.isFinite(maxCostExclusive) ? maxCostExclusive : null,
+        multiplier,
+      })),
+      compareAtPrices: "preserve absence; when present normalize to at least 1.25x the cost-based sell price with psychological rounding",
+      variantPricing: "calculate independently per variant; preserve quality, size, color, bundle, and quantity-tier differences",
       statusAndChannels: "product status and sales-channel inclusion are unchanged",
       idempotency: "only manifests produced by this strategy can resume; previously verified targets are not compounded",
     },
     parameters: {
-      threshold: args.threshold,
-      lowPriceCeiling: PRICE_REWORK_RULES.lowPriceCeiling,
-      underTwentyMultiplierRange: PRICE_REWORK_RULES.underTwenty,
-      twentyToThirtyFiveMultiplierRange: PRICE_REWORK_RULES.twentyToThirtyFive,
+      overhead: PRICE_REWORK_RULES.overhead,
+      minimumSellPrice: PRICE_REWORK_RULES.minimumSellPrice,
+      compareAtMultiplier: PRICE_REWORK_RULES.compareAtMultiplier,
     },
     summary: {
       ...summary,
@@ -730,6 +897,7 @@ async function main() {
     },
     retryInfo,
     products: plannedProducts,
+    auditProducts,
     failures: [],
   };
   refreshSummary(manifest);
@@ -741,7 +909,7 @@ async function main() {
     }
     manifest.completedAt = new Date().toISOString();
     await writeManifest(args.output, manifest);
-    process.stdout.write(`Price rework dry-run complete: ${summary.variantsToUpdate} variant price(s) across ${summary.productsWithUpdates} product(s).\n`);
+    process.stdout.write(`Cost-based pricing dry-run complete: ${summary.variantsToUpdate} variant(s) across ${summary.productsWithUpdates} product(s); ${summary.variantsAlreadyAligned} already aligned.\n`);
     return;
   }
 
@@ -753,7 +921,7 @@ async function main() {
   if (manifest.summary.failedProducts) {
     throw new Error(`Price rework failed for ${manifest.summary.failedProducts} product(s); see ${args.output}.`);
   }
-  process.stdout.write(`Price rework complete: ${manifest.summary.updatedVariants} variant price(s) updated and verified.\n`);
+  process.stdout.write(`Cost-based pricing complete: ${manifest.summary.updatedVariants} variant(s) updated and verified.\n`);
 }
 
 main().catch((error) => {

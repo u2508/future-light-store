@@ -5,12 +5,13 @@ import { resolve } from "node:path";
 
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
+import { PRICE_REWORK_RULES } from "../src/lib/shopify-price-rework-policy.js";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const defaultManifestPath = resolve(rootDir, "output", "shopify-variant-image-mapping-full-forced-dry-run-v3.json");
 const defaultOutputPath = resolve(rootDir, "output", "shopify-variant-image-mapping-live-readback-v3.json");
 const pollDelayMs = Math.max(1000, Number(process.env.SALT_VARIANT_IMAGE_READBACK_POLL_MS || 5000));
-const priceFloor = Math.max(0, Number(process.env.SALT_CATALOG_PRICE_FLOOR || 35));
+const priceFloor = Math.max(0, Number(process.env.SALT_CATALOG_PRICE_FLOOR || PRICE_REWORK_RULES.minimumSellPrice));
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "variant-image-readback" });
 
 const BULK_READBACK_QUERY = /* GraphQL */ `

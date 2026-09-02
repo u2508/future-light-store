@@ -15,6 +15,21 @@ function evidenceText(product) {
   const customMetafieldText = Object.values(product?.customData?.metafields || {})
     .flatMap((entry) => [entry?.value, entry?.jsonValue, ...(entry?.references || []).map((reference) => reference?.title)])
     .filter(Boolean);
+  const variantEvidenceText = (Array.isArray(product?.variants) ? product.variants : [])
+    .flatMap((variant) => [
+      variant?.title,
+      variant?.sku,
+      variant?.option1,
+      variant?.option2,
+      variant?.option3,
+      ...(Array.isArray(variant?.selectedOptions)
+        ? variant.selectedOptions.flatMap((option) => [option?.name, option?.value])
+        : []),
+    ])
+    .filter(Boolean);
+  const optionEvidenceText = (Array.isArray(product?.options) ? product.options : [])
+    .flatMap((option) => [option?.name, ...(Array.isArray(option?.values) ? option.values : [])])
+    .filter(Boolean);
   return normalizeCategoryText([
     product?.handle,
     product?.title,
@@ -23,6 +38,8 @@ function evidenceText(product) {
     ...(Array.isArray(product?.tags) ? product.tags : []),
     product?.body_html || product?.bodyHtml || product?.descriptionHtml,
     ...(Array.isArray(product?.collections) ? product.collections.map((entry) => entry?.title || entry) : []),
+    ...optionEvidenceText,
+    ...variantEvidenceText,
     ...customMetafieldText,
   ].join(" "));
 }
@@ -145,16 +162,38 @@ export function buildCategoryMetafieldPlan({ product, category, definitions = []
   });
   const writes = [];
   const skipped = [];
+  const matchedCandidates = new Map(
+    attributes.map((attribute) => [String(attribute?.id || attribute?.name || ""), matchTaxonomyAttributeValues(product, attribute)[0] || null]),
+  );
   for (const attribute of attributes) {
     const definition = applicableDefinitions.find((candidate) => definitionMatchesAttribute(candidate, attribute));
     if (!definition?.key) {
       skipped.push({ attributeId: attribute.id, attributeName: attribute.name, reason: "no category metafield definition" });
       continue;
     }
-    const candidate = matchTaxonomyAttributeValues(product, attribute)[0];
+    const candidate = matchedCandidates.get(String(attribute?.id || attribute?.name || ""));
     if (!candidate?.id) {
       skipped.push({ attributeId: attribute.id, attributeName: attribute.name, definition: `${definition.namespace}.${definition.key}`, reason: "no direct evidence-backed taxonomy value" });
       continue;
+    }
+    // Shopify's standard color-pattern metaobject requires Base color. A
+    // pattern match without color evidence cannot produce a valid object and
+    // used to fail later during metaobject resolution. Skip the orphaned
+    // pattern now; products with variant color evidence still proceed.
+    if (normalizeKey(definition.key) === "colorpattern" && normalizeKey(attribute.name) === "pattern") {
+      const colorAttribute = attributes.find((entry) => normalizeKey(entry?.name) === "color");
+      const colorCandidate = colorAttribute
+        ? matchedCandidates.get(String(colorAttribute?.id || colorAttribute?.name || ""))
+        : null;
+      if (!colorCandidate?.id) {
+        skipped.push({
+          attributeId: attribute.id,
+          attributeName: attribute.name,
+          definition: `${definition.namespace}.${definition.key}`,
+          reason: "required color evidence missing for color-pattern",
+        });
+        continue;
+      }
     }
     const current = rawCategoryMetafield(product, definition);
     const currentReferenceIds = parseMetafieldReferenceIds(current);

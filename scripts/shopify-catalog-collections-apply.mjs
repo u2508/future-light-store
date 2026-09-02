@@ -21,13 +21,18 @@ import { classifyProductKnowledge } from "../src/lib/product-knowledge-base.js";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
+import { envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const inputDir = resolve(rootDir, "public", "data");
 const defaultOutputPath = resolve(rootDir, "output", "catalog-collection-release-manifest.json");
 const approvalPath = resolve(rootDir, "docs", "catalog-collection-approval.json");
 const batchSize = Math.max(1, Math.min(25, Number(process.env.SALT_CATALOG_COLLECTION_BATCH_SIZE || 20)));
-const tagConcurrency = Math.max(1, Number(process.env.SALT_COLLECTION_TAG_CONCURRENCY || 1) || 1);
+const tagConcurrency = envInteger(
+  "SALT_COLLECTION_TAG_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 4 }),
+  { min: 1, max: 4 },
+);
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "catalog-collection-release" });
 
 const ACTIVE_PRODUCTS_QUERY = /* GraphQL */ `

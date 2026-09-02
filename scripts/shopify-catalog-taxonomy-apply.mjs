@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promise
 import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
-import { createRequestScheduler, envInteger } from "./lib/performance-runtime.mjs";
+import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
 
 import {
   buildCatalogTaxonomyReleasePlan,
@@ -39,11 +39,18 @@ const cliAgentIds =
   process.env.SHOPIFY_CLI_AGENT_IDS ||
   `s:${process.env.CONVERSATION_ID || "local"}|r:${process.pid}|i:catalog-taxonomy-release`;
 const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
-const requestConcurrency = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
+const requestConcurrency = envInteger(
+  "SALT_SHOPIFY_REQUEST_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
+  { min: 1, max: 8 },
+);
 const maxAttempts = Math.max(1, Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
 const maxRetryDelayMs = Math.max(1000, Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));
 const batchSize = Math.max(1, Math.min(25, Number(process.env.SALT_CATALOG_TAXONOMY_BATCH_SIZE || 20)));
-const concurrency = Math.max(1, Math.min(8, Number(process.env.SALT_CATALOG_TAXONOMY_CONCURRENCY || 2)));
+const concurrency = Math.max(
+  1,
+  Math.min(8, Number(process.env.SALT_CATALOG_TAXONOMY_CONCURRENCY || recommendedConcurrency({ kind: "cpu", reserve: 1, max: 8 }))),
+);
 const activeProductQuery = "status:active";
 
 const PRODUCT_SELECTION = /* GraphQL */ `

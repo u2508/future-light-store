@@ -1,36 +1,50 @@
-export const PRICE_REWORK_STRATEGY_ID = "tiered-multiplier-2026-08-03-v1";
+export const PRICE_REWORK_STRATEGY_ID = "cost-based-retail-2026-08-24-v1";
 
 export const PRICE_REWORK_RULES = Object.freeze({
-  threshold: 35,
-  lowPriceCeiling: 20,
-  underTwenty: Object.freeze({ minMultiplier: 1.8, maxMultiplier: 2 }),
-  twentyToThirtyFive: Object.freeze({ minMultiplier: 1.4, maxMultiplier: 1.7 }),
+  overhead: 16,
+  minimumSellPrice: 0.99,
+  compareAtMultiplier: 1.25,
+  costBands: Object.freeze([
+    Object.freeze({ maxCostExclusive: 5, multiplier: 4.2 }),
+    Object.freeze({ maxCostExclusive: 15, multiplier: 3.25 }),
+    Object.freeze({ maxCostExclusive: 30, multiplier: 2.75 }),
+    Object.freeze({ maxCostExclusive: 50, multiplier: 2.35 }),
+    Object.freeze({ maxCostExclusive: Number.POSITIVE_INFINITY, multiplier: 1.95 }),
+  ]),
 });
 
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
+function normalizeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
-export function priceMultiplierFor(priceValue) {
-  const price = Number(priceValue);
-  if (!Number.isFinite(price) || price <= 0 || price >= PRICE_REWORK_RULES.threshold) {
-    return 1;
-  }
+export function multiplierForCost(costValue) {
+  const cost = normalizeNumber(costValue);
+  if (cost == null || cost <= 0) return null;
+  return PRICE_REWORK_RULES.costBands.find((band) => cost < band.maxCostExclusive)?.multiplier || 1.95;
+}
 
-  if (price < PRICE_REWORK_RULES.lowPriceCeiling) {
-    const progress = clamp(price / PRICE_REWORK_RULES.lowPriceCeiling, 0, 1);
-    return PRICE_REWORK_RULES.underTwenty.maxMultiplier -
-      progress * (PRICE_REWORK_RULES.underTwenty.maxMultiplier - PRICE_REWORK_RULES.underTwenty.minMultiplier);
-  }
+export function roundPsychologicalPrice(value) {
+  const number = normalizeNumber(value);
+  if (number == null || number <= 0) return null;
+  if (number < 10) return Math.max(PRICE_REWORK_RULES.minimumSellPrice, Math.round(number * 100) / 100).toFixed(2);
+  if (number < 25) return (Math.floor(number) + 0.99).toFixed(2);
+  if (number < 100) return (Math.floor(number / 5) * 5 + 4.99).toFixed(2);
+  return (Math.floor(number / 10) * 10 + 9.99).toFixed(2);
+}
 
-  const progress = clamp(
-    (price - PRICE_REWORK_RULES.lowPriceCeiling) /
-      (PRICE_REWORK_RULES.threshold - PRICE_REWORK_RULES.lowPriceCeiling),
-    0,
-    1,
-  );
-  return PRICE_REWORK_RULES.twentyToThirtyFive.maxMultiplier -
-    progress * (PRICE_REWORK_RULES.twentyToThirtyFive.maxMultiplier - PRICE_REWORK_RULES.twentyToThirtyFive.minMultiplier);
+export function costBasedPriceFor(costValue) {
+  const cost = normalizeNumber(costValue);
+  const multiplier = multiplierForCost(cost);
+  if (cost == null || cost <= 0 || multiplier == null) return null;
+  return roundPsychologicalPrice(Math.max(cost + PRICE_REWORK_RULES.overhead, cost * multiplier));
+}
+
+export function compareAtPriceFor(sellPriceValue, existingCompareAtValue) {
+  const sellPrice = normalizeNumber(sellPriceValue);
+  const existingCompareAt = normalizeNumber(existingCompareAtValue);
+  if (sellPrice == null || existingCompareAt == null || existingCompareAt <= 0) return null;
+  return roundPsychologicalPrice(Math.max(sellPrice * PRICE_REWORK_RULES.compareAtMultiplier, sellPrice + 0.01));
 }
 
 export function scalePrice(priceValue, multiplier) {

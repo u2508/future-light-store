@@ -19,6 +19,8 @@ import {
   createInFlightCache,
   createRequestScheduler,
   envInteger,
+  mapWithConcurrency,
+  recommendedConcurrency,
   stableJson,
 } from "./lib/performance-runtime.mjs";
 
@@ -45,7 +47,11 @@ const blogHandles = Array.from(
 );
 const outDir = resolve(process.cwd(), "public", "data");
 const requestSpacingMs = Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS ?? 125);
-const requestConcurrency = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
+const requestConcurrency = envInteger(
+  "SALT_SHOPIFY_REQUEST_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
+  { min: 1, max: 8 },
+);
 const requestTimeoutMs = Number(process.env.SALT_SHOPIFY_REQUEST_TIMEOUT_MS ?? 45_000);
 const maxRequestAttempts = Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS ?? 8);
 const maxRetryDelayMs = Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS ?? 60_000);
@@ -1053,12 +1059,14 @@ async function fetchProductCustomDataMap(products) {
   const batches = chunkArray(productIds, 50);
   const records = new Map();
 
-  for (const batch of batches) {
+  const batchNodes = await mapWithConcurrency(batches, requestConcurrency, async (batch) => {
     const payload = adminAccessToken
       ? await fetchAdminGraphQL(PRODUCT_CUSTOM_DATA_QUERY, { ids: batch })
       : await runShopifyStoreGraphQL(PRODUCT_CUSTOM_DATA_QUERY, { ids: batch });
-    const nodes = Array.isArray(payload?.nodes) ? payload.nodes : [];
+    return Array.isArray(payload?.nodes) ? payload.nodes : [];
+  });
 
+  for (const nodes of batchNodes) {
     for (const node of nodes) {
       if (!node?.legacyResourceId) {
         continue;
@@ -1192,12 +1200,14 @@ async function fetchProductVariantCostMap(products) {
   const batches = chunkArray(productIds, 50);
   const records = new Map();
 
-  for (const batch of batches) {
+  const batchNodes = await mapWithConcurrency(batches, requestConcurrency, async (batch) => {
     const payload = adminAccessToken
       ? await fetchAdminGraphQL(PRODUCT_VARIANT_COST_QUERY, { ids: batch })
       : await runShopifyStoreGraphQL(PRODUCT_VARIANT_COST_QUERY, { ids: batch });
-    const nodes = Array.isArray(payload?.nodes) ? payload.nodes : [];
+    return Array.isArray(payload?.nodes) ? payload.nodes : [];
+  });
 
+  for (const nodes of batchNodes) {
     for (const node of nodes) {
       const normalized = normalizeVariantCostNode(node);
       if (!normalized) {
@@ -1366,12 +1376,14 @@ async function fetchCollectionCustomDataMap(collections) {
   const batches = chunkArray(collectionIds, 50);
   const records = new Map();
 
-  for (const batch of batches) {
+  const batchNodes = await mapWithConcurrency(batches, requestConcurrency, async (batch) => {
     const payload = adminAccessToken
       ? await fetchAdminGraphQL(COLLECTION_CUSTOM_DATA_QUERY, { ids: batch })
       : await runShopifyStoreGraphQL(COLLECTION_CUSTOM_DATA_QUERY, { ids: batch });
-    const nodes = Array.isArray(payload?.nodes) ? payload.nodes : [];
+    return Array.isArray(payload?.nodes) ? payload.nodes : [];
+  });
 
+  for (const nodes of batchNodes) {
     for (const node of nodes) {
       if (!node?.legacyResourceId) {
         continue;

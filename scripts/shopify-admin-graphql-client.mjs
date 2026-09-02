@@ -7,6 +7,7 @@ import {
   createInFlightCache,
   createRequestScheduler,
   envInteger,
+  recommendedConcurrency,
   stableJson,
 } from "./lib/performance-runtime.mjs";
 
@@ -59,7 +60,11 @@ export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
   const graphqlUrl = `${new URL(shopBase).origin}/admin/api/${apiVersion}/graphql.json`;
   const cliBinary = process.env.SHOPIFY_CLI_BINARY || "shopify";
   const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
-  const requestConcurrency = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
+  const requestConcurrency = envInteger(
+    "SALT_SHOPIFY_REQUEST_CONCURRENCY",
+    recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
+    { min: 1, max: 8 },
+  );
   const requestTimeoutMs = Math.max(10_000, Number(process.env.SALT_SHOPIFY_REQUEST_TIMEOUT_MS || 180_000));
   const maxAttempts = Math.max(1, Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
   const maxRetryDelayMs = Math.max(1000, Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));

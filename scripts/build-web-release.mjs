@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { access, cp, mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync, spawn } from "node:child_process";
@@ -34,6 +35,26 @@ function run(command, args, env = process.env, cwd = rootDir) {
       rejectRun(new Error(`${command} ${args.join(" ")} failed with ${signal || `exit code ${code}`}`));
     });
   });
+}
+
+async function syncDirectory(sourcePath, destinationPath) {
+  await mkdir(destinationPath, { recursive: true });
+  await run("/usr/bin/rsync", [
+    "-a",
+    "--exclude=.DS_Store",
+    `${sourcePath}/`,
+    `${destinationPath}/`,
+  ]);
+}
+
+async function repairPackageJsonIfNeeded(sourcePath, destinationPath) {
+  const source = await readFile(sourcePath, "utf8");
+  JSON.parse(source);
+  try {
+    JSON.parse(await readFile(destinationPath, "utf8"));
+  } catch {
+    await cp(sourcePath, destinationPath, { force: true });
+  }
 }
 
 function getOneDrivePids() {
@@ -85,6 +106,23 @@ async function main() {
   await ensure(resolve(rootDir, "public", "data", "product-search.json"), "product search manifest");
   await ensure(resolve(rootDir, "public", "data", "home-collection-products.json"), "homepage collection artifact");
 
+  const useWorkspaceNodeModules = process.env.SALT_BUILD_USE_WORKSPACE_NODE_MODULES === "1"
+    || (rootDir.includes("OneDrive") && existsSync(resolve(rootDir, "node_modules", "vite", "bin", "vite.js")));
+  if (useWorkspaceNodeModules && rootDir.includes("OneDrive")) {
+    // The configured workspace dependency tree is already available locally.
+    // Avoid copying hundreds of megabytes through the file provider; direct
+    // Vite execution is both faster and avoids partial dependency manifests.
+    await run(
+      nodeBin,
+      [resolve(rootDir, "node_modules", "vite", "bin", "vite.js"), "build"],
+      { ...process.env, SALT_BUILD_SKIP_PUBLIC_COPY: "0" },
+      rootDir,
+    );
+    await run(nodeBin, [resolve(rootDir, "scripts", "postbuild-compat.mjs")], process.env, rootDir);
+    await run(nodeBin, [resolve(rootDir, "scripts", "generate-seo-static-pages.mjs")], process.env, rootDir);
+    return;
+  }
+
   const stageDir = await mkdtemp(join(tmpdir(), "salt-web-build-"));
   const stageNodeModules = resolve(stageDir, "node_modules");
   const stageScripts = resolve(stageDir, "scripts");
@@ -92,23 +130,24 @@ async function main() {
   try {
     // Vite can be killed by the OneDrive file-provider while traversing the
     // dependency graph. Keep the graph and compiler cache on local storage.
-    await cp(resolve(rootDir, "src"), resolve(stageDir, "src"), {
-      recursive: true,
-      force: true,
-    });
-    if (process.env.SALT_BUILD_USE_WORKSPACE_NODE_MODULES === "1") {
+    await syncDirectory(resolve(rootDir, "src"), resolve(stageDir, "src"));
+    if (useWorkspaceNodeModules) {
       await symlink(resolve(rootDir, "node_modules"), stageNodeModules, "junction");
     } else {
-      await cp(resolve(rootDir, "node_modules"), stageNodeModules, {
-        recursive: true,
-        force: true,
-      });
+      await syncDirectory(resolve(rootDir, "node_modules"), stageNodeModules);
+      // OneDrive can expose a zero-byte or partial package manifest during a
+      // recursive sync. Repair the bundler manifests from the verified source
+      // before Node resolves Vite's dependency graph.
+      await repairPackageJsonIfNeeded(
+        resolve(rootDir, "node_modules", "vite", "package.json"),
+        resolve(stageNodeModules, "vite", "package.json"),
+      );
+      await repairPackageJsonIfNeeded(
+        resolve(rootDir, "node_modules", "rolldown", "package.json"),
+        resolve(stageNodeModules, "rolldown", "package.json"),
+      );
     }
-    await mkdir(stageScripts, { recursive: true });
-    await cp(resolve(rootDir, "scripts"), stageScripts, {
-      recursive: true,
-      force: true,
-    });
+    await syncDirectory(resolve(rootDir, "scripts"), stageScripts);
     await cp(resolve(rootDir, "scripts", "postbuild-compat.mjs"), resolve(stageScripts, "postbuild-compat.mjs"));
 
     for (const filename of [
@@ -146,15 +185,10 @@ async function main() {
       resumeOneDrive();
     }
 
-    await cp(resolve(rootDir, "public"), resolve(stageDir, "dist"), {
-      recursive: true,
-      force: true,
-    });
+    await syncDirectory(resolve(rootDir, "public"), resolve(stageDir, "dist"));
     await run(nodeBin, [resolve(stageDir, "scripts", "postbuild-compat.mjs")], process.env, stageDir);
-    await cp(resolve(stageDir, "dist"), resolve(rootDir, "dist"), {
-      recursive: true,
-      force: true,
-    });
+    await syncDirectory(resolve(stageDir, "dist"), resolve(rootDir, "dist"));
+    await run(nodeBin, [resolve(rootDir, "scripts", "generate-seo-static-pages.mjs")], process.env, rootDir);
   } finally {
     await rm(stageDir, { recursive: true, force: true });
   }

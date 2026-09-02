@@ -141,29 +141,28 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
     <meta name="theme-color" content="#1e3a6e">
     {% assign salt_route = request.path %}
     {% assign salt_seo_title = page_title | default: shop.name %}
-    {% assign salt_seo_description = page_description | default: shop.description | default: 'Shop curated cookware, gifts, apparel, and everyday essentials from SALT Online Store.' %}
+    {% assign salt_seo_description = page_description | default: shop.description | default: 'Shop curated cookware, gifts, apparel, and everyday essentials from Future Light Store.' %}
     {% assign salt_seo_robots = 'index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1' %}
     {% assign salt_seo_canonical = canonical_url | split: '?' | first %}
     {% assign salt_custom_canonical = false %}
-    {% capture salt_content_for_header %}{{ content_for_header }}{% endcapture %}
 
     {% if salt_route == '/' %}
-      {% assign salt_seo_title = 'SALT Online Store | Curated essentials and giftable finds' %}
+      {% assign salt_seo_title = 'Future Light Store | Curated essentials and giftable finds' %}
       {% assign salt_seo_description = 'Shop practical, giftable finds across cookware, home, beauty, apparel, gadgets, and everyday essentials.' %}
       {% assign salt_seo_canonical = 'https://' | append: request.host | append: '/' %}
       {% assign salt_custom_canonical = true %}
     {% elsif salt_route == '/pages/finance' or salt_route == '/apps:finance' or salt_route == '/apps/finance' %}
-      {% assign salt_seo_title = 'SALT Finance | Private Operations' %}
-      {% assign salt_seo_description = 'Private SALT operations workspace.' %}
+      {% assign salt_seo_title = 'Future Light Store Finance | Private Operations' %}
+      {% assign salt_seo_description = 'Private store operations workspace.' %}
       {% assign salt_seo_robots = 'noindex,follow' %}
     {% elsif salt_route == '/shop' %}
-      {% assign salt_seo_title = 'Shop All Products | SALT Online Store' %}
-      {% assign salt_seo_description = 'Browse the live SALT catalog of cookware, gifts, apparel, beauty, gadgets, and everyday essentials.' %}
+      {% assign salt_seo_title = 'Shop All Products | Future Light Store' %}
+      {% assign salt_seo_description = 'Browse the live Future Light Store catalog of cookware, gifts, apparel, beauty, gadgets, and everyday essentials.' %}
       {% assign salt_seo_canonical = 'https://' | append: request.host | append: '/shop' %}
       {% assign salt_custom_canonical = true %}
     {% elsif salt_route == '/search' %}
-      {% assign salt_seo_title = 'Search SALT Online Store' %}
-      {% assign salt_seo_description = 'Search the live SALT catalog for products, collections, and everyday essentials.' %}
+      {% assign salt_seo_title = 'Search Future Light Store' %}
+      {% assign salt_seo_description = 'Search the live Future Light Store catalog for products, collections, and everyday essentials.' %}
       {% assign salt_seo_robots = 'noindex,follow' %}
       {% assign salt_seo_canonical = 'https://' | append: request.host | append: '/search' %}
       {% assign salt_custom_canonical = true %}
@@ -173,42 +172,42 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
     {% elsif salt_route == '/cart' or salt_route == '/wishlist' or salt_route == '/recently-viewed' %}
       {% assign salt_seo_robots = 'noindex,follow' %}
     {% elsif salt_route == '/pages/wishlist' %}
-      {% assign salt_seo_title = 'Wishlist | SALT Online Store' %}
-      {% assign salt_seo_description = 'Save SALT products for later and keep track of items you love.' %}
+      {% assign salt_seo_title = 'Wishlist | Future Light Store' %}
+      {% assign salt_seo_description = 'Save Future Light Store products for later and keep track of items you love.' %}
       {% assign salt_seo_robots = 'noindex,follow' %}
     {% elsif salt_route == '/pages/resources' %}
-      {% assign salt_seo_title = 'Resource Hub | SALT Online Store' %}
-      {% assign salt_seo_description = 'Practical guides that help shoppers discover the right SALT products, collections, and everyday solutions.' %}
+      {% assign salt_seo_title = 'Resource Hub | Future Light Store' %}
+      {% assign salt_seo_description = 'Practical guides that help shoppers discover the right Future Light Store products, collections, and everyday solutions.' %}
     {% elsif salt_route == '/pages/faq' %}
-      {% assign salt_seo_title = 'FAQ | SALT Online Store' %}
-      {% assign salt_seo_description = 'Quick answers about SALT ordering, shipping, returns, and product support.' %}
+      {% assign salt_seo_title = 'FAQ | Future Light Store' %}
+      {% assign salt_seo_description = 'Quick answers about Future Light Store ordering, shipping, returns, and product support.' %}
     {% elsif salt_route == '/pages/contact-us' %}
-      {% assign salt_seo_title = 'Contact Support | SALT Online Store' %}
-      {% assign salt_seo_description = 'Reach the SALT support team for delivery questions, product advice, returns, or order help.' %}
+      {% assign salt_seo_title = 'Contact Support | Future Light Store' %}
+      {% assign salt_seo_description = 'Reach the Future Light Store support team for delivery questions, product advice, returns, or order help.' %}
     {% elsif salt_route == '/pages/about-us' %}
-      {% assign salt_seo_title = 'About SALT Online Store' %}
-      {% assign salt_seo_description = 'Learn how SALT makes practical products easy to discover, save, and buy.' %}
+      {% assign salt_seo_title = 'About Future Light Store' %}
+      {% assign salt_seo_description = 'Learn how Future Light Store makes practical products easy to discover, save, and buy.' %}
     {% elsif salt_route == '/pages/blog' %}
-      {% assign salt_seo_title = 'SALT Journal | SALT Online Store' %}
-      {% assign salt_seo_description = 'Fresh stories, product education, and practical ideas from SALT.' %}
+      {% assign salt_seo_title = 'Future Light Store Journal' %}
+      {% assign salt_seo_description = 'Fresh stories, product education, and practical ideas from Future Light Store.' %}
     {% elsif salt_route == '/pages/affiliate-program' %}
-      {% assign salt_seo_title = 'Affiliate Program | SALT Online Store' %}
-      {% assign salt_seo_description = 'Learn how to partner with SALT and share useful products with your audience.' %}
+      {% assign salt_seo_title = 'Affiliate Program | Future Light Store' %}
+      {% assign salt_seo_description = 'Learn how to partner with Future Light Store and share useful products with your audience.' %}
     {% elsif salt_route == '/pages/mission-vision' %}
-      {% assign salt_seo_title = 'Mission & Vision | SALT Online Store' %}
-      {% assign salt_seo_description = 'Learn what SALT is building and how we make everyday shopping easier.' %}
+      {% assign salt_seo_title = 'Mission & Vision | Future Light Store' %}
+      {% assign salt_seo_description = 'Learn what Future Light Store is building and how we make everyday shopping easier.' %}
     {% elsif salt_route == '/pages/wholesale-inquiries' %}
-      {% assign salt_seo_title = 'Wholesale Inquiries | SALT Online Store' %}
-      {% assign salt_seo_description = 'Contact SALT about wholesale, gifting, and business purchasing opportunities.' %}
+      {% assign salt_seo_title = 'Wholesale Inquiries | Future Light Store' %}
+      {% assign salt_seo_description = 'Contact Future Light Store about wholesale, gifting, and business purchasing opportunities.' %}
     {% elsif salt_route == '/pages/terms-conditions' %}
-      {% assign salt_seo_title = 'Terms & Conditions | SALT Online Store' %}
-      {% assign salt_seo_description = 'Review the terms that apply when using the SALT Online Store.' %}
+      {% assign salt_seo_title = 'Terms & Conditions | Future Light Store' %}
+      {% assign salt_seo_description = 'Review the terms that apply when using the Future Light Store.' %}
     {% elsif salt_route == '/pages/track-order' %}
-      {% assign salt_seo_title = 'Track Order | SALT Online Store' %}
+      {% assign salt_seo_title = 'Track Order | Future Light Store' %}
       {% assign salt_seo_description = 'Use the secure order portal to review your order status and delivery details.' %}
       {% assign salt_seo_robots = 'noindex,follow' %}
     {% elsif salt_route == '/pages/recently-viewed' %}
-      {% assign salt_seo_title = 'Recently Viewed | SALT Online Store' %}
+      {% assign salt_seo_title = 'Recently Viewed | Future Light Store' %}
       {% assign salt_seo_description = 'Pick up where you left off with products viewed on this device.' %}
       {% assign salt_seo_robots = 'noindex,follow' %}
     {% elsif request.page_type == '404' %}
@@ -225,7 +224,7 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
       {% assign salt_selected_variant = product.selected_or_first_available_variant %}
       {% assign salt_variant_label = salt_selected_variant.title | default: '' | strip %}
       {% unless salt_variant_label == blank or salt_variant_label == 'Default Title' %}
-        {% assign salt_seo_title = product.title | append: ' - ' | append: salt_variant_label | append: ' | SALT Online Store' %}
+        {% assign salt_seo_title = product.title | append: ' - ' | append: salt_variant_label | append: ' | Future Light Store' %}
         {% assign salt_variant_description = product.description | strip_html | strip_newlines | truncate: 115 %}
         {% assign salt_seo_description = salt_variant_description | append: ' Selected option: ' | append: salt_variant_label | append: '.' %}
       {% endunless %}
@@ -244,9 +243,6 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
     {% endif %}
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{ shop.name | escape }}">
-    {% if salt_custom_canonical %}
-      <link rel="canonical" href="{{ salt_seo_canonical | escape }}">
-    {% endif %}
     <script>
       (function () {
         var path = window.location.pathname;
@@ -553,11 +549,15 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
         }
       })();
     </script>
+    {{ content_for_header }}
     {% if salt_custom_canonical %}
-      {% assign salt_native_canonical_tag = '<link rel="canonical" href="' | append: canonical_url | append: '">' %}
-      {{ salt_content_for_header | remove: salt_native_canonical_tag }}
-    {% else %}
-      {{ salt_content_for_header }}
+      <script>
+        (function () {
+          var canonical = document.querySelector('link[rel="canonical"]');
+          if (!canonical) return;
+          canonical.setAttribute('href', {{ salt_seo_canonical | json }});
+        })();
+      </script>
     {% endif %}
     {% if request.page_type == 'product' %}
       <script>

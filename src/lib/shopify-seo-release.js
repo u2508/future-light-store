@@ -207,7 +207,7 @@ function disambiguateDescriptionContent(products) {
 
 function decodeComparableHtmlEntities(value) {
   return String(value || "")
-    .replace(/&(?:amp|nbsp|quot|apos|lt|gt);/gi, (entity) => {
+    .replace(/&(?:amp|nbsp|quot|apos|lt|gt|mdash|ndash|hellip|ldquo|rdquo|lsquo|rsquo|laquo|raquo);/gi, (entity) => {
       const replacements = {
         "&amp;": "&",
         "&nbsp;": " ",
@@ -215,6 +215,15 @@ function decodeComparableHtmlEntities(value) {
         "&apos;": "'",
         "&lt;": "<",
         "&gt;": ">",
+        "&mdash;": "—",
+        "&ndash;": "–",
+        "&hellip;": "…",
+        "&ldquo;": "“",
+        "&rdquo;": "”",
+        "&lsquo;": "‘",
+        "&rsquo;": "’",
+        "&laquo;": "«",
+        "&raquo;": "»",
       };
       return replacements[entity.toLowerCase()] || entity;
     })
@@ -225,7 +234,15 @@ function decodeComparableHtmlEntities(value) {
 }
 
 export function normalizeComparableHtml(value) {
-  return decodeComparableHtmlEntities(normalizeHtmlValue(value))
+  // Shopify may return named entities as decoded Unicode (for example, an
+  // em dash). Keep Unicode during comparison; normalizeHtmlValue intentionally
+  // strips non-ASCII source text for CSV repair and would make equivalent HTML
+  // look different during live readback.
+  const html = String(value || "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/\u0000/g, "")
+    .trim();
+  return decodeComparableHtmlEntities(html)
     .replace(/>\s+</g, "><")
     .replace(/\s+/g, " ")
     .trim();

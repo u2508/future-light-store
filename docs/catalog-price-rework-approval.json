@@ -1,20 +1,25 @@
 {
-  "approvalId": "future-light-store-price-approved-2026-08-17",
+  "approvalId": "future-light-store-cost-pricing-approved-2026-08-24",
   "approved": true,
-  "approvedAt": "2026-08-17T06:41:25Z",
+  "approvedAt": "2026-08-24T00:00:00Z",
   "approvedBy": "Future Light Store owner (explicit Codex authorization)",
-  "approvalSource": "Explicit Future Light Store owner authorization in Codex on 2026-08-17",
+  "approvalSource": "Explicit Future Light Store owner authorization in Codex on 2026-08-24",
   "scope": {
-    "products": "all Shopify products and variants",
-    "threshold": 35,
-    "strategyId": "tiered-multiplier-2026-08-03-v1",
-    "multiplierPolicy": {
-      "under20": "linearly scale from 2.00x at the low end toward 1.80x as price approaches $20",
-      "20To35": "linearly scale from 1.70x at $20 toward 1.40x as price approaches $35"
+    "products": "all active Shopify products and variants",
+    "strategyId": "cost-based-retail-2026-08-24-v1",
+    "costSource": "live Shopify variant inventoryItem.unitCost.amount",
+    "overhead": 16,
+    "costBands": {
+      "under5": "4.2x",
+      "5To15": "3.25x",
+      "15To30": "2.75x",
+      "30To50": "2.35x",
+      "50Plus": "1.95x"
     },
-    "formula": "multiply each current variant price below $35 by the tiered multiplier determined by its current price",
-    "compareAtPrices": "multiply existing compare-at prices by the same variant multiplier; preserve absence",
-    "variantPrices": "preserve independent variant pricing; never flatten quality, size, color, or bundle prices",
+    "formula": "max(cost + $16 overhead, cost * band multiplier), then psychological rounding",
+    "minimumSellPrice": 0.99,
+    "compareAtPrices": "preserve absence; when present normalize to at least 1.25x the cost-based sell price with psychological rounding",
+    "variantPrices": "calculate independently per variant; preserve quality, size, color, bundle, and quantity-tier differences",
     "status": "do not change product status or sales-channel inclusion"
   }
 }

@@ -24,7 +24,7 @@ import {
   buildCategoryMetafieldPlan,
 } from "../src/lib/shopify-category-metafield-backfill.js";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
-import { createRequestScheduler, envInteger } from "./lib/performance-runtime.mjs";
+import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
 
 const DEFAULT_SHOP_BASE = "";
 const DEFAULT_OUTPUT_FILE = resolve(process.cwd(), "output", "product-metafield-backfill-manifest.json");
@@ -46,8 +46,12 @@ const JUDGEME_PUBLIC_TOKEN =
   process.env.JUDGEME_PUBLIC_TOKEN ||
   process.env.SALT_JUDGEME_PUBLIC_TOKEN ||
   "";
-const BACKFILL_APPLY_CONCURRENCY = Math.max(1, Number(process.env.SALT_BACKFILL_APPLY_CONCURRENCY || 4));
-const BACKFILL_READ_CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.SALT_BACKFILL_READ_CONCURRENCY || 4)));
+const BACKFILL_APPLY_CONCURRENCY = envInteger("SALT_BACKFILL_APPLY_CONCURRENCY", 4, { min: 1, max: 4 });
+const BACKFILL_READ_CONCURRENCY = envInteger(
+  "SALT_BACKFILL_READ_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
+  { min: 1, max: 8 },
+);
 const BACKFILL_BULK_THRESHOLD = Math.max(1, Number(process.env.SALT_BACKFILL_BULK_THRESHOLD || 500));
 const JUDGEME_SHOP_DOMAINS = Array.from(
   new Set(
@@ -64,8 +68,16 @@ const JUDGEME_SHOP_DOMAINS = Array.from(
   ),
 );
 const JUDGEME_FETCH_ENABLED = process.env.SALT_BACKFILL_LIVE_JUDGEME !== "0";
-const JUDGEME_CONCURRENCY = Number(process.env.SALT_BACKFILL_JUDGEME_CONCURRENCY || 8);
-const SHOPIFY_REQUEST_CONCURRENCY = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
+const JUDGEME_CONCURRENCY = envInteger(
+  "SALT_BACKFILL_JUDGEME_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
+  { min: 1, max: 8 },
+);
+const SHOPIFY_REQUEST_CONCURRENCY = envInteger(
+  "SALT_SHOPIFY_REQUEST_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
+  { min: 1, max: 8 },
+);
 const SHOPIFY_REQUEST_DELAY_MS = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
 const shopifyRequestScheduler = createRequestScheduler({
   concurrency: SHOPIFY_REQUEST_CONCURRENCY,
@@ -1947,7 +1959,11 @@ async function fetchCategoryAttributesMap(categoryIds) {
   const result = new Map();
   const chunks = chunkArray(ids, 50);
   let nextChunk = 0;
-  const concurrency = Math.max(1, Math.min(4, Number(process.env.SALT_CATEGORY_READ_CONCURRENCY || 3)));
+  const concurrency = envInteger(
+    "SALT_CATEGORY_READ_CONCURRENCY",
+    recommendedConcurrency({ kind: "io", reserve: 2, max: 4 }),
+    { min: 1, max: 4 },
+  );
   const worker = async () => {
     while (true) {
       const index = nextChunk++;

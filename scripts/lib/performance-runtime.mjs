@@ -12,6 +12,24 @@ export function availableParallelism({ reserve = 1, max = 16 } = {}) {
   return boundedInteger(detected - reserve, 1, { min: 1, max });
 }
 
+/**
+ * Pick a bounded worker count for the type of work being scheduled. Shopify
+ * work is I/O-bound and can use the available event-loop workers; local vision
+ * is memory-bound and deliberately stays conservative so the model runtime is
+ * not oversubscribed. Explicit environment values still take precedence in
+ * each caller.
+ */
+export function recommendedConcurrency({ kind = "io", reserve = 2, max = 8, min = 1 } = {}) {
+  const cpuWorkers = availableParallelism({ reserve, max });
+  const memoryGiB = os.totalmem() / (1024 ** 3);
+  const memoryWorkers = kind === "vision"
+    ? Math.max(1, Math.floor(memoryGiB / 6))
+    : kind === "cpu"
+      ? Math.max(1, Math.floor(memoryGiB / 1.5))
+      : cpuWorkers;
+  return boundedInteger(Math.min(cpuWorkers, memoryWorkers), cpuWorkers, { min, max });
+}
+
 export function envInteger(name, fallback, options = {}) {
   return boundedInteger(process.env[name], fallback, options);
 }

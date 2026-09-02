@@ -223,19 +223,19 @@ function buildCatalogReleaseSteps({
       cwd: releaseRootDir,
     },
     {
-      label: "Dry-run approved full-catalog variant price floor before base SEO",
+      label: "Dry-run approved cost-based pricing before base SEO",
       command: npmBin,
       args: ["run", "shopify:price-rework:dry-run"],
       cwd: releaseRootDir,
     },
     {
-      label: "Apply approved full-catalog variant price floor before base SEO",
+      label: "Apply approved cost-based pricing before base SEO",
       command: npmBin,
       args: ["run", "shopify:price-rework:apply"],
       cwd: releaseRootDir,
     },
     {
-      label: "Verify live full-catalog variant price floor before base SEO",
+      label: "Verify live full-catalog cost-based pricing before base SEO",
       command: npmBin,
       args: ["run", "shopify:price-rework:verify"],
       cwd: releaseRootDir,
@@ -621,7 +621,7 @@ async function main() {
         }
       }
     }
-    const resumeFromStep = args.resume
+    const requestedResumeFromStep = args.resume
       ? Math.max(1, Number(previousRunState?.stepIndex || previousRunState?.completedStepIndex || 1))
       : 1;
     releaseRunState = {
@@ -629,12 +629,12 @@ async function main() {
       pid: process.pid,
       profile: args.profile,
       startedAt: new Date().toISOString(),
-      stepIndex: resumeFromStep - (args.resume ? 0 : 1),
+      stepIndex: requestedResumeFromStep - (args.resume ? 0 : 1),
       totalSteps: 0,
       stepLabel: "initializing",
       heartbeatAt: new Date().toISOString(),
       resumed: args.resume,
-      resumedFromStep: args.resume ? resumeFromStep : null,
+      resumedFromStep: args.resume ? requestedResumeFromStep : null,
       fresh: args.fresh,
       completedSteps: args.resume && Array.isArray(previousRunState?.completedSteps)
         ? previousRunState.completedSteps
@@ -664,7 +664,7 @@ async function main() {
     process.stdout.write(`  shopify-theme: ${shopifyThemeDir}\n`);
     process.stdout.write(`  mobile-sync: ${process.env.SALT_RELEASE_SKIP_MOBILE === "1" ? "skipped" : "included"}\n`);
     process.stdout.write(`  profile: ${args.profile}\n`);
-    process.stdout.write(`  execution: ${args.resume ? `resume from step ${resumeFromStep}` : args.fresh ? "fresh run" : "guarded run"}\n`);
+    process.stdout.write(`  execution: ${args.resume ? `resume from step ${requestedResumeFromStep}` : args.fresh ? "fresh run" : "guarded run"}\n`);
 
     if (args.profile === "products") {
       const { productCohortCatalog, productCohortHandles } = getReleasePaths(rootDir);
@@ -674,8 +674,8 @@ async function main() {
     }
 
     const steps = buildReleaseSteps({ rootDir, profile: args.profile });
-    if (resumeFromStep > steps.length) {
-      throw new Error(`Cannot resume from step ${resumeFromStep}; release has ${steps.length} steps`);
+    if (requestedResumeFromStep > steps.length) {
+      throw new Error(`Cannot resume from step ${requestedResumeFromStep}; release has ${steps.length} steps`);
     }
     if (args.resume && previousRunState?.totalSteps && previousRunState.totalSteps !== steps.length) {
       throw new Error(
@@ -683,14 +683,52 @@ async function main() {
       );
     }
     if (args.resume && previousRunState?.stepFingerprint) {
-      const currentStepFingerprint = releaseStepFingerprint(steps[resumeFromStep - 1], args.profile);
+      const currentStepFingerprint = releaseStepFingerprint(steps[requestedResumeFromStep - 1], args.profile);
       if (currentStepFingerprint !== previousRunState.stepFingerprint) {
         throw new Error(
-          `Cannot resume safely: step ${resumeFromStep} changed since the prior run. Use --fresh after reviewing the changed step.`,
+          `Cannot resume safely: step ${requestedResumeFromStep} changed since the prior run. Use --fresh after reviewing the changed step.`,
         );
       }
     }
-    await writeReleaseRunState({ totalSteps: steps.length });
+    let resumeFromStep = requestedResumeFromStep;
+    let resumeRepair = null;
+    const productSpecificityStep = steps.findIndex((step) => step.label === "Verify every active product has product-specific SEO and metafields") + 1;
+    const contentRepairStep = steps.findIndex((step) => step.label === "Run local SEO and product-content quality audit") + 1;
+    const taxonomyApplyStep = steps.findIndex((step) => step.label === "Apply approved taxonomy tags and metafields with live readback") + 1;
+    const taxonomyManifestRepairStep = steps.findIndex((step) => step.label === "Dry-run exact full-catalog collection reconciliation") + 1;
+    const failedAtProductSpecificity = args.resume
+      && previousRunState?.status === "failed"
+      && requestedResumeFromStep === productSpecificityStep
+      && /product-specificity|SEO and metafields/i.test(String(previousRunState?.error || previousRunState?.stepLabel || ""));
+    const failedWithStaleTaxonomyManifest = args.resume
+      && previousRunState?.status === "failed"
+      && requestedResumeFromStep === taxonomyApplyStep
+      && previousRunState?.stepLabel === "Apply approved taxonomy tags and metafields with live readback";
+    const repairStartStep = failedAtProductSpecificity
+      ? contentRepairStep
+      : failedWithStaleTaxonomyManifest
+        ? taxonomyManifestRepairStep
+        : 0;
+    if (repairStartStep > 0 && repairStartStep < resumeFromStep) {
+      resumeFromStep = repairStartStep;
+      resumeRepair = {
+        fromStep: repairStartStep,
+        failedStep: failedAtProductSpecificity ? productSpecificityStep : taxonomyApplyStep,
+        reason: failedAtProductSpecificity
+          ? "product-specificity verification failed after content rules changed; replaying guarded content and live-readback steps"
+          : "taxonomy apply detected a stale collection-integrity scope; replaying the guarded full-catalog classification and live-readback steps",
+      };
+      process.stdout.write(
+        failedAtProductSpecificity
+          ? `Repair-aware resume: replaying steps ${contentRepairStep}-${productSpecificityStep} so updated product content reaches Shopify before verification.\n`
+          : `Repair-aware resume: replaying steps ${taxonomyManifestRepairStep}-${taxonomyApplyStep} so the classification manifest covers every active product.\n`,
+      );
+    }
+    await writeReleaseRunState({
+      totalSteps: steps.length,
+      resumedFromStep: args.resume ? resumeFromStep : null,
+      resumeRepair,
+    });
 
     for (const [index, step] of steps.entries()) {
       const stepIndex = index + 1;

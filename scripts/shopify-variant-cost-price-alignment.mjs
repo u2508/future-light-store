@@ -4,17 +4,23 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { buildVariantCostPriceAlignmentPlan } from "../src/lib/shopify-variant-cost-pricing.js";
+import { PRICE_REWORK_RULES } from "../src/lib/shopify-price-rework-policy.js";
 import { normalizePlainText } from "../src/lib/shopify-seo-batch.js";
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
+import { envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const defaultOutputPath = resolve(rootDir, "output", "shopify-variant-cost-price-alignment-manifest.json");
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "variant-cost-price-alignment" });
 const tolerance = Math.max(0, Number(process.env.SALT_VARIANT_COST_TOLERANCE || 2));
-const priceFloor = Math.max(0, Number(process.env.SALT_CATALOG_PRICE_FLOOR || 35));
+const priceFloor = Math.max(0, Number(process.env.SALT_CATALOG_PRICE_FLOOR || PRICE_REWORK_RULES.minimumSellPrice));
 const pageSize = Math.max(1, Math.min(250, Number(process.env.SALT_VARIANT_COST_PAGE_SIZE || 100)));
 const readbackAttempts = Math.max(1, Number(process.env.SALT_VARIANT_COST_READBACK_ATTEMPTS || 5));
-const applyConcurrency = Math.max(1, Math.min(4, Number(process.env.SALT_VARIANT_COST_APPLY_CONCURRENCY || 2)));
+const applyConcurrency = envInteger(
+  "SALT_VARIANT_COST_APPLY_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 4 }),
+  { min: 1, max: 4 },
+);
 
 const PRODUCTS_QUERY = /* GraphQL */ `
   query VariantCostPriceProducts($first: Int!, $after: String) {
@@ -172,10 +178,10 @@ function manifestForPlan(plan, mode) {
       priceFloor,
       readbackAttempts,
       applyConcurrency,
-      targetPrice: "highest current variant price in each same-product cost group to avoid lowering any price",
+      targetPrice: "cost-based retail target calculated independently from each variant cost; same-product cost grouping is only a bounded safety scope",
       quantityTiers: "held outside automatic alignment",
-      compareAt: "preserve if above target; clear if it would become invalid after the price increase",
-      sourceOfTruth: "live Shopify variant inventoryItem.unitCost and price",
+      compareAt: "preserve absence; when present normalize to the cost-based target with psychological rounding",
+      sourceOfTruth: "live Shopify variant inventoryItem.unitCost and the approved cost-based retail strategy",
     },
     summary: plan.summary,
     products,

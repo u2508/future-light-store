@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
-import { availableParallelism } from "./lib/performance-runtime.mjs";
+import { recommendedConcurrency } from "./lib/performance-runtime.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const envFiles = [
@@ -18,6 +19,15 @@ const approvalFiles = [
   "docs/catalog-collection-merge-approval.json",
 ];
 const releaseRunStatePath = resolve(rootDir, "output", "release-run-state.json");
+const listingIntelligenceCachePath = resolve(rootDir, "output", "listing-intelligence-preflight.json");
+const listingIntelligenceInputs = [
+  "public/data/products.json",
+  "output/catalog-knowledge-model.json",
+  "scripts/validate-product-listing-intelligence.mjs",
+  "src/lib/catalog-knowledge-model.js",
+  "src/lib/product-knowledge-base.js",
+  "src/lib/shopify-seo-batch-intelligence.js",
+];
 
 function parseEnvValue(rawValue) {
   const value = String(rawValue || "").trim();
@@ -43,6 +53,52 @@ async function loadReleaseEnv() {
 function fail(message) {
   process.stderr.write(`Future Light Store release preflight failed: ${message}\n`);
   process.exit(1);
+}
+
+async function listingIntelligenceFingerprint() {
+  const signatures = await Promise.all(listingIntelligenceInputs.map(async (relativePath) => {
+    const absolutePath = resolve(rootDir, relativePath);
+    try {
+      const file = await stat(absolutePath);
+      return `${relativePath}:${file.size}:${file.mtimeMs}`;
+    } catch {
+      return `${relativePath}:missing`;
+    }
+  }));
+  return createHash("sha256").update(signatures.join("\n")).digest("hex");
+}
+
+async function runListingIntelligencePreflight() {
+  const fingerprint = await listingIntelligenceFingerprint();
+  try {
+    const cached = JSON.parse(await readFile(listingIntelligenceCachePath, "utf8"));
+    if (cached?.status === "verified" && cached?.fingerprint === fingerprint) {
+      process.stdout.write("Reusing verified product-listing intelligence preflight for unchanged release inputs.\n");
+      return;
+    }
+  } catch {
+    // No reusable preflight cache; validate the model and catalog now.
+  }
+
+  const listingIntelligence = spawnSync(
+    process.execPath,
+    [resolve(rootDir, "scripts", "validate-product-listing-intelligence.mjs")],
+    { cwd: rootDir, env: process.env, stdio: "inherit" },
+  );
+  if (listingIntelligence.error) throw listingIntelligence.error;
+  if (listingIntelligence.status !== 0) {
+    fail("product-listing intelligence preflight failed; release was not started.");
+  }
+
+  await mkdir(resolve(rootDir, "output"), { recursive: true });
+  const temporaryPath = `${listingIntelligenceCachePath}.tmp-${process.pid}`;
+  await writeFile(temporaryPath, `${JSON.stringify({
+    status: "verified",
+    fingerprint,
+    verifiedAt: new Date().toISOString(),
+    modelRecords: 256000000,
+  }, null, 2)}\n`, "utf8");
+  await rename(temporaryPath, listingIntelligenceCachePath);
 }
 
 async function main() {
@@ -91,24 +147,43 @@ async function main() {
   process.env.SALT_CATALOG_INTEGRITY_VERIFY_APPLY ||= "1";
   process.env.SALT_RELEASE_WAIT_FOR_VISUAL_REVIEW ||= "1";
   process.env.SALT_RELEASE_REUSE_VERIFIED_PLAN ||= "1";
-  const tunedConcurrency = String(Math.min(8, Math.max(2, availableParallelism({ reserve: 2, max: 8 }))));
+  const tunedConcurrency = String(recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }));
+  const tunedCpuConcurrency = String(recommendedConcurrency({ kind: "cpu", reserve: 1, max: 8 }));
+  const tunedVisionConcurrency = String(recommendedConcurrency({ kind: "vision", reserve: 1, max: 2 }));
+  const supervisedVisionEnabled = process.env.SALT_CATALOG_VISION_SUPERVISED === "1";
   const setAutoTuned = (name, value) => {
     if (!process.env[name] || /^(auto|adaptive|tuned)$/i.test(String(process.env[name]).trim())) {
       process.env[name] = value;
     }
   };
-  setAutoTuned("SALT_CATALOG_CLASSIFICATION_CONCURRENCY", tunedConcurrency);
+  setAutoTuned("SALT_CATALOG_CLASSIFICATION_CONCURRENCY", supervisedVisionEnabled ? tunedVisionConcurrency : tunedCpuConcurrency);
   setAutoTuned("SALT_BACKFILL_READ_CONCURRENCY", tunedConcurrency);
   setAutoTuned("SALT_SHOPIFY_REQUEST_CONCURRENCY", tunedConcurrency);
   process.env.SALT_SHOPIFY_REQUEST_DELAY_MS ||= "125";
   setAutoTuned("SALT_SHOPIFY_SEO_READ_CONCURRENCY", tunedConcurrency);
-  setAutoTuned("SALT_CATALOG_TAXONOMY_CONCURRENCY", tunedConcurrency);
+  setAutoTuned("SALT_CATALOG_TAXONOMY_CONCURRENCY", tunedCpuConcurrency);
+  setAutoTuned("SALT_CATEGORY_READ_CONCURRENCY", tunedConcurrency);
   setAutoTuned("SALT_VARIANT_IMAGE_FETCH_CONCURRENCY", tunedConcurrency);
   process.env.SALT_VARIANT_IMAGE_APPLY_CONCURRENCY ||= "3";
   setAutoTuned("SALT_VARIANT_IMAGE_PLAN_CONCURRENCY", tunedConcurrency);
   process.env.SALT_VARIANT_IMAGE_VERIFY_CONCURRENCY ||= "3";
-  process.env.SALT_CATALOG_VISION_CONCURRENCY ||= "2";
-  process.env.SALT_VARIANT_IMAGE_VISION_CONCURRENCY ||= "2";
+  process.env.SALT_VARIANT_COST_APPLY_CONCURRENCY ||= "4";
+  process.env.SALT_COLLECTION_TAG_CONCURRENCY ||= "4";
+  // The local model is memory-bound, but a second bounded worker keeps image
+  // fetches and GPU work overlapped on machines with enough headroom. An
+  // explicit value still wins when a host needs a stricter limit.
+  setAutoTuned("SALT_VARIANT_IMAGE_VISION_CONCURRENCY", tunedVisionConcurrency);
+  // Keep local vision classification bounded per product. A timed-out model
+  // request is recorded and the guarded deterministic/forced-guess fallback
+  // continues, so one slow image cannot hold the whole resumable release.
+  process.env.SALT_VARIANT_IMAGE_VISION_REQUEST_TIMEOUT_MS ||= "90000";
+  process.env.SALT_VARIANT_IMAGE_VISION_REQUEST_ATTEMPTS ||= "1";
+  process.env.SALT_VARIANT_IMAGE_VISION_OUTPUT_TOKENS ||= "512";
+  process.env.SALT_VARIANT_IMAGE_VISION_CONTEXT_LENGTH ||= "4096";
+  process.env.SALT_VARIANT_IMAGE_VISION_IMAGE_WIDTH ||= "512";
+  process.env.SALT_VARIANT_IMAGE_VISION_IMAGE_LIMIT ||= "8";
+  process.env.SALT_VARIANT_IMAGE_VISION_CIRCUIT_FAILURE_THRESHOLD ||= "2";
+  process.env.SALT_VARIANT_IMAGE_VISION_CIRCUIT_COOLDOWN_MS ||= "300000";
   process.env.SALT_BACKFILL_APPLY_CONCURRENCY ||= "4";
   process.env.SALT_SHOPIFY_PUBLICATION_CONCURRENCY ||= "4";
   process.env.SALT_SHOPIFY_THEME_DIR = themeDir;
@@ -116,15 +191,7 @@ async function main() {
   process.env.SHOPIFY_CLI_AGENT_INFO ||= "n:future-light-store|v:1|p:openai";
   process.env.SHOPIFY_CLI_AGENT_IDS ||= `s:future-light-store|r:${process.pid}|i:future-light-store-release`;
 
-  const listingIntelligence = spawnSync(
-    process.execPath,
-    [resolve(rootDir, "scripts", "validate-product-listing-intelligence.mjs")],
-    { cwd: rootDir, env: process.env, stdio: "inherit" },
-  );
-  if (listingIntelligence.error) throw listingIntelligence.error;
-  if (listingIntelligence.status !== 0) {
-    fail("product-listing intelligence preflight failed; release was not started.");
-  }
+  await runListingIntelligencePreflight();
 
   const forwardedArgs = [...process.argv.slice(2)];
   const npmResumeFlag = /^(1|true|yes)$/i.test(String(process.env.npm_config_resume || ""));

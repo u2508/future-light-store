@@ -463,9 +463,10 @@ export function scoreCatalogKnowledgeModel(model, product, { modelEvidence = und
     top.positivePhraseHits > 0 &&
     top.directFieldCount > 0 &&
     top.exclusionHits === 0 &&
-    (top.requiredGroupHits > 0 || top.positivePhraseHits >= 2 || top.listingPhraseHits > 0) &&
+    (top.requiredGroupHits > 0 || top.positivePhraseHits >= 2 || top.listingPhraseHits > 0 || (top.directFieldCount >= 2 && top.positivePhraseHits > 0)) &&
     (
       normalizedMargin >= 0.08 ||
+      (top.directFieldCount >= 2 && top.positivePhraseHits > 0 && normalizedMargin >= 0.06) ||
       (top.listingPhraseHits > 0 && top.directFieldCount >= 2 && normalizedMargin >= 0.06)
     ),
   );

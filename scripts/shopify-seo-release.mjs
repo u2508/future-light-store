@@ -27,7 +27,7 @@ import {
 import { PRICE_REWORK_RULES } from "../src/lib/shopify-price-rework-policy.js";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
-import { createRequestScheduler, envInteger } from "./lib/performance-runtime.mjs";
+import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -41,7 +41,7 @@ if (!shopBase) throw new Error("SALT_SHOP_URL is required for Future Light Store
 const storeDomain = new URL(shopBase).hostname;
 const apiVersion = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
 
-export function assertBaseSeoPriceFloor(products, threshold = PRICE_REWORK_RULES.threshold) {
+export function assertBaseSeoPriceFloor(products, minimumSellPrice = PRICE_REWORK_RULES.minimumSellPrice) {
   const violations = [];
   let variantsChecked = 0;
   for (const product of Array.isArray(products) ? products : []) {
@@ -53,18 +53,18 @@ export function assertBaseSeoPriceFloor(products, threshold = PRICE_REWORK_RULES
     for (const variant of variants) {
       variantsChecked += 1;
       const price = Number(variant?.price);
-      if (!Number.isFinite(price) || price < threshold) {
+      if (!Number.isFinite(price) || price < minimumSellPrice) {
         violations.push(`${product?.handle || product?.id || "unknown-product"}:${variant?.id || variant?.title || "unknown-variant"}=${Number.isFinite(price) ? price.toFixed(2) : "missing"}`);
       }
     }
   }
   if (violations.length) {
     throw new Error(
-      `Base SEO price-floor gate failed: ${violations.length} variant(s) below $${Number(threshold).toFixed(2)} or missing a price. ` +
+      `Base SEO minimum-sell-price gate failed: ${violations.length} variant(s) below $${Number(minimumSellPrice).toFixed(2)} or missing a price. ` +
       `Run the approved catalog price rework before SEO. Examples: ${violations.slice(0, 10).join(", ")}`,
     );
   }
-  return { threshold, productsChecked: Array.isArray(products) ? products.length : 0, variantsChecked, violations: 0 };
+  return { threshold: minimumSellPrice, productsChecked: Array.isArray(products) ? products.length : 0, variantsChecked, violations: 0 };
 }
 const adminAccessToken =
   process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SALT_SHOPIFY_ADMIN_ACCESS_TOKEN || "";
@@ -74,13 +74,19 @@ const cliAgentInfo = process.env.SHOPIFY_CLI_AGENT_INFO || "n:future-light-store
 const cliAgentIds =
   process.env.SHOPIFY_CLI_AGENT_IDS || `s:future-light-store|r:${process.pid}|i:future-light-store-seo`;
 const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
-const requestConcurrency = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
+const requestConcurrency = envInteger(
+  "SALT_SHOPIFY_REQUEST_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
+  { min: 1, max: 8 },
+);
 const maxAttempts = Math.max(1, Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
 const maxRetryDelayMs = Math.max(1000, Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));
 const seoApplyBatchSize = Math.max(1, Math.min(5, Number(process.env.SALT_SHOPIFY_SEO_BATCH_SIZE || 5)));
-const seoReadConcurrency = Math.max(1, Number(process.env.SALT_SHOPIFY_SEO_READ_CONCURRENCY || 4));
-const ACTIVE_PRODUCT_QUERY = "status:active";
-
+const seoReadConcurrency = envInteger(
+  "SALT_SHOPIFY_SEO_READ_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
+  { min: 1, max: 8 },
+);
 const PRODUCT_SELECTION = /* GraphQL */ `
   id
   handle
@@ -145,20 +151,6 @@ const PRODUCT_SELECTION = /* GraphQL */ `
     pageInfo {
       hasNextPage
       endCursor
-    }
-  }
-`;
-
-const ALL_PRODUCTS_QUERY = /* GraphQL */ `
-  query ShopifySeoReleaseProducts($first: Int!, $after: String, $query: String!) {
-    products(first: $first, after: $after, query: $query) {
-      nodes {
-        ${PRODUCT_SELECTION}
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
     }
   }
 `;
@@ -388,6 +380,35 @@ const BULK_OPERATION_STATUS_QUERY = /* GraphQL */ `
   query ShopifySeoReleaseBulkStatus($id: ID!) {
     bulkOperation(id: $id) {
       id status errorCode objectCount fileSize url partialDataUrl createdAt completedAt
+    }
+  }
+`;
+
+// The connection query is fast for most runs, but it can return a stale or
+// incomplete active-product window while Shopify is rebuilding the catalog
+// index.  Use a small bulk export as the authoritative ID set, then hydrate
+// those IDs through the normal bounded GraphQL reader.  This keeps product
+// writes and readback unchanged while preventing live-only products from
+// silently skipping SEO coverage.
+const BULK_ACTIVE_PRODUCT_IDS_QUERY = /* GraphQL */ `
+  {
+    products(query: "status:active") {
+      edges {
+        node {
+          id
+          handle
+          status
+        }
+      }
+    }
+  }
+`;
+
+const BULK_OPERATION_RUN_QUERY = /* GraphQL */ `
+  mutation ShopifySeoReleaseRunBulkQuery($query: String!) {
+    bulkOperationRunQuery(query: $query) {
+      bulkOperation { id status }
+      userErrors { field message }
     }
   }
 `;
@@ -697,52 +718,65 @@ async function loadFrozenCatalogSnapshot(filePath, baseSnapshot) {
   return { ...baseSnapshot, products };
 }
 
-export async function fetchAllProducts(retryInfo = []) {
-  const products = [];
-  let after = null;
-  let page = 0;
-
-  while (true) {
-    page += 1;
-    const data = await runShopifyCliGraphQL(
-      ALL_PRODUCTS_QUERY,
-      { first: 250, after, query: ACTIVE_PRODUCT_QUERY },
-      { operation: `product catalog page ${page}`, retryInfo },
-    );
-    const connection = data?.products;
-    if (!connection) {
-      throw new Error("Shopify product catalog query returned no products connection");
-    }
-
-    products.push(...(Array.isArray(connection.nodes) ? connection.nodes : []));
-    if (!connection.pageInfo?.hasNextPage) {
-      break;
-    }
-    if (!connection.pageInfo.endCursor) {
-      throw new Error(`Shopify product catalog page ${page} hasNextPage without an end cursor`);
-    }
-    after = connection.pageInfo.endCursor;
-  }
-
-  for (let index = 0; index < products.length; index += 1) {
-    if (!hasNestedPaginationGap(products[index])) {
-      continue;
-    }
-
-    process.stdout.write(`Hydrating nested Shopify connections for ${products[index].handle}\n`);
-    products[index] = await hydrateNestedProductConnections(products[index], retryInfo);
-  }
-
-  const excluded = products.filter((product) => !isActiveShopifyProduct(product));
-  if (excluded.length) {
+async function fetchActiveProductIdsFromBulk(retryInfo = []) {
+  const started = await runShopifyCliGraphQL(
+    BULK_OPERATION_RUN_QUERY,
+    { query: BULK_ACTIVE_PRODUCT_IDS_QUERY },
+    {
+      allowMutations: true,
+      operation: "start active product ID discovery bulk operation",
+      retryInfo,
+    },
+  );
+  const result = started?.bulkOperationRunQuery;
+  const userErrors = Array.isArray(result?.userErrors) ? result.userErrors : [];
+  if (userErrors.length) {
     throw new Error(
-      `Active product query returned ${excluded.length} product(s) that are not active: ${excluded
-        .slice(0, 8)
-        .map((product) => product.handle || product.id)
-        .join(", ")}`,
+      `Active product ID discovery bulk operation failed to start: ${formatUserErrors(userErrors)}`,
     );
   }
 
+  const operationId = result?.bulkOperation?.id;
+  if (!operationId) {
+    throw new Error("Shopify returned no active product ID discovery bulk operation id");
+  }
+
+  const operation = await waitForSeoBulkOperation(operationId, retryInfo, "Active product ID discovery");
+  if (!operation.url) {
+    throw new Error("Completed active product ID discovery bulk operation returned no result URL");
+  }
+
+  const response = await fetch(operation.url);
+  if (!response.ok) {
+    throw new Error(`Active product ID discovery bulk result download failed (${response.status})`);
+  }
+
+  const ids = [];
+  for (const line of (await response.text()).split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const node = JSON.parse(line);
+    if (String(node?.status || "").toUpperCase() !== "ACTIVE") continue;
+    if (node?.id) ids.push(node.id);
+  }
+
+  const uniqueIds = [...new Set(ids)];
+  if (!uniqueIds.length) {
+    throw new Error("Active product ID discovery returned no active product IDs");
+  }
+  process.stdout.write(`Active product ID discovery found ${uniqueIds.length} active product(s).\n`);
+  return uniqueIds;
+}
+
+export async function fetchAllProducts(retryInfo = []) {
+  const ids = await fetchActiveProductIdsFromBulk(retryInfo);
+  const productsById = await fetchProductsById(ids, retryInfo, "active product hydration");
+  const products = ids.map((id) => productsById.get(id)).filter(Boolean);
+  if (products.length !== ids.length) {
+    const missing = ids.filter((id) => !productsById.has(id));
+    throw new Error(
+      `Active product hydration returned ${products.length}/${ids.length} product(s); missing ${missing.length}`,
+    );
+  }
   return products;
 }
 

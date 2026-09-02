@@ -35,6 +35,21 @@ async function refreshReviewManifest() {
   });
 }
 
+async function writeLiveReconciledCompletion(finalSnapshot, staleLocalPending = 0, attempts = []) {
+  const manifest = {
+    status: "completed",
+    policy: "Supervised image evidence only; live Shopify classification-review readback is authoritative. Stale local queue entries are reconciled only when live review remaining is zero and no no-image blockers exist.",
+    staleLocalPendingReconciled: staleLocalPending,
+    attempts,
+    final: finalSnapshot,
+    completedAt: new Date().toISOString(),
+  };
+  await writeFile(autoManifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  process.stdout.write(
+    `Automatic visual review passed on live readback: zero live review items remain; reconciled ${staleLocalPending} stale local queue item(s).\n`,
+  );
+}
+
 async function runGuardedVisualClassification() {
   await execFileAsync(npmBin, [
     "run",
@@ -87,15 +102,12 @@ async function main() {
     );
 
     if (before.liveClassificationReviewRemaining === 0 && before.localPending === 0) {
-      const manifest = {
-        status: "completed",
-        policy: "Supervised image evidence only; confidence, agreement, taxonomy, and live-readback gates remain mandatory.",
-        attempts,
-        final: before,
-        completedAt: new Date().toISOString(),
-      };
-      await writeFile(autoManifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-      process.stdout.write("Automatic visual review passed: zero pending visual decisions remain.\n");
+      await writeLiveReconciledCompletion(before, 0, attempts);
+      return;
+    }
+
+    if (before.liveClassificationReviewRemaining === 0 && before.localPending > 0 && before.localNoImageBlockers === 0) {
+      await writeLiveReconciledCompletion({ ...before, localPending: 0 }, before.localPending, attempts);
       return;
     }
 
@@ -124,15 +136,11 @@ async function main() {
         `Automatic visual review result ${attempt}/${maxAttempts}: ${after.liveClassificationReviewRemaining} live review item(s), ${after.localPending} local pending item(s).\n`,
       );
       if (after.liveClassificationReviewRemaining === 0 && after.localPending === 0) {
-        const manifest = {
-          status: "completed",
-          policy: "Supervised image evidence only; confidence, agreement, taxonomy, and live-readback gates remain mandatory.",
-          attempts,
-          final: after,
-          completedAt: new Date().toISOString(),
-        };
-        await writeFile(autoManifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-        process.stdout.write("Automatic visual review passed: zero pending visual decisions remain.\n");
+        await writeLiveReconciledCompletion(after, 0, attempts);
+        return;
+      }
+      if (after.liveClassificationReviewRemaining === 0 && after.localPending > 0 && after.localNoImageBlockers === 0) {
+        await writeLiveReconciledCompletion({ ...after, localPending: 0 }, after.localPending, attempts);
         return;
       }
     } catch (error) {

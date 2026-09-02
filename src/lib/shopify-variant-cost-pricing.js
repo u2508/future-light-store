@@ -1,5 +1,6 @@
 import { formatMoneyValue, normalizePlainText, parseMoneyValue } from "./shopify-seo-batch.js";
 import { extractVariantQuantity, variantLabel } from "./shopify-variant-pricing.js";
+import { compareAtPriceFor, costBasedPriceFor, PRICE_REWORK_STRATEGY_ID } from "./shopify-price-rework-policy.js";
 
 const DEFAULT_COST_TOLERANCE = 2;
 
@@ -83,35 +84,25 @@ export function buildVariantCostPriceAlignmentPlan(products = [], { tolerance = 
     const updates = [];
     for (const group of groupByCost(candidates, tolerance)) {
       if (group.length < 2) continue;
-      const targetPrice = Math.max(priceFloor, ...group.map((entry) => entry.price));
-      const distinctPrices = new Set(group.map((entry) => entry.price.toFixed(2)));
-      if (distinctPrices.size < 2) continue;
-
       for (const entry of group) {
-        if (Math.abs(entry.price - targetPrice) < 0.005) continue;
+        const costBasedTarget = costBasedPriceFor(entry.cost);
+        if (!costBasedTarget) continue;
+        const targetPrice = Math.max(priceFloor, Number(costBasedTarget));
         const compareAt = parseMoneyValue(entry.variant?.compare_at_price ?? entry.variant?.compareAtPrice);
-        if (Number.isFinite(compareAt) && compareAt > 0 && compareAt <= targetPrice) {
-          const hold = {
-            handle: normalizePlainText(product?.handle),
-            reason: "compare-at-would-not-exceed-target-price",
-            variantId: entry.id,
-            label: entry.label,
-            targetPrice: formatMoneyValue(targetPrice),
-            compareAtPrice: formatMoneyValue(compareAt),
-          };
-          held.push(hold);
-        }
+        const targetCompareAt = Number.isFinite(compareAt) && compareAt > 0
+          ? compareAtPriceFor(targetPrice, compareAt)
+          : null;
+        const currentCompareAt = Number.isFinite(compareAt) && compareAt > 0 ? formatMoneyValue(compareAt) : "";
+        const normalizedTargetPrice = formatMoneyValue(targetPrice);
+        if (formatMoneyValue(entry.price) === normalizedTargetPrice && currentCompareAt === (targetCompareAt || "")) continue;
         updates.push({
           variantId: entry.id,
           label: entry.label,
           costPerItem: formatMoneyValue(entry.cost),
           currentPrice: formatMoneyValue(entry.price),
-          price: formatMoneyValue(targetPrice),
-          ...(Number.isFinite(compareAt)
-            ? { compareAtPrice: compareAt > targetPrice ? formatMoneyValue(compareAt) : null }
-            : {}),
-          ...(Number.isFinite(compareAt) && compareAt <= targetPrice ? { compareAtAction: "clear-invalid-compare-at" } : {}),
-          reason: "same-product-cost-within-tolerance",
+          price: normalizedTargetPrice,
+          ...(Number.isFinite(compareAt) && compareAt > 0 ? { compareAtPrice: targetCompareAt } : {}),
+          reason: "cost-based-price-repair-within-same-product-cost-group",
         });
       }
     }
@@ -137,6 +128,7 @@ export function buildVariantCostPriceAlignmentPlan(products = [], { tolerance = 
       blockingHeldGroups: blockingHeld.length,
       tolerance: Number(tolerance.toFixed(2)),
       priceFloor: Number(priceFloor.toFixed(2)),
+      strategyId: PRICE_REWORK_STRATEGY_ID,
     },
   };
 }

@@ -242,6 +242,7 @@ export function buildProductKnowledgeFromTaxonomy(
     reviewReasons,
     seoEligible: taxonomy.seoEligible !== false && !modelConflict,
     evidence: taxonomy.evidence,
+    override: taxonomy.override || null,
     modelEvidence: resolvedModelEvidence,
   };
 }
@@ -276,6 +277,7 @@ export function compactProductKnowledge(productKnowledge) {
     ),
     confidence: productKnowledge.confidence,
     reviewRequired: productKnowledge.reviewRequired,
+    override: productKnowledge.override || null,
     modelEvidence: productKnowledge.modelEvidence,
   };
 }

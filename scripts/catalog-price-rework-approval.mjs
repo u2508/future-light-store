@@ -11,7 +11,7 @@ const approvalPath = resolve(rootDir, "docs", "catalog-price-rework-approval.jso
 function fail(message) {
   throw new Error(
     `${message}\n` +
-      "Price writes are blocked until the approved tiered-multiplier price rework manifest is loaded.",
+      "Price writes are blocked until the approved cost-based pricing manifest is loaded.",
   );
 }
 
@@ -22,15 +22,26 @@ const approval = await readFile(approvalPath, "utf8").then(JSON.parse).catch((er
 const approvalId = String(approval?.approvalId || "").trim();
 if (approval?.approved !== true) fail("Catalog price rework approval is not marked approved.");
 if (!approvalId) fail("Catalog price rework approval has no approvalId.");
-if (Number(approval?.scope?.threshold) !== 35) fail("Price rework approval must target the $35 threshold.");
 if (String(approval?.scope?.strategyId || "") !== PRICE_REWORK_STRATEGY_ID) {
   fail(`Price rework approval must use strategy ${PRICE_REWORK_STRATEGY_ID}.`);
 }
-if (approval?.scope?.compareAtPrices !== "multiply existing compare-at prices by the same variant multiplier; preserve absence") {
-  fail("Price rework approval must adjust existing compare-at prices with the variant multiplier.");
+if (approval?.scope?.costSource !== "live Shopify variant inventoryItem.unitCost.amount") {
+  fail("Price rework approval must use the live Shopify variant inventory cost.");
 }
-if (approval?.scope?.variantPrices !== "preserve independent variant pricing; never flatten quality, size, color, or bundle prices") {
+if (Number(approval?.scope?.overhead) !== 16) {
+  fail("Price rework approval must include the approved $16 overhead.");
+}
+if (Number(approval?.scope?.minimumSellPrice) !== 0.99) {
+  fail("Price rework approval must include the approved $0.99 minimum sell price.");
+}
+if (approval?.scope?.compareAtPrices !== "preserve absence; when present normalize to at least 1.25x the cost-based sell price with psychological rounding") {
+  fail("Price rework approval must preserve compare-at absence and normalize present compare-at prices.");
+}
+if (approval?.scope?.variantPrices !== "calculate independently per variant; preserve quality, size, color, bundle, and quantity-tier differences") {
   fail("Price rework approval must preserve independent variant pricing.");
+}
+if (!approval?.scope?.costBands || typeof approval.scope.costBands !== "object") {
+  fail("Price rework approval must include the approved cost bands.");
 }
 if (process.env.SALT_CATALOG_PRICE_REWORK_APPROVED !== "1") {
   fail("Set SALT_CATALOG_PRICE_REWORK_APPROVED=1 only for the approved live price rework.");

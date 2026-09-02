@@ -87,6 +87,193 @@ function buildProductEvidenceText(product) {
   ].join(" ")).replace(/[-_]+/g, " ");
 }
 
+// Supplier titles sometimes contain enough concrete product evidence for a
+// Shopify path even when the broader catalog classifier remains conservative.
+// Keep these fallbacks narrow and return paths, not guessed IDs: the backfill
+// resolves every path against Shopify before applying it.
+const DETERMINISTIC_CATEGORY_RULES = Object.freeze([
+  {
+    id: "pet-grooming-tools",
+    pattern: /(?:pet|dog|cat|puppy|kitten).{0,80}(?:brush|slicker|deshedding|dematting|hair removal)|(?:brush|slicker|deshedding|dematting).{0,80}(?:pet|dog|cat|puppy|kitten)/i,
+    fullName: "Animals & Pet Supplies > Pet Supplies > Pet Grooming Supplies",
+  },
+  {
+    id: "massage-recovery-tools",
+    pattern: /\b(?:massage|massager|muscle relief|relax tool)\b/i,
+    fullName: "Health & Beauty > Health Care",
+  },
+  {
+    id: "party-decoration-supplies",
+    pattern: /(?:cake topper|cake toppers|party decoration|retirement sash|retired sash|birthday sash|photo prop|party supplies)/i,
+    fullName: "Arts & Entertainment > Party & Celebration > Party Supplies",
+  },
+  {
+    id: "greeting-cards",
+    pattern: /(?:greeting card|birthday card|holiday card|father'?s day card|christmas card|custom greeting cards?)/i,
+    fullName: "Arts & Entertainment > Party & Celebration > Greeting Cards",
+  },
+  {
+    id: "tableware-gift-sets",
+    pattern: /(?:wine glass|whiskey glass|drinkware|tableware).{0,45}(?:set|gift)|(?:set|gift).{0,45}(?:wine glass|whiskey glass|drinkware|tableware)/i,
+    fullName: "Home & Garden > Kitchen & Dining > Tableware",
+  },
+  {
+    id: "specific-decorative-gift-items",
+    pattern: /(?:acrylic plaque|acrylic sign|refrigerator magnet|decoration magnet|wall hanging decor|crochet penguin|sunflower.*flower)/i,
+    fullName: "Home & Garden > Decor",
+  },
+  {
+    id: "specific-fishing-lures",
+    pattern: /\bfishing lure\b/i,
+    fullName: "Sporting Goods > Outdoor Recreation > Fishing",
+  },
+  {
+    id: "gift-giving",
+    pattern: /\b(?:gift|gifts|present|presents|keepsake)\b.{0,70}\b(?:dad|dads|father|mom|mother|grandma|grandmother|grandpa|grandfather|teacher|husband|wife|boyfriend|girlfriend|him|her)\b|\b(?:dad|dads|father|mom|mother|grandma|grandmother|grandpa|grandfather|teacher|husband|wife|boyfriend|girlfriend)\b.{0,70}\b(?:gift|gifts|present|presents|keepsake)\b/i,
+    fullName: "Arts & Entertainment > Party & Celebration > Gift Giving",
+  },
+  {
+    id: "decorative-gift-items",
+    pattern: /(?:acrylic plaque|acrylic sign|keepsake|wall hanging decor|home decor|desk decor|refrigerator magnet|decoration magnet|sunflower.*flower|crochet penguin)/i,
+    fullName: "Home & Garden > Decor",
+  },
+  {
+    id: "fishing-lures",
+    pattern: /\bfishing lure\b/i,
+    fullName: "Sporting Goods > Outdoor Recreation > Fishing",
+  },
+  {
+    id: "electronic-pets-and-novelty-toys",
+    pattern: /(?:electronic pets?|virtual cyber pet|prank gift|practical joke)/i,
+    fullName: "Toys & Games > Toys",
+  },
+  {
+    id: "hair-care-tools-and-treatments",
+    pattern: /(?:split ends?|hair end(?:s)? trimmer|hair cutting machine|hair ampoule|hair gloss|hair color conditioning)/i,
+    fullName: "Health & Beauty > Personal Care > Hair Care",
+  },
+  {
+    id: "home-thermometers-and-hygrometers",
+    pattern: /(?:digital thermometer|hygrometer|humidity temperature|temperature gauge)/i,
+    fullName: "Home & Garden > Household Appliances",
+  },
+  {
+    id: "brooches-and-pins",
+    pattern: /\b(?:brooch(?:es)?|lapel pin|decorative pin)\b/i,
+    fullName: "Apparel & Accessories > Clothing Accessories > Brooches",
+  },
+  {
+    id: "skin-care-products",
+    pattern: /(?:facial? moisturizing cream|face cream|face balm|facial care|skin care|silicone mask cover|face sculpting mask)/i,
+    fullName: "Health & Beauty > Personal Care > Cosmetics > Skin Care",
+  },
+  {
+    id: "sleep-masks-and-relaxation",
+    pattern: /(?:sleeping mask|sleep mask|eye blindfold|eye cover).{0,45}(?:travel|sleep|lunch break|blockout)|(?:travel|sleep|lunch break|blockout).{0,45}(?:sleeping mask|sleep mask|eye blindfold|eye cover)/i,
+    fullName: "Health & Beauty > Health Care",
+  },
+  {
+    id: "sleep-pillows",
+    pattern: /(?:sleeping pillow|sleep pillow|hotel pillow|pillows? for sleeping|lying pillow)/i,
+    fullName: "Home & Garden > Linens & Bedding > Pillows",
+  },
+  {
+    id: "kitchen-storage-organization",
+    pattern: /(?:kitchen|refrigerator|fridge|under sink|countertop).{0,70}(?:organizer|storage|rack|shelf|shelves|drawer|hooks?)|(?:organizer|storage|rack|shelf|shelves|drawer|hooks?).{0,70}(?:kitchen|refrigerator|fridge|under sink|countertop)/i,
+    fullName: "Home & Garden > Kitchen & Dining > Kitchen Storage & Organization",
+  },
+  {
+    id: "kitchen-tools-and-utensils",
+    pattern: /(?:rice washing|rice rinsing|garlic.{0,20}(?:crusher|press)|vegetable fruit crusher|drain mat|drain basket|kitchen washing gadget|kitchen helper gadget)/i,
+    fullName: "Home & Garden > Kitchen & Dining > Kitchen Tools & Utensils",
+  },
+  {
+    id: "food-storage-containers",
+    pattern: /(?:food storage|storage container).{0,70}(?:grain|flour|rice|nut|airtight|sealed)|(?:grain|flour|rice|nut|airtight|sealed).{0,70}(?:food storage|storage container)/i,
+    fullName: "Home & Garden > Kitchen & Dining > Food Storage",
+  },
+  {
+    id: "bathroom-shelves-and-caddies",
+    pattern: /(?:bathroom shelves?|shower towel caddy|shampoo.*storage).{0,70}(?:organizer|rack|holder|caddy)|(?:organizer|rack|holder|caddy).{0,70}(?:bathroom shelves?|shower towel caddy|shampoo.*storage)/i,
+    fullName: "Home & Garden > Bathroom Accessories",
+  },
+  {
+    id: "household-storage-organization",
+    pattern: /(?:storage box|storage boxes|storage rack|storage shelves|storage holders|storage organizer|trolley storage|home organization)/i,
+    fullName: "Home & Garden > Household Supplies > Storage & Organization",
+  },
+  {
+    id: "electronic-component-storage",
+    pattern: /(?:electronic components?|small screw accessories|tool classification grid)/i,
+    fullName: "Electronics > Electronics Accessories",
+  },
+  {
+    id: "smart-door-locks",
+    pattern: /(?:smart door lock|door cylinder|door lock|password locks?|keyless entry|fingerprint lock)/i,
+    fullName: "Hardware > Building Materials > Door Hardware > Locks",
+  },
+  {
+    id: "security-alarm-systems",
+    pattern: /^(?!.*\b(?:bike|bicycle|motorcycle|car|vehicle)\b)(?:.*\b(?:door|window|home security|anti theft|anti-theft|PIR|motion detector|alarm system|security system|security alarm|siren|sensor|detector)\b.*)$/i,
+    fullName: "Hardware > Security > Security Systems",
+  },
+  {
+    id: "vehicle-security-alarms",
+    pattern: /(?:bike|bicycle|motorcycle|car).{0,55}(?:alarm|anti theft|security system)|(?:alarm|anti theft|security system).{0,55}(?:bike|bicycle|motorcycle|car)/i,
+    fullName: "Vehicles & Parts > Vehicle Parts & Accessories",
+  },
+  {
+    id: "home-security-lighting",
+    pattern: /(?:tv simulator|security light).{0,70}(?:flashing|led|timer|dusk|anti theft)|(?:flashing|led|timer|dusk|anti theft).{0,70}(?:tv simulator|security light)/i,
+    fullName: "Home & Garden > Lighting",
+  },
+  {
+    id: "landline-telephones",
+    pattern: /(?:land[- ]line phone|home telephone|large button phone|telephone for seniors)/i,
+    fullName: "Electronics > Communications > Telephones",
+  },
+  {
+    id: "decorative-lighting",
+    pattern: /(?:lighting painting|luminous lighting|bedside.*lighting|three color dimming)/i,
+    fullName: "Home & Garden > Lighting",
+  },
+  {
+    id: "bedside-storage-organizers",
+    pattern: /(?:bedside organizer|bedside storage|hanging basket bed|bunk.*organizer|dormitory.*rack)/i,
+    fullName: "Home & Garden > Household Supplies > Storage & Organization",
+  },
+  {
+    id: "reading-glasses-and-vision-aids",
+    pattern: /(?:reading glasses?|magnifying glass|magnifying glasses?|handheld magnifier|phone screen magnifier)/i,
+    fullName: "Health & Beauty > Health Care",
+  },
+  {
+    id: "shirts-and-tank-tops",
+    pattern: /(?:tank tops?|sleeveless vest|crew[- ]neck tank|undershirt)/i,
+    fullName: "Apparel & Accessories > Clothing > Shirts & Tops",
+  },
+  {
+    id: "sweaters-and-cardigans",
+    pattern: /(?:sweater|cardigan|pullover|sweatshirt)/i,
+    fullName: "Apparel & Accessories > Clothing > Outerwear",
+  },
+]);
+
+function inferDeterministicFallbackCategory(product) {
+  const evidence = buildProductEvidenceText(product);
+  if (!evidence) return null;
+  const match = DETERMINISTIC_CATEGORY_RULES.find((rule) => rule.pattern.test(evidence));
+  if (!match) return null;
+  return {
+    id: "",
+    name: match.fullName.split(/\s*>\s*/).at(-1) || match.fullName,
+    fullName: match.fullName,
+    confidence: "high",
+    reason: `Evidence-backed fallback ${match.id} resolved to ${match.fullName}`,
+    ruleId: match.id,
+  };
+}
+
 export function inferShopifyTaxonomyCategory(product) {
   const evidence = buildProductEvidenceText(product);
   if (!evidence) {
@@ -114,6 +301,9 @@ export function inferDeterministicShopifyTaxonomyCategory(product) {
   const explicit = inferShopifyTaxonomyCategory(product);
   if (explicit) return explicit;
   if (!product || typeof product !== "object") return null;
+
+  const deterministicFallback = inferDeterministicFallbackCategory(product);
+  if (deterministicFallback) return deterministicFallback;
 
   const cached = richCategoryCache.get(product);
   if (cached !== undefined) return cached;

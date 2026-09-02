@@ -66,6 +66,16 @@ in-flight request reuse automatically. You can tune the limits with
 existing per-workflow concurrency variables without changing the release
 ordering or its live-readback gates.
 
+### Cost-based pricing
+
+The approved pricing stage reads each live variant's Shopify inventory cost and
+calculates its retail price independently. It applies the approved overhead
+and cost bands, preserves variant differences, and normalizes only existing
+compare-at prices. The full-catalog audit and live readback cover every active
+variant, including variants that did not need a mutation. The same-product
+alignment stage uses this same target and proposes zero flattening edits when
+the pricing stage is complete.
+
 The release keeps the visual classification queue at
 `output/catalog-visual-review-queue.json` and waits for image decisions rather
 than completing with unresolved products. After decisions are recorded in the

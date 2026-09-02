@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 import { normalizeHandleValue, normalizePlainText } from "../src/lib/shopify-seo-batch.js";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
-import { createRequestScheduler, envInteger } from "./lib/performance-runtime.mjs";
+import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
 
 const execFileAsync = promisify(execFile);
 const rootDir = resolve(import.meta.dirname, "..");
@@ -25,29 +25,50 @@ const adminAccessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.S
 const adminGraphqlUrl = `${new URL(shopBase).origin}/admin/api/${apiVersion}/graphql.json`;
 const cliBinary = process.env.SHOPIFY_CLI_BINARY || "shopify";
 const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
-const requestConcurrency = envInteger("SALT_SHOPIFY_REQUEST_CONCURRENCY", 4, { min: 1, max: 8 });
+const requestConcurrency = envInteger(
+  "SALT_SHOPIFY_REQUEST_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
+  { min: 1, max: 8 },
+);
 const requestScheduler = createRequestScheduler({ concurrency: requestConcurrency, minIntervalMs: requestDelayMs });
 const maxAttempts = Math.max(1, Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
 const maxBatchProducts = Math.max(1, Math.min(25, Number(process.env.SALT_VARIANT_IMAGE_BATCH_SIZE || 25)));
-const applyConcurrency = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_APPLY_CONCURRENCY || 2));
-const fetchConcurrency = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_FETCH_CONCURRENCY || 2));
+const applyConcurrency = envInteger("SALT_VARIANT_IMAGE_APPLY_CONCURRENCY", 3, { min: 1, max: 4 });
+const fetchConcurrency = envInteger(
+  "SALT_VARIANT_IMAGE_FETCH_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
+  { min: 1, max: 8 },
+);
 // Serial readback avoids false failures when Shopify throttles a large verification fan-out.
-const verifyConcurrency = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_VERIFY_CONCURRENCY || 1));
+const verifyConcurrency = envInteger(
+  "SALT_VARIANT_IMAGE_VERIFY_CONCURRENCY",
+  recommendedConcurrency({ kind: "io", reserve: 2, max: 4 }),
+  { min: 1, max: 4 },
+);
 const interBatchDelayMs = Math.max(0, Number(process.env.SALT_VARIANT_IMAGE_INTER_BATCH_DELAY_MS || 500));
 const forceGuesses = process.env.SALT_VARIANT_IMAGE_FORCE_GUESSES !== "0";
 const visionEnabled = process.env.SALT_VARIANT_IMAGE_VISION !== "0";
-const visionConcurrency = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_VISION_CONCURRENCY || 1));
-const planConcurrency = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_PLAN_CONCURRENCY || 8));
+const visionConcurrency = envInteger("SALT_VARIANT_IMAGE_VISION_CONCURRENCY", 1, { min: 1, max: 8 });
+const planConcurrency = envInteger(
+  "SALT_VARIANT_IMAGE_PLAN_CONCURRENCY",
+  recommendedConcurrency({ kind: "cpu", reserve: 1, max: 8 }),
+  { min: 1, max: 8 },
+);
 const visionModel = process.env.SALT_VARIANT_IMAGE_VISION_MODEL || "gemma3:4b";
 const ollamaUrl = (process.env.SALT_OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/+$/, "");
-const visionImageLimit = Math.max(2, Math.min(25, Number(process.env.SALT_VARIANT_IMAGE_VISION_IMAGE_LIMIT || 20)));
-const visionImageWidth = Math.max(384, Math.min(1200, Number(process.env.SALT_VARIANT_IMAGE_VISION_IMAGE_WIDTH || 768)));
-const visionImageAttempts = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_VISION_IMAGE_ATTEMPTS || 3));
+const visionImageLimit = Math.max(2, Math.min(8, Number(process.env.SALT_VARIANT_IMAGE_VISION_IMAGE_LIMIT || 8)));
+const visionImageWidth = Math.max(384, Math.min(1200, Number(process.env.SALT_VARIANT_IMAGE_VISION_IMAGE_WIDTH || 512)));
+const visionImageAttempts = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_VISION_IMAGE_ATTEMPTS || 2));
 const visionImageTimeoutMs = Math.max(10_000, Number(process.env.SALT_VARIANT_IMAGE_VISION_IMAGE_TIMEOUT_MS || 45_000));
-const visionRequestAttempts = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_VISION_REQUEST_ATTEMPTS || 3));
-const visionRequestTimeoutMs = Math.max(30_000, Number(process.env.SALT_VARIANT_IMAGE_VISION_REQUEST_TIMEOUT_MS || 180_000));
-const visionOutputTokens = Math.max(256, Number(process.env.SALT_VARIANT_IMAGE_VISION_OUTPUT_TOKENS || 1200));
-const visionContextLength = Math.max(4096, Number(process.env.SALT_VARIANT_IMAGE_VISION_CONTEXT_LENGTH || 8192));
+const visionRequestAttempts = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_VISION_REQUEST_ATTEMPTS || 1));
+const visionRequestTimeoutMs = Math.max(30_000, Number(process.env.SALT_VARIANT_IMAGE_VISION_REQUEST_TIMEOUT_MS || 90_000));
+const visionOutputTokens = Math.max(256, Number(process.env.SALT_VARIANT_IMAGE_VISION_OUTPUT_TOKENS || 512));
+const visionContextLength = Math.max(4096, Number(process.env.SALT_VARIANT_IMAGE_VISION_CONTEXT_LENGTH || 4096));
+const visionCircuitFailureThreshold = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_VISION_CIRCUIT_FAILURE_THRESHOLD || 2));
+const visionCircuitCooldownMs = Math.max(30_000, Number(process.env.SALT_VARIANT_IMAGE_VISION_CIRCUIT_COOLDOWN_MS || 300_000));
+let visionConsecutiveFailures = 0;
+let visionCircuitOpenUntil = 0;
+const imageRankingCache = new WeakMap();
 const debugHandle = normalizeHandleValue(process.env.SALT_VARIANT_IMAGE_DEBUG_HANDLE || "");
 const useBulkApply = process.env.SALT_VARIANT_IMAGE_USE_BULK !== "0";
 const bulkApplyThreshold = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_BULK_THRESHOLD || 25));
@@ -75,7 +96,14 @@ const liveMediaPageSize = Math.max(
   Math.min(25, Number(process.env.SALT_VARIANT_IMAGE_MEDIA_PAGE_SIZE || 25))
 );
 const graphqlTimeoutMs = Math.max(30_000, Number(process.env.SALT_SHOPIFY_GRAPHQL_TIMEOUT_MS || 120_000));
-const checkpointInterval = Math.max(1, Number(process.env.SALT_VARIANT_IMAGE_CHECKPOINT_INTERVAL || 12));
+const checkpointInterval = envInteger(
+  "SALT_VARIANT_IMAGE_CHECKPOINT_INTERVAL",
+  // Rewriting the growing checkpoint after every product makes resume mode
+  // disk-bound. Eight plans is a small recovery window while avoiding a
+  // full-catalog write for every completed product.
+  process.env.SALT_VARIANT_IMAGE_RESUME === "1" ? 8 : 24,
+  { min: 1, max: 100 },
+);
 
 const LIVE_PRODUCT_SELECTION = /* GraphQL */ `
   id
@@ -306,6 +334,31 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * AbortSignal.timeout() should cover fetch, but some local model runtimes can
+ * leave a response promise open after the socket has stopped making progress.
+ * Race the complete response (including JSON parsing) against an explicit
+ * timer so one vision request can never hold the resumable release forever.
+ */
+async function withHardTimeout(task, timeoutMs, label) {
+  const controller = new AbortController();
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => task(controller.signal)),
+      timeout,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function tokenise(value) {
   return normalizePlainText(value)
     .toLowerCase()
@@ -366,8 +419,14 @@ function hasSemanticVariantRole(variant) {
   return tokenise(variantText(variant)).some((token) => visionRoleTokens.has(token));
 }
 
-function productNeedsVisualVerification(product, images, variants, liveProduct = null) {
+function productNeedsVisualVerification(product, images, variants, liveProduct = null, deterministicAssignments = null) {
   if (!visionEnabled || !Array.isArray(images) || images.length < 2 || variants.length < 2) return false;
+  // Deterministic SKU/title/option evidence is both faster and more auditable
+  // than local vision. If every variant already has a unique deterministic
+  // candidate, do not spend model time re-checking an answer we can prove from
+  // the catalog and image metadata.
+  const deterministic = deterministicAssignments || assignDeterministicMappings(variants, images);
+  if (deterministic.size >= variants.length) return false;
   const liveMediaByIdentity = new Map();
   for (const liveVariant of liveProduct?.variants?.nodes || []) {
     const mediaId = getVariantMediaId(liveVariant);
@@ -382,7 +441,10 @@ function productNeedsVisualVerification(product, images, variants, liveProduct =
     .filter(Boolean)
     .map(String);
   const distinctCurrentImages = new Set(currentAssignments);
-  const allCurrentImage = currentAssignments.length < variants.length || distinctCurrentImages.size <= 1;
+  // A missing live association is unknown data, not evidence that every
+  // variant uses the same image. Treating it as "all same" sent almost the
+  // whole catalog through Ollama even when no visual decision was needed.
+  const allCurrentImage = currentAssignments.length >= variants.length && distinctCurrentImages.size <= 1;
   const productTokens = new Set(tokenise(product?.title || ""));
   const criticalRoleTokens = new Set(["backpack", "bottle", "insulated", "lunch", "pencil"]);
   const hasDifferentSemanticRoles = variants.filter(hasSemanticVariantRole).length >= 2
@@ -516,11 +578,17 @@ function selectVisionCandidates(images, variants, limit) {
 }
 
 async function classifyVariantImagesWithVision(product, variants, images) {
+  if (visionCircuitOpenUntil > Date.now()) {
+    const remainingSeconds = Math.ceil((visionCircuitOpenUntil - Date.now()) / 1000);
+    throw new Error(`Ollama vision circuit is cooling down (${remainingSeconds}s); deterministic fallback remains active.`);
+  }
   const needsDeepVariantWindow = variants.some((variant) => {
     const tokens = new Set(tokenise(variantText(variant)));
     return tokens.has("lunch") || tokens.has("pencil");
   });
-  const candidateLimit = needsDeepVariantWindow ? visionImageLimit : Math.min(4, visionImageLimit);
+  const candidateLimit = needsDeepVariantWindow
+    ? visionImageLimit
+    : Math.min(4, Math.max(2, variants.length));
   const candidates = selectVisionCandidates(images, variants, candidateLimit);
   if (candidates.length < 2) return null;
   const encodedResults = await Promise.all(candidates.map(async (image, sourceIndex) => {
@@ -579,15 +647,24 @@ async function classifyVariantImagesWithVision(product, variants, images) {
   };
   const requestBody = JSON.stringify(body);
   let response = null;
+  let payload = null;
   let requestError = null;
   for (let attempt = 1; attempt <= visionRequestAttempts; attempt += 1) {
     try {
-      response = await fetch(`${ollamaUrl}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(visionRequestTimeoutMs),
-        body: requestBody,
-      });
+      const result = await withHardTimeout(async (signal) => {
+        const nextResponse = await fetch(`${ollamaUrl}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal,
+          body: requestBody,
+        });
+        return {
+          response: nextResponse,
+          payload: nextResponse.ok ? await nextResponse.json() : null,
+        };
+      }, visionRequestTimeoutMs, "Ollama vision request");
+      response = result.response;
+      payload = result.payload;
       if (response.ok) break;
       requestError = new Error(`Ollama HTTP ${response.status}`);
     } catch (error) {
@@ -595,8 +672,18 @@ async function classifyVariantImagesWithVision(product, variants, images) {
     }
     if (attempt < visionRequestAttempts) await sleep(1000 * attempt);
   }
-  if (!response?.ok) throw requestError || new Error("Ollama vision request failed");
-  const payload = await response.json();
+  if (!response?.ok) {
+    visionConsecutiveFailures += 1;
+    if (visionConsecutiveFailures >= visionCircuitFailureThreshold) {
+      visionCircuitOpenUntil = Date.now() + visionCircuitCooldownMs;
+      process.stderr.write(
+        `Ollama vision circuit opened after ${visionConsecutiveFailures} consecutive failure(s); guarded deterministic fallback will continue for ${Math.ceil(visionCircuitCooldownMs / 1000)}s.\n`,
+      );
+    }
+    throw requestError || new Error("Ollama vision request failed");
+  }
+  visionConsecutiveFailures = 0;
+  visionCircuitOpenUntil = 0;
   const parsed = parseJsonResponse(payload?.message?.content) || {};
   if (debugHandle && normalizeHandleValue(product?.handle) === debugHandle) {
     process.stdout.write(`DEBUG vision response ${JSON.stringify(parsed)}\n`);
@@ -762,8 +849,8 @@ function scoreImageMatch(variant, image) {
   }
 
   if (Array.isArray(image.sourceVariantIds) && image.sourceVariantIds.length === 1 && image.sourceVariantIds.some((value) => variantIdentities.has(String(value)))) {
-    score += 14;
-    signals.push("source-variant-hint");
+    score += 30;
+    signals.push("source-variant-exact");
   }
 
   if (Array.isArray(image.liveVariantIds) && image.liveVariantIds.length === 1 && image.liveVariantIds.some((value) => variantIdentities.has(String(value)))) {
@@ -1201,11 +1288,25 @@ async function writePlanCheckpoint(checkpointPath, fingerprint, scope, plansByHa
 }
 
 function isDeterministicImageSignal(signal) {
-  return ["sku-exact", "title-exact", "option:"].some((prefix) => signal === prefix || signal.startsWith(prefix));
+  return ["sku-exact", "title-exact", "option:", "source-variant-exact"].some((prefix) => signal === prefix || signal.startsWith(prefix));
 }
 
 function rankImageCandidates(variant, images) {
-  return images
+  if (images && typeof images === "object" && variant && typeof variant === "object") {
+    let rankingsForImages = imageRankingCache.get(images);
+    if (!rankingsForImages) {
+      rankingsForImages = new WeakMap();
+      imageRankingCache.set(images, rankingsForImages);
+    }
+    const cached = rankingsForImages.get(variant);
+    if (cached) return cached;
+    const ranked = images
+      .map((image) => ({ image, ...scoreImageMatch(variant, image) }))
+      .sort((left, right) => right.score - left.score || String(left.image.id).localeCompare(String(right.image.id)));
+    rankingsForImages.set(variant, ranked);
+    return ranked;
+  }
+  return (Array.isArray(images) ? images : [])
     .map((image) => ({ image, ...scoreImageMatch(variant, image) }))
     .sort((left, right) => right.score - left.score || String(left.image.id).localeCompare(String(right.image.id)));
 }
@@ -1266,8 +1367,8 @@ function assignVisionMappings(variants, images, vision, existingAssignments = ne
   return assignments;
 }
 
-function assignVariantImages(variants, images, snapshotProduct, vision, allowGuesses) {
-  const assignments = assignDeterministicMappings(variants, images);
+function assignVariantImages(variants, images, snapshotProduct, vision, allowGuesses, deterministicAssignments = null) {
+  const assignments = new Map(deterministicAssignments || assignDeterministicMappings(variants, images));
   assignVisionMappings(variants, images, vision, assignments).forEach((assignment, variantIndex) => {
     assignments.set(variantIndex, assignment);
   });
@@ -1351,10 +1452,17 @@ async function buildPlan(snapshotProducts, liveProducts, scopeHandles, options =
       : (Array.isArray(liveProduct?.variants?.nodes) ? liveProduct.variants.nodes : []);
     const updates = [];
     const skipped = [];
+    const deterministicAssignments = assignDeterministicMappings(variants, productImages);
 
     let vision = null;
     let visionError = "";
-    const visionEligible = options.vision && productNeedsVisualVerification(snapshotProduct, productImages, variants, liveProduct);
+    const visionEligible = options.vision && productNeedsVisualVerification(
+      snapshotProduct,
+      productImages,
+      variants,
+      liveProduct,
+      deterministicAssignments,
+    );
     if (debugHandle && handle === debugHandle) {
       process.stdout.write(`DEBUG vision=${options.vision} enabled=${visionEnabled} images=${productImages.length} variants=${variants.length} source=${variants.map((variant) => variant?.featured_image?.id || variant?.image_id || "").join(",")} eligible=${visionEligible} text=${variants.map(variantText).join(" | ")}\n`);
     }
@@ -1366,7 +1474,14 @@ async function buildPlan(snapshotProducts, liveProducts, scopeHandles, options =
       }
     }
 
-    const assignments = assignVariantImages(variants, productImages, snapshotProduct, vision, options.forceGuesses);
+    const assignments = assignVariantImages(
+      variants,
+      productImages,
+      snapshotProduct,
+      vision,
+      options.forceGuesses,
+      deterministicAssignments,
+    );
     for (let variantIndex = 0; variantIndex < variants.length; variantIndex += 1) {
       const variant = variants[variantIndex];
       const assignment = assignments.get(variantIndex);
@@ -1796,4 +1911,9 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename
   });
 }
 
-export { assignVariantImages, buildProductImages, scoreImageMatch };
+export {
+  assignVariantImages,
+  buildProductImages,
+  productNeedsVisualVerification,
+  scoreImageMatch,
+};

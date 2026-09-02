@@ -119,6 +119,12 @@ const GENERIC_TITLE_PHRASES = [
   /shop now/i,
 ];
 
+// These labels describe a broad catalog family, not the item a shopper is
+// actually evaluating. They are useful for classification, but unsafe as the
+// noun in customer-facing copy because they can turn a mattress into a
+// "fitness accessory" or a cable into a generic "electronics accessory".
+const GENERIC_HUMAN_TYPE_PATTERN = /^(?:beauty|electronics?|fashion|fitness|home|outdoor|personal care|sports?)\s+(?:accessory|item|product|gear)|^(?:general|miscellaneous|other|practical)\s+(?:item|product)$/i;
+
 const HANDLE_TITLE_OVERRIDES = new Map([
   [
     "out-of-stock-out-of-stock-out-of-stock-out-of-stock-out-of-stockout-of-stock-out-of-stock-out-of-stock",
@@ -662,6 +668,18 @@ export function buildHandleAlignedTitle(signals) {
   }
   if (/(?:3[ .-]?5\s*mm|35mm).*?(?:aux|audio).*cable.*(?:xh2|terminal)|(?:aux|audio).*cable.*(?:xh2|terminal)/i.test(semanticHandle)) {
     return "3.5mm AUX Audio Cable with XH2.54 3-Pin Male Terminals";
+  }
+  if (/screen-auto-clicker|auto-clicker.*(?:screen|phone)|(?:screen|phone).*auto-clicker/i.test(handle)) {
+    return "Screen Auto Clicker for Smartphones and Apps";
+  }
+  if (/(?:pet|dog|cat).*(?:nail-clipper|claw-trimmer)|(?:nail-clipper|claw-trimmer).*(?:pet|dog|cat)/i.test(handle)) {
+    return "Pet Nail Clipper Grooming Tool for Dogs and Cats";
+  }
+  if (/(?:rca|coaxial).*cable|cable.*(?:rca|coaxial)/i.test(handle)) {
+    return "HiFi RCA Coaxial Audio Cable for Home Theater";
+  }
+  if (/f40.*sweater|sweater.*f40|mens-and-womens.*sweater/i.test(handle)) {
+    return "F40 Patterned Sweater for Men and Women";
   }
   if (/(?:3[ .-]?5\s*mm|35mm).*?(?:aux|audio).*cable/i.test(semanticHandle)) {
     return /usb[ -]?c.*(?:3[ .-]?5\s*mm|35mm)|(?:3[ .-]?5\s*mm|35mm).*usb[ -]?c/i.test(semanticHandle)
@@ -1427,7 +1445,15 @@ function humanProductType(signals, titleText, knowledge) {
     [signals.handle, titleText, signals.sourceProductType, signals.catalogProductType].filter(Boolean).join(" "),
   );
   const exactTypes = [
+    [/screen[- ]?auto[- ]?clicker|auto[- ]?clicker.*(?:screen|phone)|(?:screen|phone).*auto[- ]?clicker/i, "screen auto clicker"],
+    [/(?:pet|dog|cat).*(?:nail clipper|claw trimmer)|(?:nail clipper|claw trimmer).*(?:pet|dog|cat)/i, "pet nail clipper"],
+    [/(?:rca|coaxial).*cable|cable.*(?:rca|coaxial)/i, "RCA coaxial audio cable"],
+    [/f40.*sweater|sweater.*f40|mens and womens.*sweater/i, "patterned sweater"],
     [/(?:3\s*5\s*mm|35mm).*?(?:aux|audio).*cable|(?:aux|audio).*cable.*(?:xh2|terminal)/i, "3.5mm AUX audio cable"],
+    [/(?:inflatable|air).*mattress|mattress.*(?:inflatable|camping|sleeping)/i, "inflatable camping mattress"],
+    [/(?:tactical|molle).*backpack|backpack.*(?:tactical|molle)|\bruck sack\b/i, "tactical backpack"],
+    [/(?:squeegees?|window cleaning).*\b(?:window|glass)\b|\b(?:window|glass)\b.*(?:squeegees?|window cleaning)/i, "window and glass squeegee"],
+    [/(?:thermos|tumbler|water bottle).*\b(?:straw|insulated)\b|\b(?:straw|insulated)\b.*(?:thermos|tumbler|water bottle)/i, "insulated drink bottle"],
     [/articulated arm.*(?:hex pin|female thread)|(?:hex pin|female thread).*articulated arm/i, "articulated camera mounting arm"],
     [/\b(?:ear hooks?|anti lost ear hooks?)\b/i, "earbud ear hooks"],
     [/\b(?:ear tips?|eartips?)\b/i, "earbud replacement ear tips"],
@@ -1477,12 +1503,14 @@ function humanProductType(signals, titleText, knowledge) {
   if (
     rawType &&
     !/^(?:accessories?|item|product|general|miscellaneous|other)$/i.test(rawType) &&
+    !GENERIC_HUMAN_TYPE_PATTERN.test(rawType) &&
     isTitleAlignedWithKnowledge(rawType, knowledge)
   ) {
     return rawType.toLowerCase();
   }
 
-  return normalizePlainText(knowledge.productNouns?.[0] || "product").toLowerCase();
+  const fallbackType = normalizePlainText(knowledge.productNouns?.[0] || "product").toLowerCase();
+  return GENERIC_HUMAN_TYPE_PATTERN.test(fallbackType) ? "item" : fallbackType;
 }
 
 function buildHumanProductSummary(titleText, signals, knowledge, facts) {
@@ -1503,6 +1531,15 @@ function buildHumanProductSummary(titleText, signals, knowledge, facts) {
 
   if (/(?:3\s*5\s*mm|35mm).*?(?:aux|audio).*cable.*(?:xh2|terminal)|(?:aux|audio).*cable.*(?:xh2|terminal)/i.test(evidence)) {
     return "This cable connects a 3.5mm AUX audio plug with an XH2.54 3-pin terminal in the male-to-male layout named by the listing.";
+  }
+  if (/screen[- ]?auto[- ]?clicker|auto[- ]?clicker/i.test(evidence)) {
+    return "This screen auto clicker simulates repeated taps on a compatible smartphone app; check the phone fit and listed control method before ordering.";
+  }
+  if (/(?:pet|dog|cat).*(?:nail[- ]?clipper|claw[- ]?trimmer)|(?:nail[- ]?clipper|claw[- ]?trimmer).*(?:pet|dog|cat)/i.test(evidence)) {
+    return "This pet nail clipper is for trimming dog or cat claws; check the cutting size and safety features before use.";
+  }
+  if (/f40.*sweater|sweater.*f40|mens[- ]and[- ]womens.*sweater/i.test(evidence)) {
+    return "This F40 patterned sweater uses the car motif named in the listing for fall and winter wear; check the listed fabric and fit before ordering.";
   }
   if (/(?:3\s*5\s*mm|35mm).*?(?:aux|audio).*cable/i.test(evidence)) {
     return "This cable carries the 3.5mm AUX audio connection named in the listing; check the device-side connector and cable length before ordering.";
@@ -1561,6 +1598,15 @@ function buildHumanProductSummary(titleText, signals, knowledge, facts) {
   if (/\b(?:rca.*cable|coaxial cable)\b/i.test(evidence)) {
     return "This RCA audio cable connects the male-to-male equipment formats named in the listing; check the connector type and cable length before ordering.";
   }
+  if (/\b(?:facial toner pads?|toner pads?|exfoliating pads?)\b/i.test(evidence)) {
+    return "These facial toner pads fit the exfoliating step in a skin-care routine, with the listed AHA and BHA ingredients, pad count, and application directions to check before use.";
+  }
+  if (/\b(?:mattress|sleeping pad)\b/i.test(evidence)) {
+    return `${subject} ${typeText} ${linkingVerb} for the indoor or outdoor sleeping use named in the title${size ? ` and the listed ${size} size` : ""}.`;
+  }
+  if (/\b(?:squeegees?|window cleaning|glass cleaning)\b/i.test(evidence)) {
+    return `${subject} ${typeText} ${linkingVerb} for cleaning windows and glass in the household settings named in the title.`;
+  }
   if (/articulated arm.*(?:hex pin|female thread)|(?:hex pin|female thread).*articulated arm/i.test(evidence)) {
     return "This articulated arm positions a compatible camera, light, or studio accessory using the 5/8 hex pin and threaded fittings listed in the title.";
   }
@@ -1613,18 +1659,18 @@ function buildHumanProductSummary(titleText, signals, knowledge, facts) {
     return `${subject} ${typeText} ${subject === "These" ? "add" : "adds"} the wearable detail named in the title, with the listed design and option details helping you choose the right finish.`;
   }
   if (/\b(?:bag|backpack|tote|wallet|purse|organizer|laptop sleeve|card holder)\b/i.test(evidence)) {
-    return `${subject} ${typeText} ${linkingVerb} arranged around the carrying or storage format named in the title${size ? ` and the listed ${size} capacity` : ""}.`;
+    return `${subject} ${typeText} ${linkingVerb} designed around the carrying or storage format named in the title${size ? `, including the listed ${size} capacity` : ""}.`;
   }
   if (/\b(?:water bottle|shaker bottle|flask|thermos|tumbler|travel mug)\b/i.test(evidence)) {
     return `${subject} ${typeText} is for carrying drinks in the capacity and lid format named in the listing${size ? `, including ${size}` : ""}.`;
   }
-  if (/\b(?:dog|cat|pet|aquarium|leash|pet bed)\b/i.test(evidence)) {
+  if (/\b(?:dog|cat|aquarium|leash|pet bed|pet toy|pet food|pet grooming|pet supplies)\b/i.test(evidence)) {
     return `${subject} ${typeText} is for the pet-care task and animal format named in the title, so check the listed size and options before ordering.`;
   }
   if (/\b(?:baby|toddler|diaper|stroller|kids|children|bib)\b/i.test(evidence)) {
     return `${subject} ${typeText} is designed around the child or caregiver use named in the title, with the listed age, size, or option details to check before ordering.`;
   }
-  if (/\b(?:lamp|light|lighting|lantern|bulb)\b/i.test(evidence)) {
+  if (/\b(?:lamp|lighting|lantern|bulb|led|wall light|desk light|ceiling light|night light)\b/i.test(evidence)) {
     return `${subject} ${typeText} ${subject === "These" ? "add" : "adds"} the lighting format and placement named in the title${setting ? ` for ${setting.toLowerCase()} use` : ""}.`;
   }
   if (/\b(?:kitchen|cookware|pot|pan|spatula|peeler|cutter|knife|measuring)\b/i.test(evidence)) {
@@ -1635,7 +1681,50 @@ function buildHumanProductSummary(titleText, signals, knowledge, facts) {
   }
 
   const safeType = typeText && !/^product$/i.test(typeText) ? typeText : "item";
-  return `This ${safeType} is intended for the task named in the title. Check the listed fit, size, connection, and care details before ordering.`;
+  const identity = titleText || safeType;
+  const detailFacts = (facts || [])
+    .filter((fact) => fact?.label && fact.label !== "Product focus" && fact?.value)
+    .slice(0, 3)
+    .map((fact) => `${fact.label.toLowerCase()}: ${fact.value}`)
+    .join("; ");
+  const article = /^[aeiou]/i.test(safeType) ? "an" : "a";
+  return `The ${identity} is listed as ${article} ${safeType}.${detailFacts ? ` Listed details include ${detailFacts}.` : " Check the listed fit, size, connection, and care details before ordering."}`;
+}
+
+function buildEvidenceBackedSummary(titleText, signals, knowledge, facts) {
+  const identity = titleText || buildSafeHandleTitle(signals) || "product";
+  const rawType = normalizePlainText(humanProductType(signals, identity, knowledge));
+  const typeText = rawType && !/^item$|^product$/i.test(rawType) ? rawType : "product";
+  const article = /^[aeiou]/i.test(typeText) ? "an" : "a";
+  const detailFacts = (facts || [])
+    .filter((fact) => fact?.label && fact.label !== "Product focus" && fact?.value)
+    .slice(0, 3)
+    .map((fact) => `${fact.label.toLowerCase()}: ${fact.value}`)
+    .join("; ");
+  return `The ${identity} is listed as ${article} ${typeText}.${detailFacts ? ` Listed details include ${detailFacts}.` : " Check the listed specifications and compatibility details before ordering."}`;
+}
+
+function buildProductDrivenHumanSummary(titleText, signals, knowledge, facts) {
+  const summary = buildHumanProductSummary(titleText, signals, knowledge, facts);
+  // Preserve deliberately evidence-rich family copy even when morphology
+  // (for example, "module" versus "modules") would undercount its title
+  // tokens. These phrases are backed by the handle and are also covered by
+  // the listing-intelligence fixtures.
+  if (/\b(?:voltage range listed|3\.5mm AUX|XH2\.54|5\/8 hex pin|Bowens-compatible|camera model)\b/i.test(summary)) {
+    return summary;
+  }
+  const titleTokens = uniqueValues(tokenizeText(titleText)
+    .filter((token) => token.length >= 3 && !GENERIC_TITLE_WORDS.has(token) && !/^\d+$/.test(token)));
+  const summaryTokens = new Set(tokenizeText(summary));
+  const matchedIdentityTokens = titleTokens.filter((token) => summaryTokens.has(token));
+  const requiredMatches = titleTokens.length >= 2 ? 2 : 1;
+  const summaryUsesBroadFamilyLabel = GENERIC_HUMAN_TYPE_PATTERN.test(
+    normalizePlainText(humanProductType(signals, titleText, knowledge)),
+  );
+  if (!summaryUsesBroadFamilyLabel && matchedIdentityTokens.length >= requiredMatches) {
+    return summary;
+  }
+  return buildEvidenceBackedSummary(titleText, signals, knowledge, facts);
 }
 
 function buildSeoDescription(title, signals, searchPhrases) {
@@ -1643,40 +1732,71 @@ function buildSeoDescription(title, signals, searchPhrases) {
   const knowledge = resolveProductKnowledge(signals.handle);
   const facts = prioritizeProductFacts(extractSupportedProductFacts(signals), knowledge)
     .filter((fact) => fact.label !== "Product focus");
-  const humanSummary = buildHumanProductSummary(titleText, signals, knowledge, facts);
-  const factClauses = facts.slice(0, 3).map((fact) => {
-    if (fact.label === "Device compatibility") return `compatibility with ${fact.value}`;
-    if (fact.label === "Size or capacity") return `the listed size or capacity (${fact.value})`;
-    if (fact.label === "Material") return `the listed material (${fact.value})`;
-    if (fact.label === "Supported features") return `the listed features (${fact.value})`;
-    if (fact.label === "Available options") return `the available options (${fact.value})`;
-    if (fact.label === "Intended user") return `the stated user group (${fact.value})`;
-    if (fact.label === "Use or occasion") return `the stated use (${fact.value})`;
-    if (fact.label === "Placement or setting") return `the stated setting (${fact.value})`;
-    if (fact.label === "Pack format") return `the pack format (${fact.value})`;
-    return `${fact.label.toLowerCase()} (${fact.value})`;
-  });
-  const sentences = [humanSummary];
-  if (signals.reviewSummary) {
-    sentences.push(`${signals.reviewSummary.rating.toFixed(1)} stars from ${signals.reviewSummary.ratingCount} trusted reviews.`);
+  const identity = titleText || buildSafeHandleTitle(signals) || "Product listing";
+  const identityEvidence = normalizeComparableText(`${signals.handle || ""} ${identity}`);
+  if (/f40.*sweater|sweater.*f40|mens and womens.*sweater/i.test(identityEvidence)) {
+    return normalizePlainText(
+      `The ${identity} uses the car motif named in the listing for fall and winter wear. Check the listed fabric and fit before ordering.`,
+    );
   }
-  if (factClauses.length) {
-    sentences.push(`Before ordering, check ${factClauses.slice(0, 2).join(" and ")}.`);
-  } else if (signals.productKnowledge?.reviewRequired) {
-    sentences.push("Check the listed compatibility, size, and care information before ordering.");
-  } else {
-    sentences.push("The listed options and specifications show what to check before ordering.");
+  const rawType = normalizePlainText(humanProductType(signals, identity, knowledge));
+  const typeText = rawType && rawType !== "item" && !GENERIC_HUMAN_TYPE_PATTERN.test(rawType)
+    ? rawType
+    : "";
+  const article = /^[aeiou]/i.test(typeText) ? "an" : "a";
+  const useValue = humanizeFactList(firstFactValue(facts, ["Use or occasion", "Placement or setting"]));
+  const fact = facts.find((entry) => [
+    "Device compatibility",
+    "Size or capacity",
+    "Material",
+    "Supported features",
+    "Available options",
+    "Pack format",
+  ].includes(entry.label));
+  const factValue = fact ? shortenAtWordBoundary(fact.value, 34) : "";
+  const factClause = fact
+    ? fact.label === "Device compatibility"
+      ? `${factValue} compatibility`
+      : fact.label === "Size or capacity"
+        ? `${factValue} capacity`
+        : fact.label === "Material"
+          ? `${factValue} material`
+          : fact.label === "Supported features"
+            ? `${factValue} features`
+            : fact.label === "Pack format"
+              ? `${factValue} pack`
+              : "available options"
+    : "options";
+  const useSentence = useValue
+    ? `It is listed for ${useValue.toLowerCase()} use.`
+    : "It follows the product format named in the listing.";
+  const detailSentence = `Check the listed ${factClause} before ordering.`;
+  const reviewSentence = signals.reviewSummary
+    ? `Reviews average ${signals.reviewSummary.rating.toFixed(1)} stars from ${signals.reviewSummary.ratingCount} buyers.`
+    : "";
+  const lead = typeText
+    ? `The ${identity} is ${article} ${typeText}.`
+    : `The ${identity} is the product format named in the listing.`;
+  const fallback = buildEvidenceBackedSummary(identity, signals, knowledge, facts);
+  const candidates = [
+    `${lead} ${useSentence} ${detailSentence} ${reviewSentence}`,
+    `${lead} ${detailSentence} ${useSentence}`,
+    `${lead} ${detailSentence}`,
+    `${lead} ${useSentence}`,
+    `${lead} ${detailSentence} Review the listed specifications before ordering.`,
+    `${fallback} ${useSentence} ${detailSentence}`,
+    `${fallback} Review the listed specifications and available options before ordering.`,
+  ].map((candidate) => normalizePlainText(candidate));
+  const validCandidate = candidates
+    .filter((candidate) => candidate.length >= 120 && candidate.length <= 170)
+    .sort((left, right) => right.length - left.length)[0];
+  if (validCandidate) return validCandidate;
+
+  let sentence = candidates.find((candidate) => candidate.length <= 170) || fallback;
+  if (sentence.length < 120) {
+    sentence = `${sentence} Review fit, setup, and available options before ordering.`;
   }
-  sentences.push("See the full product details at Future Light Store.");
-  let sentence = sentences.join(" ");
-  while (sentence.length > 160 && sentences.length > 1) {
-    sentences.pop();
-    sentence = sentences.join(" ");
-  }
-  const shortened = shortenAtWordBoundary(sentence || titleText, 159)
-    .replace(/\b(and|or|the|a|an|for|with|to|of|before|that|your|intended)$/i, "")
-    .trim();
-  return shortened && !/[.!?]$/.test(shortened) ? `${shortened}.` : shortened;
+  return shortenAtWordBoundary(sentence, 170).replace(/[,:;-]+$/g, "").trim().replace(/[.!?]?$/, ".");
 }
 
 const NON_SHOPPER_SPECIFICATION_KEYS = new Set([
@@ -1706,6 +1826,7 @@ function extractSupportedProductFacts(signals) {
     .replace(/[-_]+/g, " ")
     .replace(/\b3\s+5\s*mm\b/g, "3.5mm");
   const facts = [];
+  const isGlassCleaningTool = /\b(?:glass|window)\s+(?:cleaning|cleaner|squeegees?|wipers?)\b|\b(?:squeegees?|window wipers?|glass wipers?)\b/i.test(source);
   const hasTerm = (term) => new RegExp(`(?:^|\\s)${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\ /g, "\\s+")}(?:$|\\s)`, "i").test(source);
   const add = (label, values) => {
     const clean = uniqueValues(values.map((value) => polishListingValue(value)).filter(Boolean));
@@ -1718,9 +1839,15 @@ function extractSupportedProductFacts(signals) {
   const productFocus = uniqueValues(productFocusTokens).slice(0, 10).join(" ");
   add("Product focus", [productFocus]);
   add("Size or capacity", [...source.matchAll(/\b\d+(?:\.\d+)?\s?(?:ml|l|oz|g|kg|cm|mm|inch|inches|pcs|piece|pieces|pairs?|pack|keys?)\b/gi)].map((match) => match[0]));
-  add("Material", ["cotton", "linen", "silicone", "stainless steel", "glass", "plastic", "wood", "wooden", "leather", "faux leather", "pu leather", "canvas", "nylon", "polyester", "rubber", "ceramic", "metal", "satin", "wool"].filter(hasTerm));
+  const materialTerms = ["cotton", "linen", "silicone", "stainless steel", "glass", "plastic", "wood", "wooden", "leather", "faux leather", "pu leather", "canvas", "nylon", "polyester", "rubber", "ceramic", "metal", "satin", "wool"]
+    .filter(hasTerm)
+    .filter((term) => !(term === "glass" && isGlassCleaningTool));
+  add("Material", materialTerms);
   add("Supported features", ["waterproof", "water resistant", "leakproof", "foldable", "portable", "adjustable", "reusable", "insulated", "rechargeable", "wireless", "shockproof", "non slip", "quick dry", "wide brim", "large capacity", "double strap", "drawstring", "zipper", "magnetic closure", "with straw", "time marker", "reflective", "collapsible"].filter(hasTerm));
-  add("Intended user", ["women", "men", "unisex", "girls", "boys", "kids", "children", "baby", "toddler", "pet", "dog", "cat"].filter((term) => new RegExp(`\\b${term}\\b`).test(source)));
+  const audienceContext = /(?:dress|shirt|top|blouse|jacket|coat|pants|trousers|jeans|skirt|leggings|hoodie|outfit|romper|shoes?|sandals?|boots?|sneakers?|slippers?|wig|hair|makeup|cosmetic|lipstick|eyelash|jewelry|necklace|bracelet|watch|bag|backpack|purse|wallet|sunglasses|eyewear|baby|toddler|diaper|children|kids|pet|dog|cat)/i.test(source);
+  add("Intended user", ["women", "men", "unisex", "girls", "boys", "kids", "children", "baby", "toddler", "pet", "dog", "cat"]
+    .filter((term) => new RegExp(`\\b${term}\\b`).test(source))
+    .filter((term) => audienceContext || /^(?:kids|children|baby|toddler|pet|dog|cat)$/i.test(term)));
   add("Use or occasion", ["everyday", "casual", "work", "office", "travel", "gym", "fitness", "running", "cycling", "hiking", "camping", "outdoor", "beach", "school", "wedding", "party", "evening", "makeup", "skin care", "hair care", "kitchen", "gardening", "construction", "flooring"].filter(hasTerm));
   add("Style or design", ["vintage", "retro", "minimalist", "bohemian", "floral", "solid color", "woven", "braided", "wide leg", "slim fit", "hooded", "long sleeve", "short sleeve", "crossbody", "shoulder", "tote", "backpack"].filter(hasTerm));
   add("Placement or setting", ["living room", "bedroom", "bathroom", "kitchen", "office", "desk", "tabletop", "floor", "wall", "ceiling", "car", "garden", "patio"].filter(hasTerm));
@@ -1743,6 +1870,7 @@ function extractSupportedProductFacts(signals) {
   const labeledFacts = extractLabeledSpecificationFacts(getRawSpecificationSource(signals));
   for (const fact of labeledFacts) {
     if (NON_SHOPPER_SPECIFICATION_KEYS.has(fact.key)) continue;
+    if (isGlassCleaningTool && fact.label === "Material" && /\bglass\b/i.test(fact.value)) continue;
     add(fact.label, [fact.value]);
   }
   return prioritizeProductFacts(facts, resolveProductKnowledge(signals.handle));
@@ -1802,10 +1930,11 @@ const MODEL_TAXONOMY_DEFINITIONS = new Map(
 function getReliableModelTaxonomyDefinition(signals) {
   const evidence = signals?.productKnowledge?.modelEvidence;
   const classificationRule = signals?.productKnowledge?.classificationRule;
+  const hasApprovedOverride = Boolean(signals?.productKnowledge?.override?.id);
   if (
     !evidence?.reliable ||
     !evidence.topRuleId ||
-    evidence.topRuleId !== classificationRule
+    (evidence.topRuleId !== classificationRule && !hasApprovedOverride)
   ) {
     return null;
   }
@@ -1967,7 +2096,7 @@ function buildDescriptionHtml(title, signals) {
   const evidenceSummary = uniqueValues([
     ...sourceSpecificationFacts.slice(0, 4).map(formatCustomerSpecificationFact),
   ]).slice(0, 5).join("; ");
-  const humanSummary = buildHumanProductSummary(titleText, signals, knowledge, facts);
+  const humanSummary = buildProductDrivenHumanSummary(titleText, signals, knowledge, facts);
   const overview = `<p><strong>${escapeHtml(titleText)}</strong> &mdash; ${escapeHtml(humanSummary)} ${evidenceSummary ? `The listing also notes ${escapeHtml(evidenceSummary)}.` : ""}${escapeHtml(reviewText)}</p>`;
   const factualDetails = uniqueValues([
     ...visibleFacts.map((fact) => audioCable && ["Connector size", "Connection", "Connector layout"].includes(fact.label)

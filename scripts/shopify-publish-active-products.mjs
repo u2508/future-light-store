@@ -10,6 +10,7 @@ import {
   verifyProductPublicationReadback,
 } from "../src/lib/shopify-publication-release.js";
 import { asArray, createShopifyAdminGraphQLClient, normalizeText } from "./shopify-admin-graphql-client.mjs";
+import { envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
 
 const execFileAsync = promisify(execFile);
 const rootDir = resolve(import.meta.dirname, "..");
@@ -96,7 +97,11 @@ function parseArgs(argv) {
     output: defaultOutputPath,
     sample: 0,
     productHandlesFile: "",
-    concurrency: Math.max(1, Number(process.env.SALT_SHOPIFY_PUBLICATION_CONCURRENCY || 1) || 1),
+    concurrency: envInteger(
+      "SALT_SHOPIFY_PUBLICATION_CONCURRENCY",
+      recommendedConcurrency({ kind: "io", reserve: 2, max: 4 }),
+      { min: 1, max: 4 },
+    ),
   };
   for (let index = 2; index < argv.length; index += 1) {
     const token = argv[index];

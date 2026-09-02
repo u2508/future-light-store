@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 
@@ -52,6 +52,7 @@ import {
   createShopifyAdminGraphQLClient,
   normalizeText,
 } from "./shopify-admin-graphql-client.mjs";
+import { envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
 import { readProductCatalogPayload } from "./product-catalog-files-local.mjs";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-local.mjs";
 import { scoreCatalogKnowledgeModelBatch } from "./catalog-knowledge-model-accelerator.mjs";
@@ -61,6 +62,7 @@ const rootDir = resolve(import.meta.dirname, "..");
 const execFileAsync = promisify(execFile);
 const defaultOutputPath = resolve(rootDir, "output", "shopify-catalog-integrity-manifest.json");
 const visualReviewQueuePath = resolve(rootDir, "output", "catalog-visual-review-queue.json");
+const visualResolutionCheckpointPath = resolve(rootDir, "output", "catalog-vision-resolution-checkpoint.json");
 const liveInputCheckpointPath = process.env.SALT_CATALOG_INTEGRITY_LIVE_CHECKPOINT ||
   resolve(rootDir, "output", ".shopify-catalog-integrity-live-input.json");
 const collectionApprovalPath = resolve(rootDir, "docs", "catalog-collection-approval.json");
@@ -76,9 +78,13 @@ const visionOutputTokens = Math.max(160, Math.min(512, Number(process.env.SALT_C
 const visionImageLimit = Math.max(1, Math.min(4, Number(process.env.SALT_CATALOG_VISION_IMAGE_LIMIT || 4)));
 const visionRequestTimeoutMs = Math.max(30_000, Number(process.env.SALT_CATALOG_VISION_REQUEST_TIMEOUT_MS || 120_000));
 const visionRequestAttempts = Math.max(1, Math.min(3, Number(process.env.SALT_CATALOG_VISION_REQUEST_ATTEMPTS || 2)));
-const classificationConcurrency = Math.max(
-  1,
-  Math.min(12, Number(process.env.SALT_CATALOG_CLASSIFICATION_CONCURRENCY || 4)),
+const defaultClassificationConcurrency = process.env.SALT_CATALOG_VISION_SUPERVISED === "1"
+  ? recommendedConcurrency({ kind: "vision", reserve: 1, max: 2 })
+  : recommendedConcurrency({ kind: "cpu", reserve: 1, max: 8 });
+const classificationConcurrency = envInteger(
+  "SALT_CATALOG_CLASSIFICATION_CONCURRENCY",
+  defaultClassificationConcurrency,
+  { min: 1, max: 12 },
 );
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "catalog-integrity" });
 
@@ -483,6 +489,25 @@ async function writeManifest(path, manifest) {
   await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
 }
 
+async function writeVisualResolutionCheckpoint(entries) {
+  const temporaryPath = `${visualResolutionCheckpointPath}.tmp-${process.pid}`;
+  await mkdir(dirname(visualResolutionCheckpointPath), { recursive: true });
+  await writeFile(temporaryPath, `${JSON.stringify({
+    version: 1,
+    policy: "Reuse only image-backed supervised evidence for matching product image URLs; unresolved products remain review-held.",
+    generatedAt: new Date().toISOString(),
+    classifications: entries,
+  }, null, 2)}\n`, "utf8");
+  await rename(temporaryPath, visualResolutionCheckpointPath);
+}
+
+function visualEvidenceMatchesProduct(product, entry) {
+  const currentImages = productImageUrls(product).slice(0, visionImageLimit);
+  const savedImages = asArray(entry?.imageUrls).filter(Boolean);
+  return currentImages.length > 0 && currentImages.length === savedImages.length &&
+    currentImages.every((url, index) => url === savedImages[index]);
+}
+
 async function completeVariants(product, retryInfo) {
   const nodes = [...asArray(product?.variants?.nodes)];
   let after = product?.variants?.pageInfo?.endCursor || null;
@@ -720,9 +745,61 @@ function parseVisionJson(rawContent) {
 }
 
 const inFlightImageFetches = new Map();
+const visionImageCacheMaxEntries = Math.max(0, Math.min(512, Number(process.env.SALT_CATALOG_VISION_IMAGE_CACHE_ENTRIES || 256)));
+const visionImageCacheMaxBytes = Math.max(0, Number(process.env.SALT_CATALOG_VISION_IMAGE_CACHE_MB || 64)) * 1024 * 1024;
+const visionImageCache = new Map();
+let visionImageCacheBytes = 0;
+let visionSerialFallback = false;
+let activeVisionRequests = 0;
+const visionRequestWaiters = [];
+
+async function acquireVisionRequestSlot() {
+  while (activeVisionRequests >= (visionSerialFallback ? 1 : classificationConcurrency)) {
+    await new Promise((resolvePromise) => visionRequestWaiters.push(resolvePromise));
+  }
+  activeVisionRequests += 1;
+}
+
+function releaseVisionRequestSlot() {
+  activeVisionRequests = Math.max(0, activeVisionRequests - 1);
+  visionRequestWaiters.shift()?.();
+}
+
+function isVisionTimeout(error) {
+  return /abort|timeout|timed out/i.test(String(error?.message || error || ""));
+}
+
+function readVisionImageCache(cacheKey) {
+  const cached = visionImageCache.get(cacheKey);
+  if (!cached) return null;
+  // Refresh LRU order so repeated supplier images remain hot during a batch.
+  visionImageCache.delete(cacheKey);
+  visionImageCache.set(cacheKey, cached);
+  return cached.data;
+}
+
+function writeVisionImageCache(cacheKey, data) {
+  if (!cacheKey || !data || visionImageCacheMaxEntries === 0 || visionImageCacheMaxBytes === 0) return;
+  const bytes = Buffer.byteLength(data, "base64");
+  if (bytes > visionImageCacheMaxBytes) return;
+  while (
+    visionImageCache.size >= visionImageCacheMaxEntries ||
+    visionImageCacheBytes + bytes > visionImageCacheMaxBytes
+  ) {
+    const oldestKey = visionImageCache.keys().next().value;
+    if (!oldestKey) break;
+    const oldest = visionImageCache.get(oldestKey);
+    visionImageCache.delete(oldestKey);
+    visionImageCacheBytes -= oldest?.bytes || 0;
+  }
+  visionImageCache.set(cacheKey, { data, bytes });
+  visionImageCacheBytes += bytes;
+}
 
 async function imageAsBase64(url) {
   const cacheKey = resizeImageUrl(url);
+  const cached = readVisionImageCache(cacheKey);
+  if (cached) return cached;
   if (inFlightImageFetches.has(cacheKey)) return inFlightImageFetches.get(cacheKey);
   const promise = (async () => {
   let lastError = null;
@@ -739,7 +816,9 @@ async function imageAsBase64(url) {
         if (!response.ok) throw new Error(`image HTTP ${response.status}`);
         const bytes = await response.arrayBuffer();
         if (!bytes.byteLength) throw new Error("image response was empty");
-        return Buffer.from(bytes).toString("base64");
+        const encoded = Buffer.from(bytes).toString("base64");
+        writeVisionImageCache(cacheKey, encoded);
+        return encoded;
       } catch (error) {
         lastError = error;
       }
@@ -854,20 +933,32 @@ async function classifyWithVision(product) {
       });
     let response = null;
     let requestError = null;
-    for (let attempt = 1; attempt <= visionRequestAttempts; attempt += 1) {
-      try {
-        response = await fetch(`${ollamaUrl}/api/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(visionRequestTimeoutMs),
-          body: requestBody,
-        });
-        if (response.ok) break;
-        requestError = new Error(`Ollama HTTP ${response.status}`);
-      } catch (error) {
-        requestError = error;
+    await acquireVisionRequestSlot();
+    try {
+      for (let attempt = 1; attempt <= visionRequestAttempts; attempt += 1) {
+        try {
+          response = await fetch(`${ollamaUrl}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: AbortSignal.timeout(visionRequestTimeoutMs),
+            body: requestBody,
+          });
+          if (response.ok) break;
+          requestError = new Error(`Ollama HTTP ${response.status}`);
+        } catch (error) {
+          requestError = error;
+        }
+        if (isVisionTimeout(requestError)) {
+          // A timeout is a capacity signal, not a transient HTTP failure.
+          // Hold this product for the guarded review lane and serialize the
+          // remaining requests so the local model can recover.
+          visionSerialFallback = true;
+          break;
+        }
+        if (attempt < visionRequestAttempts) await sleep(visionImageRetryDelayMs * attempt);
       }
-      if (attempt < visionRequestAttempts) await sleep(visionImageRetryDelayMs * attempt);
+    } finally {
+      releaseVisionRequestSlot();
     }
     if (!response?.ok) throw requestError || new Error("Ollama vision request failed");
     const payload = await response.json();
@@ -1653,9 +1744,10 @@ async function run(args) {
   if (args.reviewOnly) {
     process.stdout.write(`Review-only retry cohort: ${reviewHandles.size} prior fallback products.\n`);
   }
-  const visualEvidenceManifest = process.env.SALT_CATALOG_REUSE_VISUAL_EVIDENCE_MANIFEST
-    ? await readJson(resolve(rootDir, process.env.SALT_CATALOG_REUSE_VISUAL_EVIDENCE_MANIFEST), null)
-    : null;
+  const visualEvidenceManifestPath = process.env.SALT_CATALOG_REUSE_VISUAL_EVIDENCE_MANIFEST
+    ? resolve(rootDir, process.env.SALT_CATALOG_REUSE_VISUAL_EVIDENCE_MANIFEST)
+    : visualResolutionCheckpointPath;
+  const visualEvidenceManifest = await readJson(visualEvidenceManifestPath, null);
   const visualEvidenceByHandle = new Map(
     asArray(visualEvidenceManifest?.classifications)
       .filter((entry) => entry?.handle && entry?.visualEvidence)
@@ -1664,6 +1756,7 @@ async function run(args) {
   if (visualEvidenceByHandle.size) {
     process.stdout.write(`Reusing supervised visual evidence for ${visualEvidenceByHandle.size} products.\n`);
   }
+  const visualEvidenceCheckpointByHandle = new Map(visualEvidenceByHandle);
   const canReusePriorManifest = args.mode === "verify" && Boolean(priorSnapshot) &&
     (!args.reclassify || args.reusePriorManifest);
   if (args.reusePriorManifest && (!args.reclassify || args.mode !== "verify")) {
@@ -1786,16 +1879,38 @@ async function run(args) {
       const resolutions = await mapWithConcurrency(
       batch,
       classificationConcurrency,
-      (entry) => resolveKnowledge(entry.product, {
-        ...args,
-        knowledgeModel,
-        modelEvidence: modelEvidenceByKey?.get(String(entry.product?.id || entry.product?.handle || "")),
-        priorVisualEvidence: visualEvidenceByHandle.get(normalizeCollectionHandle(entry.product?.handle)),
-      }),
+      (entry) => {
+        const savedVisualEvidence = visualEvidenceByHandle.get(normalizeCollectionHandle(entry.product?.handle));
+        return resolveKnowledge(entry.product, {
+          ...args,
+          knowledgeModel,
+          modelEvidence: modelEvidenceByKey?.get(String(entry.product?.id || entry.product?.handle || "")),
+          priorVisualEvidence: savedVisualEvidence && visualEvidenceMatchesProduct(entry.product, savedVisualEvidence)
+            ? savedVisualEvidence
+            : null,
+        });
+      },
       args.deterministicOnly ? "Review resolution processed" : "Visual resolution processed",
     );
     for (const [index, entry] of batch.entries()) {
-      resolvedProducts[entry.index] = resolutions[index];
+      const resolution = resolutions[index];
+      resolvedProducts[entry.index] = resolution;
+      if (resolution?.visualEvidence) {
+        visualEvidenceCheckpointByHandle.set(normalizeCollectionHandle(entry.product?.handle), {
+          productId: entry.product?.id || null,
+          handle: entry.product?.handle,
+          imageUrl: resolution.imageUrl || null,
+          imageUrls: resolution.imageUrls || productImageUrls(entry.product).slice(0, visionImageLimit),
+          visualEvidence: resolution.visualEvidence,
+          visionAlignment: resolution.visionAlignment || null,
+          checkpointedAt: new Date().toISOString(),
+        });
+      }
+    }
+    try {
+      await writeVisualResolutionCheckpoint([...visualEvidenceCheckpointByHandle.values()]);
+    } catch (error) {
+      process.stdout.write(`Visual evidence checkpoint unavailable: ${normalizeText(error?.message || error)}.\n`);
     }
     const batchNumber = Math.floor(batchStart / args.batchSize) + 1;
     if (batchNumber % 10 === 0 || batchNumber === resolutionBatchCount) {
@@ -1861,17 +1976,21 @@ async function run(args) {
   assertSpecialCollectionMinimums(specialCollectionCounts);
 
   const targets = resolveCollectionTargets(collections);
+  const productsByHandle = new Map(products.map((product) => [normalizeCollectionHandle(product.handle), product]));
   const visualReviewQueue = classifications
     .filter((entry) => entry.source === "review")
-    .map((entry) => ({
-      productId: entry.productId,
-      handle: entry.handle,
-      title: products.find((product) => product.handle === entry.handle)?.title || entry.handle,
-      imageUrls: entry.imageUrls || [],
-      reason: entry.visionError || "Visual classification decision required",
-      visualEvidence: entry.visualEvidence || null,
-      status: "pending",
-    }));
+    .map((entry) => {
+      const product = productsByHandle.get(normalizeCollectionHandle(entry.handle));
+      return {
+        productId: entry.productId,
+        handle: entry.handle,
+        title: product?.title || entry.handle,
+        imageUrls: entry.imageUrls?.length ? entry.imageUrls : productImageUrls(product),
+        reason: entry.visionError || "Visual classification decision required",
+        visualEvidence: entry.visualEvidence || null,
+        status: "pending",
+      };
+    });
   await writeFile(
     visualReviewQueuePath,
     `${JSON.stringify({
