@@ -21,6 +21,20 @@ const STATIC_PAGES = [
     description: "Shop useful products across electronics, home, fashion, travel, wellness and more at VS Store with clear details and secure checkout.",
     heading: "Discover products that fit your everyday life",
     summary: "Explore a carefully organized catalog with practical product details, transparent pricing and tracked fulfilment.",
+    answerBlocks: [
+      {
+        question: "What is VS Store?",
+        answer: "VS Store is a curated online marketplace for practical everyday essentials, future-ready tech and lifestyle accessories, with secure Shopify checkout and tracked fulfilment.",
+      },
+      {
+        question: "How can I find the right product?",
+        answer: "Shop by collection, search the catalog, or compare products by price, availability, category, brand, size, colour and discount.",
+      },
+      {
+        question: "Can I track a VS Store order?",
+        answer: "Yes. Enter the order number and checkout email on the track-order page to view the latest fulfilment status and carrier tracking links.",
+      },
+    ],
   },
   {
     path: "/shop",
@@ -63,6 +77,24 @@ const STATIC_PAGES = [
     description: "Get help with shopping, orders, delivery, returns and product questions at VS Store.",
     heading: "How can we help?",
     summary: "Find answers before and after placing an order.",
+    faqs: [
+      {
+        question: "How long does delivery take?",
+        answer: "Most orders ship within 1–2 business days; delivery estimates are shown at checkout.",
+      },
+      {
+        question: "Can I return an item?",
+        answer: "Yes — unused items can be returned within 30 days of delivery.",
+      },
+      {
+        question: "Which payment methods are accepted?",
+        answer: "Checkout is handled securely by Shopify and supports major cards and wallets.",
+      },
+      {
+        question: "Where is my order?",
+        answer: "Use the order number from your confirmation email on the tracking page.",
+      },
+    ],
   },
   {
     path: "/track-order",
@@ -420,8 +452,41 @@ function rootStructuredData() {
   };
 }
 
+function answerBlocksMarkup(blocks = []) {
+  if (!blocks.length) return "";
+  return `<section aria-labelledby="answer-guide"><h2 id="answer-guide">Quick answers</h2><dl>${blocks
+    .map(({ question, answer }) => `<dt>${escapeHtml(question)}</dt><dd>${escapeHtml(answer)}</dd>`)
+    .join("")}</dl></section>`;
+}
+
+function faqMarkup(faqs = []) {
+  if (!faqs.length) return "";
+  return `<section aria-labelledby="frequently-asked-questions"><h2 id="frequently-asked-questions">Frequently asked questions</h2><dl>${faqs
+    .map(({ question, answer }) => `<dt>${escapeHtml(question)}</dt><dd>${escapeHtml(answer)}</dd>`)
+    .join("")}</dl></section>`;
+}
+
 function staticBody(page) {
-  return `<main><h1>${escapeHtml(page.heading)}</h1><p>${escapeHtml(page.summary)}</p></main>`;
+  return `<main><h1>${escapeHtml(page.heading)}</h1><p>${escapeHtml(page.summary)}</p>${answerBlocksMarkup(page.answerBlocks)}${faqMarkup(page.faqs)}</main>`;
+}
+
+function staticStructuredData(page) {
+  const webPage = { "@type": "WebPage", name: page.title, url: canonicalUrl(page.path) };
+  if (!page.faqs?.length) return { "@context": "https://schema.org", ...webPage };
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      webPage,
+      {
+        "@type": "FAQPage",
+        mainEntity: page.faqs.map((faq) => ({
+          "@type": "Question",
+          name: faq.question,
+          acceptedAnswer: { "@type": "Answer", text: faq.answer },
+        })),
+      },
+    ],
+  };
 }
 
 function productBody(product, knowledge) {
@@ -530,7 +595,7 @@ async function main() {
     const target = page.path === "/" ? resolve(distDir, "index.html") : resolve(distDir, page.path.slice(1), "index.html");
     tasks.push({ target, content: renderDocument(template, {
       ...page,
-      structuredData: page.path === "/" ? rootStructuredData() : { "@context": "https://schema.org", "@type": "WebPage", name: page.title, url: canonicalUrl(page.path) },
+      structuredData: page.path === "/" ? rootStructuredData() : staticStructuredData(page),
       body: staticBody(page),
     }) });
   }
