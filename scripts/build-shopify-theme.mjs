@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 
-import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { execFile as execFileCallback } from "node:child_process";
+import { chmod, cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { basename, resolve } from "node:path";
+import { promisify } from "node:util";
+
+const execFile = promisify(execFileCallback);
 
 const rootDir = process.cwd();
 const distDir = resolve(rootDir, "dist");
@@ -20,8 +24,73 @@ const shopifyAppKey = (process.env.VITE_SHOPIFY_APP_KEY || "").trim();
 const themeBrandName = (process.env.SALT_THEME_BRAND_NAME || "Future Light Store").trim();
 const judgemePublicToken = (process.env.SALT_JUDGEME_PUBLIC_TOKEN || "").trim();
 const legacyBrandLogoPath = resolve(publicDir, "brand", "salt-logo.png");
-const themeLogoAsset = existsSync(legacyBrandLogoPath) ? "brand-salt-logo.png" : "future-light-logo.svg";
-const themeIconAsset = existsSync(resolve(publicDir, "favicon.svg")) ? "favicon.svg" : "favicon.ico";
+
+// macOS can expose OneDrive cloud placeholders as regular files with zero
+// allocated blocks. `fs.cp` can then wait indefinitely while trying to hydrate
+// an optional asset. Treat those files as unavailable so a theme bundle stays
+// bounded and uses the local SVG fallback when possible.
+function isMaterializedFileSync(filePath) {
+  try {
+    const fileStat = statSync(filePath);
+    return fileStat.isFile() && (fileStat.blocks === undefined || fileStat.blocks > 0);
+  } catch {
+    return false;
+  }
+}
+
+async function isMaterializedFile(filePath) {
+  try {
+    const fileStat = await stat(filePath);
+    return fileStat.isFile() && (fileStat.blocks === undefined || fileStat.blocks > 0);
+  } catch {
+    return false;
+  }
+}
+
+async function getTrackedMode(trackedPath) {
+  try {
+    const { stdout } = await execFile("git", ["ls-files", "-s", "--", trackedPath], {
+      cwd: rootDir,
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+    });
+    const match = stdout.match(/^(\d{6})\s/);
+    return match ? parseInt(match[1], 8) & 0o777 : 0o644;
+  } catch {
+    return 0o644;
+  }
+}
+
+async function copyAssetWithTrackedFallback(sourcePath, destinationPath, trackedPath) {
+  if (await isMaterializedFile(sourcePath)) {
+    await cp(sourcePath, destinationPath);
+    return;
+  }
+
+  // OneDrive may leave a tracked file as a zero-block cloud placeholder. Use
+  // the checked-in Git blob for release assets instead of waiting on Finder's
+  // hydration indefinitely. This keeps the bundle reproducible and local.
+  try {
+    const sourceMode = await getTrackedMode(trackedPath);
+    const { stdout } = await execFile("git", ["show", `HEAD:${trackedPath}`], {
+      cwd: rootDir,
+      encoding: "buffer",
+      maxBuffer: 128 * 1024 * 1024,
+    });
+    await writeFile(destinationPath, stdout, { mode: sourceMode });
+    await chmod(destinationPath, sourceMode);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Unable to read release asset ${trackedPath}: ${message}`);
+  }
+}
+
+const themeLogoAsset = isMaterializedFileSync(legacyBrandLogoPath)
+  ? "brand-salt-logo.png"
+  : "future-light-logo.svg";
+const themeIconAsset = isMaterializedFileSync(resolve(publicDir, "favicon.svg"))
+  ? "favicon.svg"
+  : "favicon.ico";
 
 function resolveThemeDir() {
   const outIndex = process.argv.indexOf("--out");
@@ -216,18 +285,26 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
 
     {% if request.page_type == 'product' and product %}
       {%- comment -%}
-        Shopify's native SEO fields belong to the product, but the selected
-        variant is available during Liquid rendering. Include its identity in
-        the request-time metadata so a backpack/bottle/lunch-box variant does
-        not inherit an unrelated product-only title or description.
+        Build PDP metadata from the actual product record at render time. Strip
+        the repeated heading and generic filler from the HTML description so
+        search snippets describe the item itself rather than exposing editor
+        scaffolding. The selected variant is appended only when it is real.
       {%- endcomment -%}
       {% assign salt_selected_variant = product.selected_or_first_available_variant %}
       {% assign salt_variant_label = salt_selected_variant.title | default: '' | strip %}
+      {% assign salt_product_detail = product.description | split: 'Key Details' | first %}
+      {% assign salt_product_detail = salt_product_detail | strip_html | strip_newlines | remove: 'About' | remove: product.title | remove: 'serves the specific function identified by its handle and confirmed product details.' | remove: 'Confirmed product facts and available options help shoppers compare it for the intended task.' | replace: ' — ', ' ' | replace: '  ', ' ' | strip | truncate: 95 %}
+      {% assign salt_seo_description = 'Shop ' | append: product.title | append: ' at Future Light Store.' %}
+      {% if salt_product_detail != blank %}
+        {% assign salt_seo_description = salt_seo_description | append: ' ' | append: salt_product_detail %}
+      {% else %}
+        {% assign salt_seo_description = salt_seo_description | append: ' Review the product details, options and current availability before ordering.' %}
+      {% endif %}
       {% unless salt_variant_label == blank or salt_variant_label == 'Default Title' %}
         {% assign salt_seo_title = product.title | append: ' - ' | append: salt_variant_label | append: ' | Future Light Store' %}
-        {% assign salt_variant_description = product.description | strip_html | strip_newlines | truncate: 115 %}
-        {% assign salt_seo_description = salt_variant_description | append: ' Selected option: ' | append: salt_variant_label | append: '.' %}
+        {% assign salt_seo_description = salt_seo_description | append: ' Selected option: ' | append: salt_variant_label | append: '.' %}
       {% endunless %}
+      {% assign salt_seo_description = salt_seo_description | strip_html | strip_newlines | replace: '  ', ' ' | strip | truncate: 158 %}
     {% endif %}
 
     <title>{{ salt_seo_title | escape }}</title>
@@ -303,6 +380,58 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
         }
       }
     </script>
+    {% if request.page_type == 'product' and product %}
+      <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Product",
+              "name": {{ product.title | json }},
+              "description": {{ salt_seo_description | strip_html | strip_newlines | json }},
+              "url": "https://{{ request.host }}{{ product.url }}",
+              "image": [
+                {% for image in product.images limit: 8 %}
+                  {{ image | image_url: width: 1200 | prepend: 'https:' | json }}{% unless forloop.last %},{% endunless %}
+                {% endfor %}
+              ],
+              "brand": {
+                "@type": "Brand",
+                "name": {{ product.vendor | default: shop.name | json }}
+              },
+              {% if product.type != blank %}
+                "category": {{ product.type | json }},
+              {% endif %}
+              "offers": {
+                "@type": "Offer",
+                "url": "https://{{ request.host }}{{ product.url }}",
+                "price": {{ salt_selected_variant.price | divided_by: 100.0 | json }},
+                "priceCurrency": {{ shop.currency | json }},
+                "availability": "{% if salt_selected_variant.available %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}",
+                "itemCondition": "https://schema.org/NewCondition"
+              }
+            },
+            {
+              "@type": "BreadcrumbList",
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "position": 1,
+                  "name": "Home",
+                  "item": "https://{{ request.host }}/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 2,
+                  "name": {{ product.title | json }},
+                  "item": "https://{{ request.host }}{{ product.url }}"
+                }
+              ]
+            }
+          ]
+        }
+      </script>
+    {% endif %}
     <link rel="icon" type="image/svg+xml" href="{{ '${themeIconAsset}' | asset_url }}">
     <link rel="preconnect" href="https://cdn.shopify.com" crossorigin>
     {{ 'salt-app.css' | asset_url | stylesheet_tag }}
@@ -838,13 +967,26 @@ async function copyAssets(entryJsPath, entryCssPath) {
   await cp(resolve(distDir, "assets", entryCss), resolve(themeAssetsDir, "salt-app.css"));
 
   if (themeLogoAsset === "brand-salt-logo.png") {
-    await cp(legacyBrandLogoPath, resolve(themeAssetsDir, themeLogoAsset));
+    await copyAssetWithTrackedFallback(
+      legacyBrandLogoPath,
+      resolve(themeAssetsDir, themeLogoAsset),
+      "public/brand/salt-logo.png",
+    );
   } else {
-    await cp(resolve(publicDir, "favicon.svg"), resolve(themeAssetsDir, themeLogoAsset));
+    await copyAssetWithTrackedFallback(
+      resolve(publicDir, "favicon.svg"),
+      resolve(themeAssetsDir, themeLogoAsset),
+      "public/favicon.svg",
+    );
   }
   for (const asset of ["favicon.svg", "favicon.ico", "favicon-32x32.png", "favicon-16x16.png", "apple-touch-icon.png", "site.webmanifest", "android-chrome-192x192.png", "android-chrome-512x512.png", "shopify-meta-pixel-customer-events.js"]) {
-    if (!existsSync(resolve(publicDir, asset))) continue;
-    await cp(resolve(publicDir, asset), resolve(themeAssetsDir, asset));
+    const sourcePath = resolve(publicDir, asset);
+    if (!existsSync(sourcePath)) continue;
+    try {
+      await copyAssetWithTrackedFallback(sourcePath, resolve(themeAssetsDir, asset), `public/${asset}`);
+    } catch {
+      // Optional icons and analytics helpers should never block a release.
+    }
   }
 
   const existingProductShardAssets = (await readdir(themeAssetsDir)).filter((asset) =>
@@ -859,9 +1001,16 @@ async function copyAssets(entryJsPath, entryCssPath) {
     ),
   );
 
-  for (const asset of themeDataAssets) {
-    await cp(resolve(publicDir, "data", asset.source), resolve(themeAssetsDir, asset.asset));
-  }
+  await Promise.all(
+    themeDataAssets.map(async (asset) => {
+      const sourcePath = resolve(publicDir, "data", asset.source);
+      await copyAssetWithTrackedFallback(
+        sourcePath,
+        resolve(themeAssetsDir, asset.asset),
+        `public/data/${asset.source}`,
+      );
+    }),
+  );
 
   return themeEntryJs;
 }
