@@ -255,9 +255,12 @@ export const useCartStore = create<CartStore>()(
         set({ isSyncing: true });
         try {
           const data = await storefrontApiRequest(CART_QUERY, { id: cartId });
-          if (!data) return;
-          const cart = data?.data?.cart;
-          if (!cart || cart.totalQuantity === 0) clearCart();
+          // Keep the locally persisted bag intact when the proxy returns an
+          // error, a partial payload, or a temporarily unavailable cart. A
+          // missing response must never turn a visible bag into an empty one.
+          if (!data?.data || !Object.prototype.hasOwnProperty.call(data.data, "cart")) return;
+          const cart = data.data.cart;
+          if (cart?.id === cartId && cart.totalQuantity === 0) clearCart();
         } catch (error) {
           console.error("Failed to sync cart:", error);
         } finally {
