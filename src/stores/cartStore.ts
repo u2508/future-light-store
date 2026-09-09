@@ -493,10 +493,6 @@ export const useCartStore = create<CartStore>()(
           // missing response must never turn a visible bag into an empty one.
           if (!data?.data || !Object.prototype.hasOwnProperty.call(data.data, "cart")) return;
           const cart = data.data.cart;
-          if (cart === null) {
-            clearCart();
-            return;
-          }
           if (cart?.id === cartId && cart.totalQuantity === 0) clearCart();
         } catch (error) {
           console.error("Failed to sync cart:", error);
