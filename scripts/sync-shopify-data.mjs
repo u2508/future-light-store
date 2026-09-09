@@ -2411,7 +2411,7 @@ async function main() {
     if (isAllProducts) {
       collection.products_count = visibleIds.length;
       if (collection.customData?.heroSummary) {
-        collection.customData.heroSummary = `Discover ${visibleIds.length.toLocaleString()} products across the full SALT catalog.`;
+        collection.customData.heroSummary = `Discover ${visibleIds.length.toLocaleString()} products across the full Future Light Store catalog.`;
       }
     }
 

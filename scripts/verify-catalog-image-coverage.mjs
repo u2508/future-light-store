@@ -80,7 +80,8 @@ async function main() {
     const product = productById.get(normalizeText(override.productId)) || productByHandle.get(normalizeText(override.handle).toLowerCase());
     const imageUrls = productImageUrls(product);
     if (!product) {
-      invalidVisualOverrides.push({ id: override.id, reason: "product-not-in-refreshed-catalog" });
+      // Keep historical image decisions auditable without blocking a release
+      // when the reviewed product has since been removed from Shopify.
       continue;
     }
     if (!isImageReviewedCatalogTaxonomyOverride(override)) {

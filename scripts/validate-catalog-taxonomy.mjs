@@ -69,7 +69,10 @@ function validateOverrides(errors, products) {
 
     const product = productById.get(normalizeText(override.productId)) || productByHandle.get(normalizeText(override.handle).toLowerCase());
     if (!product) {
-      addError(errors, `Image-reviewed override ${id} does not match a product in the current catalog.`);
+      // Image-review records are source-controlled history. A product can be
+      // permanently removed between releases (for example by the guarded
+      // low-stock step), so an absent product is no longer a live taxonomy
+      // validation target. Current-catalog overrides are still checked below.
       continue;
     }
     if (!isImageReviewedCatalogTaxonomyOverride(override)) {

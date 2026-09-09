@@ -531,8 +531,18 @@ function collectionBody(collection) {
 
 function renderDocument(template, { path, title, description, body, structuredData, ogType = "website" }) {
   const canonical = canonicalUrl(path);
-  const assetTags = [...template.matchAll(/<(?:link|script)\b[^>]*(?:>|<\/script>)/gi)]
-    .map((match) => match[0])
+  // Preserve the closing tag on Vite's external module script. Matching only
+  // through the first `>` turns `<script ...></script>` into an unclosed
+  // script, causing every following stylesheet link to be parsed as script
+  // text and leaving the deployed storefront unstyled.
+  const assetTags = [...template.matchAll(/<link\b[^>]*>|<script\b[^>]*\bsrc=["'][^"']+["'][^>]*>(?:<\/script>)?/gi)]
+    .map((match) => {
+      const tag = match[0];
+      // Also repair an already-generated stale document so a partial local
+      // build cannot silently drop the app entry while the fixed pipeline is
+      // being rolled out.
+      return /^<script\b/i.test(tag) && !/<\/script>$/i.test(tag) ? `${tag}</script>` : tag;
+    })
     .filter((tag) => /rel=["'](?:stylesheet|modulepreload)["']|type=["']module["']/i.test(tag));
   const head = [
     "<meta charset=\"UTF-8\" />",

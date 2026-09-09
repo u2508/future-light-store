@@ -46,7 +46,7 @@ function parseGraphQlPayload(raw) {
 }
 
 function isRetryable(error) {
-  return error?.code === "ETIMEDOUT" || error?.killed || /429|rate limit|throttl|timeout|timed out|5\d\d|network|socket|temporar|aborted|enotfound|eai_again|getaddrinfo|dns/i.test(
+  return error?.code === "ETIMEDOUT" || error?.killed || /429|rate limit|throttl|timeout|timed out|5\d\d|internal server error|unavailable shop|service unavailable|bad gateway|gateway timeout|upstream|network|socket|temporar|aborted|enotfound|eai_again|getaddrinfo|dns/i.test(
     String(error?.message || error),
   );
 }

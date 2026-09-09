@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "scope": {
+    "activeProductsOnly": true,
+    "totalInventoryBelow": 200,
+    "requireFullyTrackedInventory": true,
+    "deletion": "permanent"
+  },
+  "approvedAt": "2026-09-05T17:24:30+05:30",
+  "approvedBy": "user"
+}

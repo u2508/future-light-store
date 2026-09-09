@@ -40,6 +40,12 @@
     "shopify:taxonomy:apply": "node scripts/shopify-catalog-taxonomy-apply.mjs --apply",
     "seo:new-products:apply": "node scripts/shopify-seo-pipeline.mjs --apply --scope new-products",
     "shopify:products:zero-images:apply": "node scripts/shopify-delete-zero-image-products.mjs --apply",
+    "shopify:products:missing-cost:dry-run": "node scripts/shopify-delete-missing-cost-products.mjs --dry-run",
+    "shopify:products:missing-cost:apply": "node scripts/shopify-delete-missing-cost-products.mjs --apply",
+    "shopify:products:missing-cost:verify": "node scripts/shopify-delete-missing-cost-products.mjs --verify",
+    "shopify:products:low-stock:dry-run": "node scripts/shopify-delete-low-stock-products.mjs --dry-run",
+    "shopify:products:low-stock:apply": "node scripts/shopify-delete-low-stock-products.mjs --apply",
+    "shopify:products:low-stock:verify": "node scripts/shopify-delete-low-stock-products.mjs --verify",
     "shopify:publications:all:apply": "node scripts/shopify-publish-active-products.mjs --apply",
     "shopify:product-metafields:backfill:all-active": "node scripts/shopify-product-metafield-backfill.mjs --apply --all-active",
     "shopify:product-specificity:verify": "node scripts/verify-shopify-product-specificity.mjs",
@@ -55,11 +61,13 @@
     "shopify:collections:shuffle:verify": "node scripts/shopify-collection-shuffle.mjs --verify",
     "sync:data": "node scripts/sync-shopify-data.mjs && node scripts/sync-dependent-shopify-data.mjs",
     "build:web:release": "npm run catalog:artifacts && node scripts/build-web-release.mjs",
-    "theme:bundle:release": "node scripts/build-shopify-theme.mjs",
+    "theme:bundle:release": "node scripts/build-product-browse-index.mjs && node scripts/build-shopify-theme.mjs",
     "release": "node scripts/run-future-light-release.mjs --profile daily",
     "release:daily": "node scripts/run-future-light-release.mjs --profile daily",
     "release:resume": "node scripts/run-future-light-release.mjs --resume",
-    "release:daily:resume": "node scripts/run-future-light-release.mjs --profile daily --resume"
+    "release:daily:resume": "node scripts/run-future-light-release.mjs --profile daily --resume",
+    "release:resilience:test": "node --test scripts/release-resilience.test.mjs",
+    "category:metafields:test": "node --test scripts/category-metafield-evidence.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

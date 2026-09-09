@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "approvalId": "future-light-store-missing-cost-product-removal-approved-2026-09-07",
+  "approved": true,
+  "status": "approved",
+  "approvedAt": "2026-09-07T00:00:00+05:30",
+  "approvedBy": "Future Light Store owner (explicit Codex authorization)",
+  "approvalSource": "Explicit Future Light Store owner request in Codex on 2026-09-07",
+  "scope": {
+    "productStatuses": "all",
+    "condition": "any variant has missing or invalid inventoryItem.unitCost.amount",
+    "deletion": "permanent",
+    "freshPreDeleteRead": true,
+    "postDeleteLiveReadback": true
+  }
+}

@@ -101,7 +101,7 @@ async function inspectReleaseRun(state) {
   const release = await readJson(releaseRunStatePath, null);
   if (!release?.status) return { active: false, reasons: [] };
 
-  if (release.status === "running") {
+  if (["running", "waiting_for_network"].includes(release.status)) {
     const pid = Number(release.pid || 0);
     const ageMs = Date.now() - timestamp(release.heartbeatAt || release.startedAt);
     if (isProcessAlive(pid) && ageMs <= releaseStateStaleMs) {
@@ -115,7 +115,11 @@ async function inspectReleaseRun(state) {
     return {
       active: false,
       release,
-      reasons: [`previous release interrupted at step ${release.stepIndex || "unknown"}: ${release.stepLabel || "unknown"}`],
+      reasons: [
+        release.status === "waiting_for_network"
+          ? `previous release was waiting for network at step ${release.stepIndex || "unknown"}: ${release.stepLabel || "unknown"}`
+          : `previous release interrupted at step ${release.stepIndex || "unknown"}: ${release.stepLabel || "unknown"}`,
+      ],
     };
   }
 
@@ -298,7 +302,7 @@ async function checkOnce(state) {
 
   try {
     await log(`deterministic drift detected; starting guarded release: ${reasons.join("; ")}`);
-    const resume = ["failed", "running"].includes(releaseInspection.release?.status);
+    const resume = ["failed", "running", "waiting_for_network"].includes(releaseInspection.release?.status);
     await log(`release mode: ${resume ? "resume from checkpoint" : "full catalog run"}`);
     await runDailyRelease({ resume });
     const refreshed = await readLiveFingerprint();

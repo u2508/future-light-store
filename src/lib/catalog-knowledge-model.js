@@ -45,7 +45,7 @@ const MODEL_LISTING_PHRASES = Object.freeze({
     "studio mounting arm",
     "5 8 hex pin arm",
   ],
-  "electronic-adapter": [
+  "audio-cables": [
     "3.5mm aux audio cable",
     "audio extension cable",
     "audio extension cord",

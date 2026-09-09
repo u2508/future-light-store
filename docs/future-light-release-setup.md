@@ -66,15 +66,79 @@ in-flight request reuse automatically. You can tune the limits with
 existing per-workflow concurrency variables without changing the release
 ordering or its live-readback gates.
 
+### Network and DNS resilience
+
+Release-level transport failures are handled separately from catalog or
+validation failures. If a guarded remote step reports a DNS, timeout, socket,
+rate-limit, or transient Shopify service error, the runner records
+`waiting_for_network` in `output/release-run-state.json`, probes the configured
+Future Light store, and keeps polling until connectivity returns. It then
+retries the same guarded step, so partially completed writes remain protected
+by that step's existing manifests and live readback. A process restart also
+recognizes `waiting_for_network` as resumable.
+
+The default probe interval is 30 seconds. Optional local tuning variables are
+`SALT_RELEASE_NETWORK_POLL_MS`, `SALT_RELEASE_NETWORK_PROBE_TIMEOUT_MS`,
+`SALT_RELEASE_NETWORK_FAILURE_BACKOFF_MS`, and
+`SALT_RELEASE_NETWORK_FAILURE_BACKOFF_MAX_MS`. Non-network failures still stop
+and remain visible as `failed`; use `npm run release --resume` after the issue
+is corrected rather than silently retrying a real data, approval, build, or
+readback failure.
+
 ### Cost-based pricing
 
 The approved pricing stage reads each live variant's Shopify inventory cost and
-calculates its retail price independently. It applies the approved overhead
-and cost bands, preserves variant differences, and normalizes only existing
+calculates its retail price independently. It adds the approved $16 overhead to
+each cost-band retail target, preserves variant differences, and normalizes only existing
 compare-at prices. The full-catalog audit and live readback cover every active
 variant, including variants that did not need a mutation. The same-product
 alignment stage uses this same target and proposes zero flattening edits when
 the pricing stage is complete.
+
+### Low-stock product removal
+
+The release now audits active products against live `Product.totalInventory`,
+validates the total against every tracked variant quantity, and holds products
+with unmeasurable inventory. Products below `FUTURE_LIGHT_LOW_STOCK_THRESHOLD`
+(default `200`) are only deleted after a fresh pre-delete read, asynchronous
+delete completion, and post-delete live readback. Draft, archived, untracked,
+truncated, and mismatched-inventory products are not deleted.
+
+The apply stage is approval-gated and requires both conditions below:
+
+1. Review the dry-run manifest at
+   `output/shopify-low-stock-product-delete-manifest.json`.
+2. Update `docs/catalog-low-stock-removal-approval.json` to the exact approved
+   scope and set `FUTURE_LIGHT_LOW_STOCK_DELETE_APPROVED=1` in
+   `.env.release.local`.
+
+If the approval manifest is pending, the release stops at this gate and will not
+silently delete products. Once both conditions are approved, the next release
+that reaches the apply stage can permanently delete the audited candidates; do
+not start that stage when you only want to audit.
+
+### Missing-cost product removal
+
+Before cost-based pricing, the release audits the complete Shopify product
+catalog. A product is a candidate when any variant has a missing or invalid
+`inventoryItem.unitCost.amount`. The apply stage permanently deletes the whole
+product only after a fresh pre-delete read confirms the same condition,
+Shopify's asynchronous delete operation completes, and a post-delete live read
+confirms the product is absent. Draft, archived, and active products are all in
+scope because the pricing gate audits the complete catalog.
+
+The apply stage requires the explicit Future-Light approval manifest at
+`docs/catalog-missing-cost-product-removal-approval.json` and these matching
+local settings:
+
+```text
+FUTURE_LIGHT_MISSING_COST_DELETE_APPROVED=1
+FUTURE_LIGHT_MISSING_COST_DELETE_APPROVAL_ID=future-light-store-missing-cost-product-removal-approved-2026-09-07
+```
+
+The dry-run and live-delete manifests are written to
+`output/shopify-missing-cost-product-delete-manifest.json`. The release stops
+if any deletion fails or if live verification finds a product still present.
 
 The release keeps the visual classification queue at
 `output/catalog-visual-review-queue.json` and waits for image decisions rather

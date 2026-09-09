@@ -142,17 +142,15 @@ export function CollectionBrowser({
       if (search.discount && off < search.discount) return false;
       if (
         search.size &&
-        !variants.some((v) =>
-          v.selectedOptions.some((o) => o.name.toLowerCase() === "size" && o.value === search.size),
+        !n.options.some(
+          (option) => option.name.toLowerCase() === "size" && option.values.includes(search.size),
         )
       )
         return false;
       if (
         search.color &&
-        !variants.some((v) =>
-          v.selectedOptions.some(
-            (o) => o.name.toLowerCase() === "color" && o.value === search.color,
-          ),
+        !n.options.some(
+          (option) => option.name.toLowerCase() === "color" && option.values.includes(search.color),
         )
       )
         return false;

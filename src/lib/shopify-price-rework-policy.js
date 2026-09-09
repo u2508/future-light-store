@@ -1,4 +1,4 @@
-export const PRICE_REWORK_STRATEGY_ID = "cost-based-retail-2026-08-24-v1";
+export const PRICE_REWORK_STRATEGY_ID = "cost-based-retail-2026-09-05-additive-overhead-v2";
 
 export const PRICE_REWORK_RULES = Object.freeze({
   overhead: 16,
@@ -37,7 +37,10 @@ export function costBasedPriceFor(costValue) {
   const cost = normalizeNumber(costValue);
   const multiplier = multiplierForCost(cost);
   if (cost == null || cost <= 0 || multiplier == null) return null;
-  return roundPsychologicalPrice(Math.max(cost + PRICE_REWORK_RULES.overhead, cost * multiplier));
+  // The fixed overhead is additive to the cost-band retail target. A max()
+  // floor would silently omit overhead whenever the multiplier target won.
+  const target = cost * multiplier + PRICE_REWORK_RULES.overhead;
+  return roundPsychologicalPrice(Math.max(cost + PRICE_REWORK_RULES.overhead, target));
 }
 
 export function compareAtPriceFor(sellPriceValue, existingCompareAtValue) {

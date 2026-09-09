@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 
-import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { execFile as execFileCallback } from "node:child_process";
+import { chmod, cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { basename, resolve } from "node:path";
+import { promisify } from "node:util";
+
+const execFile = promisify(execFileCallback);
 
 const rootDir = process.cwd();
 const distDir = resolve(rootDir, "dist");
@@ -13,15 +17,78 @@ const defaultThemeDir = resolve(
     process.env.SHOPIFY_THEME_DIR ||
     resolve(rootDir, "..", "future-light-store-shopify"),
 );
-const financeApiOrigin = (process.env.VITE_FINANCE_API_ORIGIN || "")
-  .trim()
-  .replace(/\/+$/, "");
+const financeApiOrigin = (process.env.VITE_FINANCE_API_ORIGIN || "").trim().replace(/\/+$/, "");
 const shopifyAppKey = (process.env.VITE_SHOPIFY_APP_KEY || "").trim();
 const themeBrandName = (process.env.SALT_THEME_BRAND_NAME || "Future Light Store").trim();
 const judgemePublicToken = (process.env.SALT_JUDGEME_PUBLIC_TOKEN || "").trim();
 const legacyBrandLogoPath = resolve(publicDir, "brand", "salt-logo.png");
-const themeLogoAsset = existsSync(legacyBrandLogoPath) ? "brand-salt-logo.png" : "future-light-logo.svg";
-const themeIconAsset = existsSync(resolve(publicDir, "favicon.svg")) ? "favicon.svg" : "favicon.ico";
+
+// macOS can expose OneDrive cloud placeholders as regular files with zero
+// allocated blocks. `fs.cp` can then wait indefinitely while trying to hydrate
+// an optional asset. Treat those files as unavailable so a theme bundle stays
+// bounded and uses the local SVG fallback when possible.
+function isMaterializedFileSync(filePath) {
+  try {
+    const fileStat = statSync(filePath);
+    return fileStat.isFile() && (fileStat.blocks === undefined || fileStat.blocks > 0);
+  } catch {
+    return false;
+  }
+}
+
+async function isMaterializedFile(filePath) {
+  try {
+    const fileStat = await stat(filePath);
+    return fileStat.isFile() && (fileStat.blocks === undefined || fileStat.blocks > 0);
+  } catch {
+    return false;
+  }
+}
+
+async function getTrackedMode(trackedPath) {
+  try {
+    const { stdout } = await execFile("git", ["ls-files", "-s", "--", trackedPath], {
+      cwd: rootDir,
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+    });
+    const match = stdout.match(/^(\d{6})\s/);
+    return match ? parseInt(match[1], 8) & 0o777 : 0o644;
+  } catch {
+    return 0o644;
+  }
+}
+
+async function copyAssetWithTrackedFallback(sourcePath, destinationPath, trackedPath) {
+  if (await isMaterializedFile(sourcePath)) {
+    await cp(sourcePath, destinationPath);
+    return;
+  }
+
+  // OneDrive may leave a tracked file as a zero-block cloud placeholder. Use
+  // the checked-in Git blob for release assets instead of waiting on Finder's
+  // hydration indefinitely. This keeps the bundle reproducible and local.
+  try {
+    const sourceMode = await getTrackedMode(trackedPath);
+    const { stdout } = await execFile("git", ["show", `HEAD:${trackedPath}`], {
+      cwd: rootDir,
+      encoding: "buffer",
+      maxBuffer: 128 * 1024 * 1024,
+    });
+    await writeFile(destinationPath, stdout, { mode: sourceMode });
+    await chmod(destinationPath, sourceMode);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Unable to read release asset ${trackedPath}: ${message}`);
+  }
+}
+
+const themeLogoAsset = isMaterializedFileSync(legacyBrandLogoPath)
+  ? "brand-salt-logo.png"
+  : "future-light-logo.svg";
+const themeIconAsset = isMaterializedFileSync(resolve(publicDir, "favicon.svg"))
+  ? "favicon.svg"
+  : "favicon.ico";
 
 function resolveThemeDir() {
   const outIndex = process.argv.indexOf("--out");
@@ -57,8 +124,16 @@ const themeDataAssets = [
     asset: "data-recently-ordered-products.json",
     themePath: "/data/recently-ordered-products.json",
   },
-  { source: "product-search.json", asset: "data-product-search.json", themePath: "/data/product-search.json" },
-  { source: "collections.json", asset: "data-collections.json", themePath: "/data/collections.json" },
+  {
+    source: "product-search.json",
+    asset: "data-product-search.json",
+    themePath: "/data/product-search.json",
+  },
+  {
+    source: "collections.json",
+    asset: "data-collections.json",
+    themePath: "/data/collections.json",
+  },
   {
     source: "collection-products.json",
     asset: "data-collection-products.json",
@@ -67,9 +142,15 @@ const themeDataAssets = [
   { source: "about.json", asset: "data-about.json", themePath: "/data/about.json" },
   { source: "blog-posts.json", asset: "data-blog-posts.json", themePath: "/data/blog-posts.json" },
   { source: "shop.json", asset: "data-shop.json", themePath: "/data/shop.json" },
+  {
+    source: "product-browse.json",
+    asset: "data-product-browse.json",
+    themePath: "/data/product-browse.json",
+  },
 ];
 const PRODUCT_SHARD_SOURCE_PATTERN = /^products-\d{4}\.json$/;
 const PRODUCT_SEARCH_SHARD_SOURCE_PATTERN = /^product-search-\d{4}\.json$/;
+const PRODUCT_BROWSE_SHARD_SOURCE_PATTERN = /^product-browse-\d{4}\.json$/;
 
 function serializeInlineJson(value) {
   return JSON.stringify(value ?? null).replace(/</g, "\\u003c");
@@ -120,7 +201,11 @@ function templateJson(sectionType = "salt-app") {
   );
 }
 
-async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFeaturedProductsPayload = null) {
+async function writeThemeScaffold(
+  settingsData = null,
+  routeAssets = {},
+  homeFeaturedProductsPayload = null,
+) {
   await mkdir(resolve(themeDir, "layout"), { recursive: true });
   await mkdir(resolve(themeDir, "sections"), { recursive: true });
   await mkdir(resolve(themeDir, "templates"), { recursive: true });
@@ -216,18 +301,26 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
 
     {% if request.page_type == 'product' and product %}
       {%- comment -%}
-        Shopify's native SEO fields belong to the product, but the selected
-        variant is available during Liquid rendering. Include its identity in
-        the request-time metadata so a backpack/bottle/lunch-box variant does
-        not inherit an unrelated product-only title or description.
+        Build PDP metadata from the actual product record at render time. Strip
+        the repeated heading and generic filler from the HTML description so
+        search snippets describe the item itself rather than exposing editor
+        scaffolding. The selected variant is appended only when it is real.
       {%- endcomment -%}
       {% assign salt_selected_variant = product.selected_or_first_available_variant %}
       {% assign salt_variant_label = salt_selected_variant.title | default: '' | strip %}
+      {% assign salt_product_detail = product.description | split: 'Key Details' | first %}
+      {% assign salt_product_detail = salt_product_detail | strip_html | strip_newlines | remove: 'About' | remove: product.title | remove: 'serves the specific function identified by its handle and confirmed product details.' | remove: 'Confirmed product facts and available options help shoppers compare it for the intended task.' | replace: ' — ', ' ' | replace: '  ', ' ' | strip | truncate: 95 %}
+      {% assign salt_seo_description = 'Shop ' | append: product.title | append: ' at Future Light Store.' %}
+      {% if salt_product_detail != blank %}
+        {% assign salt_seo_description = salt_seo_description | append: ' ' | append: salt_product_detail %}
+      {% else %}
+        {% assign salt_seo_description = salt_seo_description | append: ' Review the product details, options and current availability before ordering.' %}
+      {% endif %}
       {% unless salt_variant_label == blank or salt_variant_label == 'Default Title' %}
         {% assign salt_seo_title = product.title | append: ' - ' | append: salt_variant_label | append: ' | Future Light Store' %}
-        {% assign salt_variant_description = product.description | strip_html | strip_newlines | truncate: 115 %}
-        {% assign salt_seo_description = salt_variant_description | append: ' Selected option: ' | append: salt_variant_label | append: '.' %}
+        {% assign salt_seo_description = salt_seo_description | append: ' Selected option: ' | append: salt_variant_label | append: '.' %}
       {% endunless %}
+      {% assign salt_seo_description = salt_seo_description | strip_html | strip_newlines | replace: '  ', ' ' | strip | truncate: 158 %}
     {% endif %}
 
     <title>{{ salt_seo_title | escape }}</title>
@@ -243,6 +336,7 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
     {% endif %}
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{ shop.name | escape }}">
+    {{ content_for_header }}
     <script>
       (function () {
         var path = window.location.pathname;
@@ -303,6 +397,58 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
         }
       }
     </script>
+    {% if request.page_type == 'product' and product %}
+      <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "Product",
+              "name": {{ product.title | json }},
+              "description": {{ salt_seo_description | strip_html | strip_newlines | json }},
+              "url": "https://{{ request.host }}{{ product.url }}",
+              "image": [
+                {% for image in product.images limit: 8 %}
+                  {{ image | image_url: width: 1200 | prepend: 'https:' | json }}{% unless forloop.last %},{% endunless %}
+                {% endfor %}
+              ],
+              "brand": {
+                "@type": "Brand",
+                "name": {{ product.vendor | default: shop.name | json }}
+              },
+              {% if product.type != blank %}
+                "category": {{ product.type | json }},
+              {% endif %}
+              "offers": {
+                "@type": "Offer",
+                "url": "https://{{ request.host }}{{ product.url }}",
+                "price": {{ salt_selected_variant.price | divided_by: 100.0 | json }},
+                "priceCurrency": {{ shop.currency | json }},
+                "availability": "{% if salt_selected_variant.available %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}",
+                "itemCondition": "https://schema.org/NewCondition"
+              }
+            },
+            {
+              "@type": "BreadcrumbList",
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "position": 1,
+                  "name": "Home",
+                  "item": "https://{{ request.host }}/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 2,
+                  "name": {{ product.title | json }},
+                  "item": "https://{{ request.host }}{{ product.url }}"
+                }
+              ]
+            }
+          ]
+        }
+      </script>
+    {% endif %}
     <link rel="icon" type="image/svg+xml" href="{{ '${themeIconAsset}' | asset_url }}">
     <link rel="preconnect" href="https://cdn.shopify.com" crossorigin>
     {{ 'salt-app.css' | asset_url | stylesheet_tag }}
@@ -470,86 +616,152 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
     </script>
     <script>
       (function () {
-        // Meta's remote structured-signal rules currently mistake Shopify's
-        // Apple Pay JSON blob for a currency code and crawl the full app shell.
-        // Hide only those two selectors from Meta's own call stack; Shopify and
-        // every storefront feature continue to receive the native DOM results.
-        var blockedMetaSelectors = new Set(['#apple-pay-shop-capabilities', '.site-shell']);
-        var nativeQuerySelector = Document.prototype.querySelector;
-        var nativeQuerySelectorAll = Document.prototype.querySelectorAll;
-        var nativeSendBeacon = Navigator.prototype.sendBeacon;
-        var nativeFetch = window.fetch;
-
-        // Shopify intentionally starts an Apple Private Access Token flow with
-        // a 401 challenge. WebDriver browsers cannot complete Apple device
-        // attestation, so keep the production Safari flow untouched while
-        // making automated storefront checks deterministic and error-free.
-        if (navigator.webdriver && typeof nativeFetch === 'function') {
-          window.fetch = function (input, init) {
-            var rawUrl = typeof input === 'string' ? input : input && input.url;
-
-            try {
-              var requestUrl = new URL(String(rawUrl || ''), window.location.href);
-              if (
-                requestUrl.origin === window.location.origin &&
-                requestUrl.pathname === '/sf_private_access_tokens'
-              ) {
-                window.__SALT_AUTOMATION_PAT_BYPASS__ = true;
-                return Promise.resolve(new Response(null, { status: 204 }));
-              }
-            } catch (error) {
-              // Preserve native fetch behavior for malformed or unsupported inputs.
-            }
-
-            return nativeFetch.call(this, input, init);
-          };
+        // Keep the documented Shopify storefront event contract available when
+        // the optional Shopify CDN module is delayed or blocked. The external
+        // runtime below replaces these classes when it loads successfully.
+        function createPromise() {
+          var resolve;
+          var reject;
+          var promise = new Promise(function (resolvePromise, rejectPromise) {
+            resolve = resolvePromise;
+            reject = rejectPromise;
+          });
+          return { promise: promise, resolve: resolve, reject: reject };
         }
 
-        function isMetaCrawlerCall() {
-          return /(?:connect\\.facebook\\.net|fbevents)/i.test(String(new Error().stack || ''));
+        function toShopifyGid(type, value) {
+          var stringValue = String(value == null ? '' : value);
+          return stringValue.indexOf('gid://shopify/') === 0
+            ? stringValue
+            : 'gid://shopify/' + type + '/' + stringValue;
         }
 
-        Document.prototype.querySelector = function (selector) {
-          if (blockedMetaSelectors.has(String(selector)) && isMetaCrawlerCall()) return null;
-          return nativeQuerySelector.call(this, selector);
-        };
-
-        Document.prototype.querySelectorAll = function (selector) {
-          if (blockedMetaSelectors.has(String(selector)) && isMetaCrawlerCall()) {
-            return document.createDocumentFragment().querySelectorAll('*');
+        class ShopifyStandardEvent extends Event {
+          constructor(name, payload) {
+            super(name, { bubbles: true, cancelable: true });
+            Object.assign(this, payload || {});
           }
-          return nativeQuerySelectorAll.call(this, selector);
-        };
+        }
 
-        // Meta can exhaust WebKit's shared 64 KB keepalive queue when Shopify
-        // pixels initialize together. Deliver only Meta's tracking endpoint
-        // through a normal non-blocking fetch so events still reach Facebook
-        // without producing a storefront Beacon API error.
-        if (typeof nativeSendBeacon === 'function') {
-          Navigator.prototype.sendBeacon = function (url, data) {
-            var target = String(url || '');
+        class ProductViewEvent extends ShopifyStandardEvent {
+          constructor(payload) {
+            var product = payload && payload.product;
+            super('shopify:product:view', {
+              ...(payload || {}),
+              product: product
+                ? {
+                    ...product,
+                    id: toShopifyGid('Product', product.id),
+                    selectedVariant: product.selectedVariant
+                      ? {
+                          ...product.selectedVariant,
+                          id: toShopifyGid('ProductVariant', product.selectedVariant.id),
+                        }
+                      : null,
+                  }
+                : product,
+            });
+          }
+        }
 
-            if (/^https:\\/\\/(?:www\\.)?facebook\\.com\\/tr\\//i.test(target)) {
-              try {
-                window.fetch(target, {
-                  method: 'POST',
-                  body: data == null ? undefined : data,
-                  mode: 'no-cors',
-                  credentials: 'omit',
-                  keepalive: false,
-                }).catch(function () {});
-                return true;
-              } catch (error) {
-                return nativeSendBeacon.call(this, url, data);
+        class CartLinesUpdateEvent extends ShopifyStandardEvent {
+          constructor(payload) {
+            var source = payload || {};
+            var isAdd = source.action === 'add';
+            super('shopify:cart:lines-update', {
+              ...source,
+              lines: Array.isArray(source.lines)
+                ? source.lines.map(function (line) {
+                    var key = isAdd ? 'merchandiseId' : 'id';
+                    return {
+                      ...line,
+                      [key]: toShopifyGid(isAdd ? 'ProductVariant' : 'CartLine', line[key]),
+                    };
+                  })
+                : [],
+              promise: source.promise,
+            });
+          }
+
+          static createPromise() {
+            return createPromise();
+          }
+        }
+
+        class CartErrorEvent extends ShopifyStandardEvent {
+          constructor(payload) {
+            super('shopify:cart:error', payload);
+          }
+        }
+
+        function createViewEventElement() {
+          return class ShopifyViewEventElement extends HTMLElement {
+            connectedCallback() {
+              var trigger = this.getAttribute('view-event-trigger') || 'connect';
+              if (trigger === 'connect') setTimeout(() => this.dispatchViewEvent());
+              if (trigger === 'intersect' && window.IntersectionObserver) {
+                var observer = new IntersectionObserver((entries) => {
+                  if (entries.some((entry) => entry.isIntersecting)) {
+                    observer.disconnect();
+                    this.dispatchViewEvent();
+                  }
+                }, { threshold: 0.5 });
+                observer.observe(this);
               }
             }
 
-            return nativeSendBeacon.call(this, url, data);
+            dispatchViewEvent() {
+              if (this.dataset.eventDispatched === 'true') return;
+              var payload = this.getAttribute('view-event-payload');
+              if (!payload) return;
+              try {
+                var data = JSON.parse(payload);
+                this.dataset.eventDispatched = 'true';
+                if (data && data.product) {
+                  data.context = data.context || 'page';
+                  this.dispatchEvent(new ProductViewEvent(data));
+                }
+              } catch (error) {
+                // Invalid optional analytics payloads must not affect rendering.
+              }
+            }
           };
+        }
+
+        var fallback = {
+          ProductViewEvent: ProductViewEvent,
+          CartLinesUpdateEvent: CartLinesUpdateEvent,
+          CartErrorEvent: CartErrorEvent,
+          createViewEventElement: createViewEventElement,
+        };
+        window.StandardEvents = {
+          ...(window.StandardEvents || {}),
+          ...fallback,
+        };
+        if (window.customElements && !window.customElements.get('s-view-event')) {
+          window.customElements.define('s-view-event', window.StandardEvents.createViewEventElement());
+        }
+        window.dispatchEvent(new Event('future-light:standard-events-ready'));
+      })();
+    </script>
+    <script type="module">
+      (async function () {
+        try {
+          const standardEvents = await import('https://cdn.shopify.com/storefront/standard-events.js');
+          window.StandardEvents = standardEvents;
+          if (
+            standardEvents.createViewEventElement &&
+            window.customElements &&
+            !window.customElements.get('s-view-event')
+          ) {
+            window.customElements.define('s-view-event', standardEvents.createViewEventElement());
+          }
+          window.dispatchEvent(new Event('future-light:standard-events-ready'));
+        } catch (error) {
+          // The synchronous fallback above already covers analytics safely.
         }
       })();
     </script>
-    {{ content_for_header }}
     {% if salt_custom_canonical %}
       <script>
         (function () {
@@ -674,7 +886,13 @@ async function writeThemeScaffold(settingsData = null, routeAssets = {}, homeFea
 </html>
 `;
 
-const sectionLiquid = `<div
+  const sectionLiquid = `{% if request.page_type == 'product' and product %}
+<s-view-event
+  view-event-trigger="connect"
+  view-event-payload='{{ product | standard_event_data: "view", context: "page" | escape }}'
+>
+{% endif %}
+<div
   id="root"
   data-shop-base-url="https://{{ request.host | escape }}"
   data-shop-domain="{{ shop.permanent_domain | escape }}"
@@ -694,6 +912,9 @@ const sectionLiquid = `<div
 ${buildThemeAssetMapEntries()}
   };
 </script>
+{% if request.page_type == 'product' and product %}
+</s-view-event>
+{% endif %}
 `;
 
   const storeThemeLiquid = themeLiquid
@@ -771,21 +992,23 @@ async function copyAssets(entryJsPath, entryCssPath) {
   // paths relative to the entry file instead. This keeps lazy chunks on the
   // Shopify CDN instead of requesting non-existent /assets/* URLs.
   const themeAssetResolver = `const __saltThemeAsset=(path)=>{const rawBase=globalThis.SALT_THEME_ASSET_BASE||new URL("./",import.meta.url).href;const base=rawBase.startsWith("//")?window.location.protocol+rawBase:rawBase;const file=String(path);return new URL(file.startsWith("./")?file.slice(2):file,base).href};\n`;
-  const themeEntrySource = themeAssetResolver + entrySource
-    .replace(/(["'])assets\//g, "$1./")
-    // The lazy route imports and their modulepreload maps are generated as
-    // relative URLs. Shopify resolves these from the current storefront path
-    // on product pages, so point both mechanisms at the theme CDN explicitly.
-    .replace(/import\("\.\/([^"\n]+)"\)/g, 'import(__saltThemeAsset("$1"))')
-    .replace(/=>i\.map\(i=>d\[i\]\)/g, '=>i.map(i=>__saltThemeAsset(d[i]))')
-    // Vite's preload helper prefixes every dependency with "/". That works
-    // when assets live at /assets, but makes Shopify request the storefront
-    // root instead of the theme CDN. Dependencies above are now relative, so
-    // keep them relative when the helper creates modulepreload links too.
-    .replace(
-      /(="modulepreload",[A-Za-z_$][\w$]*=function\((\w+)\)\{return)"\/"\+\2(\})/,
-      "$1 $2$3",
-  );
+  const themeEntrySource =
+    themeAssetResolver +
+    entrySource
+      .replace(/(["'])assets\//g, "$1./")
+      // The lazy route imports and their modulepreload maps are generated as
+      // relative URLs. Shopify resolves these from the current storefront path
+      // on product pages, so point both mechanisms at the theme CDN explicitly.
+      .replace(/import\("\.\/([^"\n]+)"\)/g, 'import(__saltThemeAsset("$1"))')
+      .replace(/=>i\.map\(i=>d\[i\]\)/g, "=>i.map(i=>__saltThemeAsset(d[i]))")
+      // Vite's preload helper prefixes every dependency with "/". That works
+      // when assets live at /assets, but makes Shopify request the storefront
+      // root instead of the theme CDN. Dependencies above are now relative, so
+      // keep them relative when the helper creates modulepreload links too.
+      .replace(
+        /(="modulepreload",[A-Za-z_$][\w$]*=function\((\w+)\)\{return)"\/"\+\2(\})/,
+        "$1 $2$3",
+      );
   const entryCacheKey = createHash("sha256").update(themeEntrySource).digest("hex").slice(0, 12);
   const themeEntryJs = `salt-entry-${entryCacheKey}.js`;
   const themeEntryAssetPath = resolve(themeAssetsDir, themeEntryJs);
@@ -815,8 +1038,10 @@ async function copyAssets(entryJsPath, entryCssPath) {
       // one runtime across the app shell and route chunks.
       .replace(/\.\/salt-entry-[A-Za-z0-9_-]+\.js/g, `./${themeEntryJs}`);
     const rewrittenAssetSource = needsVitePreloadResolver
-      ? `const __saltThemeAsset=(path)=>{const value=String(path);return new URL(value.startsWith("./")?value.slice(2):value,import.meta.url).href};\n${rewrittenAssetBody}`
-          .replace(/=>i\.map\(i=>d\[i\]\)/g, "=>i.map(i=>__saltThemeAsset(d[i]))")
+      ? `const __saltThemeAsset=(path)=>{const value=String(path);return new URL(value.startsWith("./")?value.slice(2):value,import.meta.url).href};\n${rewrittenAssetBody}`.replace(
+          /=>i\.map\(i=>d\[i\]\)/g,
+          "=>i.map(i=>__saltThemeAsset(d[i]))",
+        )
       : rewrittenAssetBody;
     if (rewrittenAssetSource !== assetSource) {
       await writeFile(assetPath, rewrittenAssetSource);
@@ -838,13 +1063,41 @@ async function copyAssets(entryJsPath, entryCssPath) {
   await cp(resolve(distDir, "assets", entryCss), resolve(themeAssetsDir, "salt-app.css"));
 
   if (themeLogoAsset === "brand-salt-logo.png") {
-    await cp(legacyBrandLogoPath, resolve(themeAssetsDir, themeLogoAsset));
+    await copyAssetWithTrackedFallback(
+      legacyBrandLogoPath,
+      resolve(themeAssetsDir, themeLogoAsset),
+      "public/brand/salt-logo.png",
+    );
   } else {
-    await cp(resolve(publicDir, "favicon.svg"), resolve(themeAssetsDir, themeLogoAsset));
+    await copyAssetWithTrackedFallback(
+      resolve(publicDir, "favicon.svg"),
+      resolve(themeAssetsDir, themeLogoAsset),
+      "public/favicon.svg",
+    );
   }
-  for (const asset of ["favicon.svg", "favicon.ico", "favicon-32x32.png", "favicon-16x16.png", "apple-touch-icon.png", "site.webmanifest", "android-chrome-192x192.png", "android-chrome-512x512.png", "shopify-meta-pixel-customer-events.js"]) {
-    if (!existsSync(resolve(publicDir, asset))) continue;
-    await cp(resolve(publicDir, asset), resolve(themeAssetsDir, asset));
+  for (const asset of [
+    "favicon.svg",
+    "favicon.ico",
+    "favicon-32x32.png",
+    "favicon-16x16.png",
+    "apple-touch-icon.png",
+    "site.webmanifest",
+    "android-chrome-192x192.png",
+    "android-chrome-512x512.png",
+    "future-light-meta-events.js",
+    "shopify-meta-pixel-customer-events.js",
+  ]) {
+    const sourcePath = resolve(publicDir, asset);
+    if (!existsSync(sourcePath)) continue;
+    try {
+      await copyAssetWithTrackedFallback(
+        sourcePath,
+        resolve(themeAssetsDir, asset),
+        `public/${asset}`,
+      );
+    } catch {
+      // Optional icons and analytics helpers should never block a release.
+    }
   }
 
   const existingProductShardAssets = (await readdir(themeAssetsDir)).filter((asset) =>
@@ -853,15 +1106,29 @@ async function copyAssets(entryJsPath, entryCssPath) {
   const existingProductSearchShardAssets = (await readdir(themeAssetsDir)).filter((asset) =>
     /^data-product-search-\d{4}\.json$/.test(asset),
   );
+  const existingProductBrowseShardAssets = (await readdir(themeAssetsDir)).filter((asset) =>
+    /^data-product-browse-\d{4}\.json$/.test(asset),
+  );
   await Promise.all(
-    [...existingProductShardAssets, ...existingProductSearchShardAssets].map((asset) =>
+    [
+      ...existingProductShardAssets,
+      ...existingProductSearchShardAssets,
+      ...existingProductBrowseShardAssets,
+    ].map((asset) =>
       rm(resolve(themeAssetsDir, asset), { force: true }),
     ),
   );
 
-  for (const asset of themeDataAssets) {
-    await cp(resolve(publicDir, "data", asset.source), resolve(themeAssetsDir, asset.asset));
-  }
+  await Promise.all(
+    themeDataAssets.map(async (asset) => {
+      const sourcePath = resolve(publicDir, "data", asset.source);
+      await copyAssetWithTrackedFallback(
+        sourcePath,
+        resolve(themeAssetsDir, asset.asset),
+        `public/data/${asset.source}`,
+      );
+    }),
+  );
 
   return themeEntryJs;
 }
@@ -871,7 +1138,9 @@ async function main() {
   const indexHtml = await readFile(resolve(distDir, "index.html"), "utf8");
   const { jsPath, cssPath } = parseEntryAssets(indexHtml);
   const settingsDataPath = resolve(themeDir, "config", "settings_data.json");
-  const settingsData = existsSync(settingsDataPath) ? await readFile(settingsDataPath, "utf8") : null;
+  const settingsData = existsSync(settingsDataPath)
+    ? await readFile(settingsDataPath, "utf8")
+    : null;
   const homeFeaturedProductsPath = resolve(publicDir, "data", "home-featured-products.json");
   const homeFeaturedProductsPayload = existsSync(homeFeaturedProductsPath)
     ? JSON.parse(await readFile(homeFeaturedProductsPath, "utf8"))
@@ -904,6 +1173,17 @@ async function main() {
     });
   }
 
+  const productBrowseShardSources = (await readdir(resolve(publicDir, "data")))
+    .filter((source) => PRODUCT_BROWSE_SHARD_SOURCE_PATTERN.test(source))
+    .sort();
+  for (const source of productBrowseShardSources) {
+    themeDataAssets.push({
+      source,
+      asset: `data-${source}`,
+      themePath: `/data/${source}`,
+    });
+  }
+
   await mkdir(themeDir, { recursive: true });
   await Promise.all(
     themeScaffoldEntries.map((entry) =>
@@ -913,7 +1193,11 @@ async function main() {
   // Keep Shopify-admin app embeds and theme-editor state intact. The generated
   // app bundle owns the app assets, not config/settings_data.json.
   const themeEntryJs = await copyAssets(jsPath, cssPath);
-  await writeThemeScaffold(settingsData, { ...routeAssets, entry: themeEntryJs }, homeFeaturedProductsPayload);
+  await writeThemeScaffold(
+    settingsData,
+    { ...routeAssets, entry: themeEntryJs },
+    homeFeaturedProductsPayload,
+  );
 
   process.stdout.write(`Shopify theme bundle generated at ${themeDir}\n`);
 }

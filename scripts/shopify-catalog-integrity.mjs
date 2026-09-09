@@ -57,6 +57,7 @@ import { readProductCatalogPayload } from "./product-catalog-files-local.mjs";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-local.mjs";
 import { scoreCatalogKnowledgeModelBatch } from "./catalog-knowledge-model-accelerator.mjs";
 import { ensureFutureLightVisionRuntime } from "./future-light-vision-runtime.mjs";
+import { resolveVisualTaxonomyHint } from "../src/lib/catalog-visual-taxonomy.js";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const execFileAsync = promisify(execFile);
@@ -839,7 +840,19 @@ function classifyVisionEvidence(product, content, imageUrl = null, imageUrls = [
   const evidenceConfidence = Number(content?.evidenceConfidence);
   const imageAgreement = Number(content?.imageAgreement);
   const ambiguity = normalizeText(content?.ambiguity);
-  const hasAmbiguity = ambiguity && !/^(none|no ambiguity|no apparent ambiguity|not applicable|n\/a|low(?:\s|[-:])|minimal(?:\s|[-:])|minor(?:\s|[-:])|negligible(?:\s|[-:]))/i.test(ambiguity);
+  const lowAmbiguity = /^(?:none|no ambiguity|no apparent ambiguity|not applicable|n\/a|low|minimal|minor|negligible)(?:\s|[-:]|$)/i.test(ambiguity) ||
+    /^(?:the\s+)?ambiguity\s+(?:is|appears|seems)\s+(?:low|minimal|minor|negligible)\b/i.test(ambiguity) ||
+    /\b(?:clear(?:ly)?|unambiguous|high degree of certainty|consistently depicted|standard (?:set|product|device|retro handheld)|primary function|simple cable management|designed for|based on (?:the )?(?:visible )?features|clear and unambiguous|no specific branding|standard set of)\b/i.test(ambiguity);
+  const materialUncertainty = /\b(?:not explicitly (?:stated|visible)|not specified|difficult to ascertain|difficult to determine|unclear|uncertain|unknown|approx(?:imately|\.)?|suggests|likely)\b/i.test(ambiguity);
+  const taxonomyUncertainty = /\b(?:could be|might be|may be|either .* or|multiple possible|cannot (?:identify|determine)|unable to (?:identify|determine)|intended use .*\b(?:unclear|ambiguous)|ambiguous between)\b/i.test(ambiguity);
+  // Vision often explains a missing non-taxonomic attribute (exact size,
+  // storage, material, or game library) even when the retail product itself
+  // is unambiguous. Hold only when that uncertainty can change the product
+  // family/category decision; description generation must still omit the
+  // uncertain attribute later.
+  const hasAmbiguity = Boolean(ambiguity && !lowAmbiguity && taxonomyUncertainty && !(
+    materialUncertainty && /\b(?:size|dimension|capacity|storage|material|fabric|shade|color|game (?:title|library)|branding|specific .*detail)\b/i.test(ambiguity)
+  ));
   const visualText = [content?.productName, content?.productCategory, ...asArray(content?.visibleAttributes)]
     .map(normalizeText).filter(Boolean).join(" ");
   if (!visualText || !Number.isFinite(evidenceConfidence) || !Number.isFinite(imageAgreement)) {
@@ -862,7 +875,15 @@ function classifyVisionEvidence(product, content, imageUrl = null, imageUrls = [
     tags: [],
   };
   const visualClassification = classifyCatalogTaxonomyWithoutOverrides(visualProduct);
-  if (visualClassification.ruleId === "unclassified") {
+  const visualHintRuleId = resolveVisualTaxonomyHint(content, product);
+  const hintedVisualClassification = visualHintRuleId
+    ? classifyCatalogTaxonomyByRuleId(visualProduct, visualHintRuleId, {
+      source: "visual-category-hint",
+      reason: `Supervised visual evidence matched the governed retail label ${visualHintRuleId}.`,
+    })
+    : null;
+  const resolvedVisualClassification = hintedVisualClassification || visualClassification;
+  if (resolvedVisualClassification.ruleId === "unclassified") {
     return {
       error: "Visual evidence did not satisfy a checked-in taxonomy rule (unclassified)",
       imageUrl,
@@ -871,8 +892,25 @@ function classifyVisionEvidence(product, content, imageUrl = null, imageUrls = [
       suggestedRuleId: lexicalBestRule(product, visualText).ruleId,
     };
   }
-  const bestRule = visualClassification.ruleId;
-  const visionAlignment = assessVisionTaxonomyAlignment(product, bestRule);
+  const bestRule = resolvedVisualClassification.ruleId;
+  let visionAlignment = assessVisionTaxonomyAlignment(product, bestRule);
+  if (!visionAlignment.accepted && visualHintRuleId === bestRule) {
+    // When the original supplier text is itself unclassified or review-held,
+    // an explicit governed visual label may resolve the ambiguity. Re-check
+    // the label against the visual payload, while retaining the original-text
+    // guard for products that already have a confident taxonomy assignment.
+    const originalClassification = classifyCatalogTaxonomyWithoutOverrides(product);
+    const visualSelfAlignment = assessVisionTaxonomyAlignment(visualProduct, bestRule);
+    const explicitVisualHint = Boolean(resolveVisualTaxonomyHint(content));
+    if ((originalClassification.ruleId === "unclassified" || originalClassification.reviewRequired) && explicitVisualHint) {
+      visionAlignment = {
+        ...visionAlignment,
+        accepted: true,
+        reason: `Governed visual category hint resolved a review-held original listing: ${visualSelfAlignment.reason || `visual label mapped to ${bestRule}`}`,
+        visualSelfAlignment,
+      };
+    }
+  }
   if (!visionAlignment.accepted) {
     process.stdout.write(`Vision enrichment rejected for ${product.handle}: ${visionAlignment.reason}\n`);
     return {
@@ -1001,6 +1039,37 @@ function resolveDeterministicKnowledge(product, knowledgeModel = null, modelEvid
     };
   }
 
+  // Some supplier records have an exact product-family noun in the title or
+  // handle but no matching legacy taxonomy term. Reuse the same governed
+  // label map used by supervised vision as a deterministic direct-text lane;
+  // this is especially important for image-less products, where visual review
+  // cannot add evidence. It never overrides a reliable trained-model conflict.
+  const regularReasons = new Set(regularKnowledge.reviewReasons || []);
+  const hasReliableModelConflict = [...regularReasons].some((reason) => String(reason).startsWith("Trained knowledge model disagrees"));
+  const directHintRuleId = resolveVisualTaxonomyHint(null, product);
+  const imageCount = productImageUrls(product).length;
+  if (directHintRuleId && (!hasReliableModelConflict || imageCount === 0)) {
+    const hintedTaxonomy = classifyCatalogTaxonomyByRuleId(product, directHintRuleId, {
+      source: "deterministic-direct-hint",
+      reason: `Exact product-family wording in the title or handle matched the governed rule ${directHintRuleId}.`,
+    });
+    const completePath = Boolean(
+      hintedTaxonomy?.departmentId &&
+      hintedTaxonomy?.categoryId &&
+      hintedTaxonomy?.subcategoryId &&
+      hintedTaxonomy?.canonicalTypeId &&
+      hintedTaxonomy?.shopifyCategory,
+    );
+    if (completePath && !hintedTaxonomy.reviewRequired) {
+      return {
+        knowledge: buildProductKnowledgeFromTaxonomy(product, hintedTaxonomy, { knowledgeModel, modelEvidence }),
+        source: "evidence-fallback",
+        evidenceFallback: true,
+        reason: "Strong direct title/handle product-family evidence resolved a missing legacy taxonomy term.",
+      };
+    }
+  }
+
   // A local vision runtime is valuable, but a missing Ollama daemon must not
   // turn an obvious title-and-handle-backed product into a permanently blocked
   // queue. Accept only direct evidence with a complete taxonomy path and the
@@ -1008,8 +1077,6 @@ function resolveDeterministicKnowledge(product, knowledgeModel = null, modelEvid
   // review-held. This is evidence-backed classification, not a release guess.
   const taxonomy = classifyCatalogTaxonomy(product);
   const taxonomyReasons = new Set(taxonomy?.reviewReasons || []);
-  const regularReasons = new Set(regularKnowledge.reviewReasons || []);
-  const hasReliableModelConflict = [...regularReasons].some((reason) => String(reason).startsWith("Trained knowledge model disagrees"));
   const directFields = new Set(taxonomy?.evidence?.directFields || []);
   const directEvidence = directFields.has("title") || directFields.has("handle");
   const onlySingleLane = [...taxonomyReasons].every((reason) => reason === "single-evidence-lane");
@@ -1073,12 +1140,22 @@ function resolveExistingVisionKnowledge(product, knowledgeModel = null) {
   };
 }
 
-async function resolveKnowledge(product, { skipVision, deterministicOnly, supervisedVision, knowledgeModel = null, modelEvidence = undefined, priorVisualEvidence = null }) {
+async function resolveKnowledge(product, { skipVision, deterministicOnly, supervisedVision, forceVisual = false, knowledgeModel = null, modelEvidence = undefined, priorVisualEvidence = null }) {
   const directTaxonomy = classifyCatalogTaxonomyWithoutOverrides(product);
-  const deterministic = resolveDeterministicKnowledge(product, knowledgeModel, modelEvidence);
+  // A review-only retry must force fresh visual evidence when images exist,
+  // except for an explicit, source-controlled image-reviewed override. An
+  // approved override is already fresh human-reviewed visual evidence; making
+  // it re-enter the model lane would let a lower-quality model label reopen a
+  // decision that has already passed the release evidence gate. All ordinary
+  // deterministic classifications still remain in the fresh-vision lane.
+  const deterministicCandidate = resolveDeterministicKnowledge(product, knowledgeModel, modelEvidence);
+  const hasApprovedOverride = Boolean(deterministicCandidate?.knowledge?.override?.id);
+  const deterministic = hasApprovedOverride || !forceVisual || productImageUrls(product).length === 0
+    ? deterministicCandidate
+    : null;
   if (deterministic) return deterministic;
 
-  const existingVision = resolveExistingVisionKnowledge(product, knowledgeModel);
+  const existingVision = forceVisual ? null : resolveExistingVisionKnowledge(product, knowledgeModel);
   if (existingVision) return existingVision;
 
   if (deterministicOnly && !supervisedVision) {
@@ -1102,6 +1179,7 @@ async function resolveKnowledge(product, { skipVision, deterministicOnly, superv
       knowledge: classifyProductKnowledge(product, { knowledgeModel, modelEvidence }),
       source: "review",
       reviewReasons: [vision?.error || "Supervised vision did not meet the confidence and alignment gates."],
+      visionError: vision?.error || null,
       imageUrl: vision?.imageUrl || null,
       imageUrls: vision?.imageUrls || [],
       visualEvidence: vision?.visualEvidence || null,
@@ -1817,8 +1895,17 @@ async function run(args) {
         };
         continue;
       }
+      if (args.reviewOnly && reviewHandles.has(handle)) {
+        // A review-only retry must always re-enter the guarded visual
+        // resolution lane. Do not let a deterministic classification, a
+        // prior tag plan, or a valid prior rule id silently reuse the held
+        // decision that caused the retry.
+        unresolvedProducts.push({ index, product });
+        continue;
+      }
       const canReusePriorTagPlan = Boolean(
         canReusePriorManifest &&
+        !(args.reviewOnly && prior?.classification?.source === "review") &&
         prior?.tagTask &&
         Array.isArray(prior.tagTask.desiredManagedTags) &&
         Array.isArray(prior.classification?.collectionHandles) &&
@@ -1846,7 +1933,9 @@ async function run(args) {
       let deterministic = null;
       const priorRuleId = prior?.classification?.ruleId || "";
       const canReusePriorClassification = Boolean(
-        prior && TAXONOMY_DEFINITIONS.some((definition) => definition.id === priorRuleId),
+        prior &&
+        prior.classification?.source !== "review" &&
+        TAXONOMY_DEFINITIONS.some((definition) => definition.id === priorRuleId),
       );
       if (canReusePriorClassification) {
         const taxonomy = classifyCatalogTaxonomyByRuleId(product, prior.classification.ruleId, {
@@ -1885,6 +1974,7 @@ async function run(args) {
           ...args,
           knowledgeModel,
           modelEvidence: modelEvidenceByKey?.get(String(entry.product?.id || entry.product?.handle || "")),
+          forceVisual: Boolean(args.reviewOnly && reviewHandles.has(normalizeCollectionHandle(entry.product?.handle))),
           priorVisualEvidence: savedVisualEvidence && visualEvidenceMatchesProduct(entry.product, savedVisualEvidence)
             ? savedVisualEvidence
             : null,

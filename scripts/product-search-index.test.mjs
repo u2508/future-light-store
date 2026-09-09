@@ -35,6 +35,7 @@ describe("buildProductSearchPayload", () => {
     expect(payload.products[0]).toMatchObject({
       id: 42,
       handle: "garden-tool-set",
+      variant_count: 2,
       body_html: "A durable tool set for every garden.",
       variants: [{ id: 1, price: "14.99" }],
       images: [{ id: 9, src: "https://cdn.shopify.com/garden.jpg", alt: "Garden tools" }],

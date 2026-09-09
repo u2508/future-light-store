@@ -37,14 +37,24 @@ function run(command, args, env = process.env, cwd = rootDir) {
   });
 }
 
-async function syncDirectory(sourcePath, destinationPath) {
+async function syncDirectory(sourcePath, destinationPath, { deleteExtraneous = false } = {}) {
   await mkdir(destinationPath, { recursive: true });
-  await run("/usr/bin/rsync", [
-    "-a",
-    "--exclude=.DS_Store",
-    `${sourcePath}/`,
-    `${destinationPath}/`,
-  ]);
+  const args = ["-a", "--exclude=.DS_Store"];
+  if (deleteExtraneous) args.push("--delete");
+  args.push(`${sourcePath}/`, `${destinationPath}/`);
+
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await run("/usr/bin/rsync", args);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) await new Promise((resolveWait) => setTimeout(resolveWait, 750 * attempt));
+    }
+  }
+
+  throw lastError;
 }
 
 async function repairPackageJsonIfNeeded(sourcePath, destinationPath) {
@@ -112,12 +122,33 @@ async function main() {
     // The configured workspace dependency tree is already available locally.
     // Avoid copying hundreds of megabytes through the file provider; direct
     // Vite execution is both faster and avoids partial dependency manifests.
-    await run(
-      nodeBin,
-      [resolve(rootDir, "node_modules", "vite", "bin", "vite.js"), "build"],
-      { ...process.env, SALT_BUILD_SKIP_PUBLIC_COPY: "1" },
-      rootDir,
-    );
+    // Compile into local temporary storage. Vite's default cleanup of the
+    // provider-backed dist/products tree can race OneDrive and fail with
+    // ENOTEMPTY even when no other build is running. The guarded rsync below
+    // is deterministic and retried, while OneDrive is paused only for the
+    // short artifact handoff.
+    const stageDir = await mkdtemp(join(tmpdir(), "future-light-web-build-"));
+    const stageDist = resolve(stageDir, "dist");
+    const resumeOneDrive = pauseOneDrive();
+    try {
+      await run(
+        nodeBin,
+        [
+          resolve(rootDir, "node_modules", "vite", "bin", "vite.js"),
+          "build",
+          "--outDir",
+          stageDist,
+          "--emptyOutDir",
+        ],
+        { ...process.env, SALT_BUILD_SKIP_PUBLIC_COPY: "1" },
+        rootDir,
+      );
+      await syncDirectory(stageDist, resolve(rootDir, "dist"), { deleteExtraneous: true });
+    } finally {
+      resumeOneDrive();
+      await rm(stageDir, { recursive: true, force: true });
+    }
+
     // Vite's public-directory copy can block on OneDrive's provider. Rsync
     // the already-built public assets after the compiler has finished so the
     // build remains deterministic without keeping the compiler in that I/O.

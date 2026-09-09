@@ -68,6 +68,7 @@ function buildSearchProduct(product, knowledgeModel = null, modelEvidenceByKey =
     created_at: String(product?.created_at || ""),
     published_at: String(product?.published_at || ""),
     updated_at: String(product?.updated_at || ""),
+    variant_count: Array.isArray(product?.variants) ? product.variants.length : 0,
     variants: buildSearchVariant(product?.variants),
     images: firstImage ? [firstImage] : [],
     image: firstImage,

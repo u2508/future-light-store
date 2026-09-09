@@ -16,6 +16,7 @@ const approvalFiles = [
   "docs/catalog-taxonomy-approval.json",
   "docs/catalog-collection-approval.json",
   "docs/catalog-price-rework-approval.json",
+  "docs/catalog-missing-cost-product-removal-approval.json",
   "docs/catalog-collection-merge-approval.json",
 ];
 const releaseRunStatePath = resolve(rootDir, "output", "release-run-state.json");
@@ -205,7 +206,7 @@ async function main() {
   if (!hasResumeFlag && !hasFreshFlag && process.env.SALT_RELEASE_AUTO_RESUME !== "0") {
     try {
       const previousRun = JSON.parse(await readFile(releaseRunStatePath, "utf8"));
-      const resumable = ["failed", "running"].includes(previousRun?.status);
+      const resumable = ["failed", "running", "waiting_for_network"].includes(previousRun?.status);
       const sameProfile = !previousRun?.profile || previousRun.profile === requestedProfile;
       if (resumable && sameProfile) {
         forwardedArgs.push("--resume");

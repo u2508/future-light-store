@@ -35,7 +35,10 @@ const fixtures = [
         "FunnyJack 3.5mm AUX Audio Cable To XH2.54 3p Terminal Male To Male Female 3 Core Stereo Audio Cable Amplifier Extended Line",
       tags: ["electronic-adapter", "men"],
       body: "Brand Name: KOQZM\nChoice: yes\nOrigin: CN\nType: Audio Extension Cord.",
-      expectedRule: "electronic-adapter",
+      // The product is an audio extension cable, not a generic computer
+      // adapter. The legacy electronic-adapter tag is deliberately ignored
+      // so the regression fixture protects the live semantic classification.
+      expectedRule: "audio-cables",
       expectedTitle: /3\.5mm AUX Audio Cable.*XH2\.54/i,
       expectedBody: [/3\.5mm AUX/i, /XH2\.54 3-pin terminal/i, /male-to-male/i],
     },

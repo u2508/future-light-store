@@ -26,8 +26,12 @@ import {
 import { classifyProductKnowledge, PRODUCT_KNOWLEDGE_BASE_VERSION } from "./product-knowledge-base.js";
 import { extractLabeledSpecificationFacts } from "./product-specifications.js";
 import { getCatalogTaxonomyDefinitions } from "./catalog-taxonomy.js";
+import { PRICE_REWORK_RULES, multiplierForCost } from "./shopify-price-rework-policy.js";
 
-export const PER_ORDER_OVERHEAD = 16;
+export const PER_PRODUCT_OVERHEAD = PRICE_REWORK_RULES.overhead;
+// Kept as a compatibility alias for older audit imports; pricing semantics are
+// explicitly per product/variant, not a checkout-level order fee.
+export const PER_ORDER_OVERHEAD = PER_PRODUCT_OVERHEAD;
 const MAX_REASONABLE_RETAIL_PRICE = 14999.99;
 
 const GENERIC_TITLE_WORDS = new Set([
@@ -139,6 +143,21 @@ const HANDLE_TITLE_OVERRIDES = new Map([
   ["candy-candy-anime", "Candy Candy Anime Graphic T-Shirt Top"],
   ["nana-anime", "Nana Anime Graphic Printed T-Shirt Top"],
   ["nana-anime-1", "Nana Anime Graphic Printed T-Shirt Top"],
+  [
+    "1-4-pairs-silicone-ear-tip-cover-replacement-earbud-xs-s-m-l-size-silicone-earbud-tips-covers-for-airpods-pro-1st-2nd-generation",
+    "Replacement Silicone Ear Tips for AirPods Pro",
+  ],
+  [
+    "eartips-for-airpods-pro-1-2-ear-pads-silicone-case-pressure-relief-hole-ear-caps-cushion-eartips-buds-earphone-air-pods-pro",
+    "Replacement Silicone Ear Tips for AirPods Pro",
+  ],
+  [
+    "summer-fashion-hot-street-hip-hop-3d-printing-trend-cool-black-casual-cool-t-shirt",
+    "Black 3D-Print T-Shirt for Casual Summer Wear",
+  ],
+  ["seyhze-collagen-essence-serum-a-skincare-product-formulated-with-collagen-ceramides-aloe-vera-and-centella-asiatica-design", "Seyhze Collagen Serum with Ceramides, Aloe Vera and Centella"],
+  ["yoshimura-t-shirt", "Yoshimura Cotton T-Shirt"],
+  ["jeans-for-men-2025-new-loose-straight-leg-winter-thick-wide-leg-work-pants", "Men's Loose Straight-Leg Jeans for Winter Workwear"],
   ["case-for-iphone-13-case-iphone-11-12-13-mini-14-15-16-pro-max-cover-funda-tpu-cases-matte-liquid-silicone-cover-iphone-13", "Matte Silicone iPhone Case for Multiple Models"],
   ["case-for-iphone-15-plus-case-iphone-11-12-13-mini-14-15-16-pro-max-cover-shockproof-soft-silicone-cover-iphone-15plus", "Shockproof Silicone iPhone Case for Multiple Models"],
   ["12-24-card-holder-card-holder-multi-card-holder-mens-and-womens-card-holder-change-bag-for-men-and-women", "12-24 Slot Card Holder for Men and Women"],
@@ -668,6 +687,25 @@ export function buildHandleAlignedTitle(signals) {
   }
   if (/(?:3[ .-]?5\s*mm|35mm).*?(?:aux|audio).*cable.*(?:xh2|terminal)|(?:aux|audio).*cable.*(?:xh2|terminal)/i.test(semanticHandle)) {
     return "3.5mm AUX Audio Cable with XH2.54 3-Pin Male Terminals";
+  }
+  // Ear-tip listings often contain the word "case" in supplier wording such
+  // as "silicone case". Resolve the replacement part before the broader
+  // AirPods-case rule below so the customer-facing title cannot describe a
+  // protective shell instead of an ear tip.
+  if (/(?:ear[- ]?tips?|eartips?|ear[- ]?caps?|silicone[- ]?tips?)/i.test(handle) && /(?:airpods?|buds?|earbuds?|earphones?)/i.test(handle)) {
+    return "Replacement Silicone Ear Tips for AirPods Pro";
+  }
+  if (/collagen.*(?:essence[- ]?)?serum|(?:essence[- ]?)?serum.*collagen/i.test(handle)) {
+    return "Seyhze Collagen Serum with Ceramides, Aloe Vera and Centella";
+  }
+  if (/yoshimura[- ]t[- ]?shirt/i.test(handle)) {
+    return "Yoshimura Cotton T-Shirt";
+  }
+  if (/summer.*(?:3d[- ]?printing|3d[- ]?print).*t[- ]?shirt|3d[- ]?printing.*cool[- ]?black.*t[- ]?shirt/i.test(handle)) {
+    return "Black 3D-Print T-Shirt for Casual Summer Wear";
+  }
+  if (/(?:jeans|wide[- ]leg[- ]work[- ]pants).*men|men.*(?:jeans|wide[- ]leg[- ]work[- ]pants)/i.test(handle)) {
+    return "Men's Loose Straight-Leg Jeans for Winter Workwear";
   }
   if (/screen-auto-clicker|auto-clicker.*(?:screen|phone)|(?:screen|phone).*auto-clicker/i.test(handle)) {
     return "Screen Auto Clicker for Smartphones and Apps";
@@ -1450,6 +1488,7 @@ function humanProductType(signals, titleText, knowledge) {
     [/(?:rca|coaxial).*cable|cable.*(?:rca|coaxial)/i, "RCA coaxial audio cable"],
     [/f40.*sweater|sweater.*f40|mens and womens.*sweater/i, "patterned sweater"],
     [/(?:3\s*5\s*mm|35mm).*?(?:aux|audio).*cable|(?:aux|audio).*cable.*(?:xh2|terminal)/i, "3.5mm AUX audio cable"],
+    [/collagen.*(?:essence[- ]?)?serum|(?:essence[- ]?)?serum.*collagen/i, "collagen essence serum"],
     [/(?:inflatable|air).*mattress|mattress.*(?:inflatable|camping|sleeping)/i, "inflatable camping mattress"],
     [/(?:tactical|molle).*backpack|backpack.*(?:tactical|molle)|\bruck sack\b/i, "tactical backpack"],
     [/(?:squeegees?|window cleaning).*\b(?:window|glass)\b|\b(?:window|glass)\b.*(?:squeegees?|window cleaning)/i, "window and glass squeegee"],
@@ -1463,6 +1502,8 @@ function humanProductType(signals, titleText, knowledge) {
     [/(?:\breplacement\b|\brepair\b).*\b(?:microphone|mic)\b|\b(?:microphone|mic)\b.*(?:\breplacement\b|\brepair\b)/i, "replacement headset microphone"],
     [/\b(?:microphone|mic)\b.*\b(?:headset|headphone|earphone)\b|\b(?:headset|headphone|earphone)\b.*\b(?:microphone|mic)\b/i, "wired headset with microphone"],
     [/\b(?:ear pads?|earpads?|earphone pads?|headphone pads?)\b/i, "headphone replacement earpads"],
+    [/\b(?:t[- ]?shirt|tee)\b/i, "t-shirt"],
+    [/\bjeans?\b/i, "jeans"],
     [/\b(?:headband cover|earphone bracket|headphone bracket)\b/i, "headphone replacement part"],
     [/\b(?:eye mask|eye mask pad)\b/i, "eye mask replacement pad"],
     [/\b(?:hot shoes?|hot shoe|camera shoe)\b/i, "camera hot-shoe mount"],
@@ -1540,6 +1581,12 @@ function buildHumanProductSummary(titleText, signals, knowledge, facts) {
   }
   if (/f40.*sweater|sweater.*f40|mens[- ]and[- ]womens.*sweater/i.test(evidence)) {
     return "This F40 patterned sweater uses the car motif named in the listing for fall and winter wear; check the listed fabric and fit before ordering.";
+  }
+  if (/(?:ear[- ]?tips?|eartips?|ear[- ]?caps?|silicone[- ]?tips?)/i.test(evidence) && /(?:airpods?|buds?|earbuds?|earphones?)/i.test(evidence)) {
+    return `These replacement silicone ear tips are shaped for ${devicePhrase || "compatible wireless earbuds"}; choose the listed size and check the exact model before ordering.`;
+  }
+  if (/collagen.*(?:essence[- ]?)?serum|(?:essence[- ]?)?serum.*collagen/i.test(evidence)) {
+    return "This collagen essence serum is formulated with the ceramides, aloe vera, and centella asiatica named in the listing; check the ingredient list and application directions before use.";
   }
   if (/(?:3\s*5\s*mm|35mm).*?(?:aux|audio).*cable/i.test(evidence)) {
     return "This cable carries the 3.5mm AUX audio connection named in the listing; check the device-side connector and cable length before ordering.";
@@ -1636,6 +1683,13 @@ function buildHumanProductSummary(titleText, signals, knowledge, facts) {
   }
   if (/\b(?:stylus|digital pen|touch pen)\b/i.test(evidence)) {
     return "This stylus pen is for writing or drawing on a compatible touchscreen device; check the listed model and options before ordering.";
+  }
+  if (/\b(?:t[- ]?shirt|tee)\b/i.test(evidence)) {
+    const material = firstFactValue(facts, ["Material"]);
+    return `This t-shirt is a casual top with the graphic or fit details named in the listing${material ? ` and ${material.toLowerCase()} fabric` : ""}; check the listed size and care instructions before ordering.`;
+  }
+  if (/\bjeans?\b/i.test(evidence)) {
+    return "These jeans use the loose, straight-leg silhouette identified in the listing for men's winter and workwear; check the waist, length, and size options before ordering.";
   }
   if (/\b(?:eye mask|eye mask pad)\b/i.test(evidence)) {
     return "This eye mask replacement pad is shaped for the eye-mask format named in the title; match the dimensions and fastening details before ordering.";
@@ -2064,6 +2118,8 @@ function buildDescriptionHtml(title, signals) {
     productUseText = "Use the tool to remove hair and debris from a brush or comb, then clear the tool and store it dry between uses.";
   } else if (/\b(?:screen protector|tempered glass|hydrogel film)\b/i.test(family)) {
     productUseText = "Confirm the screen model and size before fitting, clean the display, and apply the protector according to the supplied installation instructions.";
+  } else if (/(?:ear[- ]?tips?|eartips?|ear[- ]?caps?|silicone[- ]?tips?)/i.test(family)) {
+    productUseText = "Choose the listed ear-tip size and confirm the AirPods or earbud model before fitting. Keep the tips clean and replace them if they become worn or damaged.";
   } else if (/\b(?:case|cover|pouch|sleeve)\b/i.test(family)) {
     productUseText = "Confirm the device model and dimensions before fitting the case, cover, pouch, or sleeve, and keep the closure or protective surface clean.";
   } else if (/\bfitness-keychain\b/i.test(family)) {
@@ -2207,11 +2263,11 @@ function suggestRetailPriceFromSignals({
     return "";
   }
 
-  const campaignCost = PER_ORDER_OVERHEAD;
+  const productOverhead = PER_PRODUCT_OVERHEAD;
   let derivedFromCost = null;
   if (Number.isFinite(numericCost) && numericCost > 0) {
-    const multiplier = numericCost < 5 ? 4.2 : numericCost < 15 ? 3.25 : numericCost < 30 ? 2.75 : numericCost < 50 ? 2.35 : 1.95;
-    derivedFromCost = Math.max(numericCost + campaignCost, numericCost * multiplier);
+    const multiplier = multiplierForCost(numericCost);
+    derivedFromCost = numericCost * multiplier + productOverhead;
   }
 
   const reference = [numericAnchor, numericCurrent]
@@ -2229,14 +2285,14 @@ function suggestRetailPriceFromSignals({
   }
 
   if (reference) {
-    target = Math.max(target, reference + PER_ORDER_OVERHEAD);
+    target = Math.max(target, reference + PER_PRODUCT_OVERHEAD);
   }
   if (reference && target < reference * 1.15) {
     target = reference * 1.15;
   }
 
   if (derivedFromCost) {
-    target = Math.max(target, numericCost + PER_ORDER_OVERHEAD);
+    target = Math.max(target, numericCost + PER_PRODUCT_OVERHEAD);
   }
 
   const rounded = Number(roundPsychologicalPrice(target));
@@ -2942,7 +2998,7 @@ function buildProductProfile(signals) {
       compareAtPrice: "",
       rationale:
         price && signals.sourceCost
-          ? `Cost ${formatMoneyValue(signals.sourceCost)} plus $${PER_ORDER_OVERHEAD} per-order overhead, with a 35%+ uplift guarded by the current catalog anchor`
+          ? `Cost-band retail target plus $${PER_PRODUCT_OVERHEAD} per-product overhead, with a 35%+ uplift guarded by the current catalog anchor`
           : price && signals.anchorPrice
             ? `Current catalog anchor lifted by 35% with psychological rounding`
             : price

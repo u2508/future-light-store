@@ -156,7 +156,7 @@ function ProductPage() {
       toast.error("Select an option first", { position: "top-center" });
       return;
     }
-    await addItem({
+    const addResult = await addItem({
       product: { node: product },
       variantId: selected.id,
       variantTitle: selected.title,
@@ -164,7 +164,14 @@ function ProductPage() {
       quantity,
       selectedOptions: selected.selectedOptions ?? [],
     });
-    toast.success("Added to bag", { description: product.title, position: "top-center" });
+    if (addResult.success) {
+      toast.success("Added to bag", { description: product.title, position: "top-center" });
+    } else {
+      toast.error("Couldn’t add this item", {
+        description: addResult.message,
+        position: "top-center",
+      });
+    }
   };
 
   const productJsonLd = {

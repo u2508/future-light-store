@@ -10,7 +10,12 @@ import { normalizeHandleValue, normalizePlainText, toShopifyGid } from "../src/l
 import {
   inferDeterministicShopifyTaxonomyCategory,
 } from "../src/lib/shopify-product-category.js";
-import { mergeProductCustomData, normalizeProductCustomData, normalizeShopCustomData } from "../src/lib/product-custom-data.js";
+import {
+  mergeProductCustomData,
+  normalizeCollectionCustomData,
+  normalizeProductCustomData,
+  normalizeShopCustomData,
+} from "../src/lib/product-custom-data.js";
 import {
   buildMarketingBackfillPlan,
   buildMarketingMetafieldSetBatches,
@@ -88,6 +93,12 @@ const DIAPER_METAOBJECT_DEFINITION_ID = "gid://shopify/MetaobjectDefinition/9632
 // color but no evidence-backed pattern. This keeps required Color metaobjects
 // valid without inventing a product-specific pattern.
 const DEFAULT_SOLID_PATTERN_TAXONOMY_VALUE_ID = "gid://shopify/TaxonomyValue/2874";
+// Shopify's standard Color metaobject accepts at most four base-color
+// references in its color_taxonomy_reference list. Products can legitimately
+// have more than four color variants, so preserve all evidence by creating
+// multiple color-pattern references instead of sending an invalid oversized
+// list or silently dropping colors.
+const COLOR_PATTERN_MAX_BASE_COLORS = 4;
 const execFileAsync = promisify(execFile);
 
 const STAGED_UPLOAD_CREATE_MUTATION = /* GraphQL */ `
@@ -893,6 +904,45 @@ const PRODUCT_CATALOG_QUERY = /* GraphQL */ `
   }
 `;
 
+const COLLECTION_CUSTOM_DATA_QUERY = /* GraphQL */ `
+  query CollectionMarketingCustomData($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on Collection {
+        id
+        legacyResourceId
+        handle
+        title
+        heroKicker: metafield(namespace: "salt-marketing", key: "hero_kicker") {
+          jsonValue
+          value
+        }
+        heroSummary: metafield(namespace: "salt-marketing", key: "hero_summary") {
+          jsonValue
+          value
+        }
+        featuredProducts: metafield(namespace: "salt-marketing", key: "featured_products") {
+          references(first: 50) {
+            nodes {
+              ... on Product {
+                id
+                legacyResourceId
+                handle
+                title
+                productType
+                vendor
+              }
+            }
+          }
+        }
+        trustStrip: metafield(namespace: "salt-marketing", key: "trust_strip") {
+          jsonValue
+          value
+        }
+      }
+    }
+  }
+`;
+
 const SHOP_CUSTOM_DATA_QUERY = /* GraphQL */ `
   query ShopCustomData {
     shop {
@@ -973,6 +1023,16 @@ function normalizeStringList(value) {
         .filter(Boolean),
     ),
   );
+}
+
+function extractNumericId(input) {
+  const text = String(input || "").trim();
+  if (!text) {
+    return "";
+  }
+
+  const match = text.match(/(\d+)(?:\D*)$/);
+  return match?.[1] || "";
 }
 
 function parseBooleanValue(value) {
@@ -1173,12 +1233,21 @@ async function fetchLiveProductCustomDataMapBulk(productIds, fingerprint) {
 
   const productsById = new Map();
   const variantsByProductId = new Map();
+  const metafieldsByProductId = new Map();
   for (const line of (await readFile(PRODUCT_CUSTOM_DATA_BULK_RESULT, "utf8")).split(/\r?\n/)) {
     if (!line.trim()) continue;
     const node = JSON.parse(line);
     if (node.__parentId) {
-      if (!variantsByProductId.has(node.__parentId)) variantsByProductId.set(node.__parentId, []);
-      variantsByProductId.get(node.__parentId).push(node);
+      // Shopify bulk JSONL flattens every connection child into the same
+      // stream. Product metafield nodes also have __parentId, so they must
+      // not be appended to variants or the live category state disappears.
+      if (node.namespace && node.key) {
+        if (!metafieldsByProductId.has(node.__parentId)) metafieldsByProductId.set(node.__parentId, []);
+        metafieldsByProductId.get(node.__parentId).push(node);
+      } else if (node.__typename === "ProductVariant" || String(node.id || "").includes("/ProductVariant/")) {
+        if (!variantsByProductId.has(node.__parentId)) variantsByProductId.set(node.__parentId, []);
+        variantsByProductId.get(node.__parentId).push(node);
+      }
       continue;
     }
     if (node?.id && selectedIds.has(node.id)) productsById.set(node.id, node);
@@ -1189,6 +1258,7 @@ async function fetchLiveProductCustomDataMapBulk(productIds, fingerprint) {
     const node = attachBulkReferenceNodes({
       ...rawNode,
       variants: { nodes: variantsByProductId.get(id) || [] },
+      metafields: { nodes: metafieldsByProductId.get(id) || [] },
     });
     const customData = normalizeLiveProductCustomDataNode(node) || normalizeProductCustomData({});
     records.set(Number(node.legacyResourceId), buildLiveCustomDataRecord(node, customData));
@@ -1209,7 +1279,9 @@ async function fetchLiveProductCustomDataMap(products) {
         .filter(Boolean)
     : [];
 
-  const fingerprint = `v5:${productIds.length}:${productIds[0] || ""}:${productIds.at(-1) || ""}`;
+  // Bump this when the bulk JSONL projection changes. Older checkpoints were
+  // created before product metafield children were separated from variants.
+  const fingerprint = `v6:bulk-child-partition:${productIds.length}:${productIds[0] || ""}:${productIds.at(-1) || ""}`;
   try {
     const checkpoint = await loadJson(PRODUCT_CUSTOM_DATA_CHECKPOINT, "metafield custom-data checkpoint");
     const age = Date.now() - new Date(checkpoint?.generatedAt || 0).getTime();
@@ -1539,6 +1611,71 @@ async function fetchLiveShopRecord() {
       trustStrip: normalizeStringList(shop.trustStrip?.jsonValue ?? shop.trustStrip?.value ?? []),
     }),
   };
+}
+
+async function fetchLiveCollectionCustomDataMap(collections) {
+  const selectedCollections = Array.isArray(collections) ? collections : [];
+  const collectionIds = selectedCollections
+    .map((collection) => {
+      const numericId = extractNumericId(collection?.id || collection?.admin_graphql_api_id || "");
+      return numericId ? toShopifyGid("Collection", numericId) : "";
+    })
+    .filter(Boolean);
+
+  if (!collectionIds.length) {
+    return new Map();
+  }
+
+  const records = new Map();
+  const batches = chunkArray(Array.from(new Set(collectionIds)), 50);
+  const responses = await Promise.all(
+    batches.map((batch) => runShopifyStoreGraphQL(COLLECTION_CUSTOM_DATA_QUERY, { ids: batch })),
+  );
+
+  for (const payload of responses) {
+    for (const node of Array.isArray(payload?.nodes) ? payload.nodes : []) {
+      const numericId = extractNumericId(node?.legacyResourceId || node?.id || "");
+      if (!numericId) {
+        continue;
+      }
+
+      records.set(String(numericId), {
+        handle: String(node.handle || "").trim().toLowerCase(),
+        customData: normalizeCollectionCustomData({
+          heroKicker: node.heroKicker?.jsonValue ?? node.heroKicker?.value ?? null,
+          heroSummary: node.heroSummary?.jsonValue ?? node.heroSummary?.value ?? null,
+          featuredProducts: node.featuredProducts?.references?.nodes || [],
+          trustStrip: normalizeStringList(node.trustStrip?.jsonValue ?? node.trustStrip?.value ?? []),
+        }),
+      });
+    }
+  }
+
+  process.stdout.write(
+    `Read live collection merchandising metafields for ${records.size}/${selectedCollections.length} collection(s)\n`,
+  );
+  return records;
+}
+
+async function hydrateMarketingCollections(collections) {
+  const localCollections = Array.isArray(collections) ? collections : [];
+  if (!localCollections.length) {
+    return localCollections;
+  }
+
+  const liveMap = await fetchLiveCollectionCustomDataMap(localCollections);
+  return localCollections.map((collection) => {
+    const numericId = extractNumericId(collection?.id || collection?.admin_graphql_api_id || "");
+    const liveRecord = liveMap.get(String(numericId));
+    if (!liveRecord?.customData) {
+      return collection;
+    }
+
+    return {
+      ...collection,
+      customData: liveRecord.customData,
+    };
+  });
 }
 
 async function loadJson(filePath, label) {
@@ -2036,12 +2173,41 @@ function categoryMetafieldBatches(entries, maxEntries = 25) {
   return batches;
 }
 
+function colorPatternReferenceGroups(writes) {
+  const colorWrites = [];
+  const otherWrites = [];
+  const seenColorIds = new Set();
+  for (const write of writes) {
+    const isColor = /color|colour/i.test(String(write.attributeName || "")) && !/pattern/i.test(String(write.attributeName || ""));
+    if (!isColor || !write.taxonomyValueId) {
+      otherWrites.push(write);
+      continue;
+    }
+    const taxonomyValueId = String(write.taxonomyValueId);
+    if (seenColorIds.has(taxonomyValueId)) continue;
+    seenColorIds.add(taxonomyValueId);
+    colorWrites.push(write);
+  }
+  if (!colorWrites.length) return [writes];
+  const groups = [];
+  for (let index = 0; index < colorWrites.length; index += COLOR_PATTERN_MAX_BASE_COLORS) {
+    groups.push([
+      ...colorWrites.slice(index, index + COLOR_PATTERN_MAX_BASE_COLORS),
+      ...otherWrites,
+    ]);
+  }
+  return groups;
+}
+
 function categoryMetaobjectFieldValue(write, fieldDefinition = null) {
   const fieldType = String(fieldDefinition?.type?.name || fieldDefinition?.type || "").toLowerCase();
+  const taxonomyValueIds = Array.isArray(write.taxonomyValueIds) && write.taxonomyValueIds.length
+    ? [...new Set(write.taxonomyValueIds.map(String).filter(Boolean))]
+    : [write.taxonomyValueId].filter(Boolean);
   if (fieldType.startsWith("list.") || write.taxonomyFieldKey === "color_taxonomy_reference") {
-    return JSON.stringify([write.taxonomyValueId]);
+    return JSON.stringify(taxonomyValueIds);
   }
-  return write.taxonomyValueId;
+  return taxonomyValueIds[0] || "";
 }
 
 function categoryMetaobjectFieldContainsValue(field, taxonomyValueId) {
@@ -2092,17 +2258,19 @@ function categoryMetaobjectExpectedFields(writes, definition) {
   const expected = [];
   for (const fieldDefinition of taxonomyFields) {
     const fieldToken = `${fieldDefinition?.key || ""} ${fieldDefinition?.name || ""}`.toLowerCase().replace(/[^a-z0-9]+/g, "");
-    const matchingWrite = writes.length === 1 && taxonomyFields.length === 1
-      ? writes[0]
-      : writes.find((write) => {
+    const matchingWrites = writes.filter((write) => {
+      if (writes.length === 1 && taxonomyFields.length === 1) return true;
       const attributeToken = String(write.attributeName || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
       return attributeToken && fieldToken.includes(attributeToken);
-      });
-    if (matchingWrite) {
+    });
+    if (matchingWrites.length) {
+      const matchingWrite = matchingWrites[0];
+      const taxonomyValueIds = [...new Set(matchingWrites.map((write) => write.taxonomyValueId).filter(Boolean).map(String))];
       expected.push({
         fieldDefinition,
-        value: categoryMetaobjectFieldValue({ ...matchingWrite, taxonomyFieldKey: fieldDefinition.key }, fieldDefinition),
-        taxonomyValueId: matchingWrite.taxonomyValueId,
+        value: categoryMetaobjectFieldValue({ ...matchingWrite, taxonomyFieldKey: fieldDefinition.key, taxonomyValueIds }, fieldDefinition),
+        taxonomyValueIds,
+        taxonomyValueId: taxonomyValueIds[0],
       });
       continue;
     }
@@ -2113,6 +2281,7 @@ function categoryMetaobjectExpectedFields(writes, definition) {
       expected.push({
         fieldDefinition,
         value: DEFAULT_SOLID_PATTERN_TAXONOMY_VALUE_ID,
+        taxonomyValueIds: [DEFAULT_SOLID_PATTERN_TAXONOMY_VALUE_ID],
         taxonomyValueId: DEFAULT_SOLID_PATTERN_TAXONOMY_VALUE_ID,
       });
     } else if (fieldDefinition.required) {
@@ -2140,7 +2309,9 @@ async function resolveCategoryMetaobjectReference(write, cache, definitionCache,
   const existing = metaobjectNodes.find((node) =>
     expectedFields.every((expected) => {
       const field = (node?.fields || []).find((entry) => entry?.key === expected.fieldDefinition.key);
-      return categoryMetaobjectFieldContainsValue(field, expected.taxonomyValueId);
+      return (expected.taxonomyValueIds || [expected.taxonomyValueId]).every((taxonomyValueId) =>
+        categoryMetaobjectFieldContainsValue(field, taxonomyValueId),
+      );
     }),
   );
   if (existing?.id) {
@@ -2170,12 +2341,6 @@ async function resolveCategoryMetaobjectReference(write, cache, definitionCache,
 
 async function resolveCategoryMetafieldWrites(categoryWrites) {
   if (!categoryWrites.length) return [];
-  const currentIds = [...new Set(categoryWrites.flatMap((write) => write.currentReferenceIds || []))];
-  const existingById = new Map();
-  if (currentIds.length) {
-    const payload = await runShopifyStoreGraphQL(CATEGORY_METAOBJECT_NODES_QUERY, { ids: currentIds });
-    for (const node of payload?.nodes || []) if (node?.id) existingById.set(String(node.id), node);
-  }
   const cache = new Map();
   const definitionCache = new Map();
   const metaobjectsCache = new Map();
@@ -2190,18 +2355,52 @@ async function resolveCategoryMetafieldWrites(categoryWrites) {
   for (const writes of groupedWrites.values()) {
     const write = writes[0];
     try {
+      const currentReferenceIds = [...new Set(writes.flatMap((entry) => entry.currentReferenceIds || []).map(String))];
+      if (writes.every((entry) => entry.clear)) {
+        if (currentReferenceIds.length) {
+          resolved.push({
+            ownerId: write.productGid,
+            ownerType: "PRODUCT",
+            ownerHandle: write.handle,
+            ownerTitle: write.handle,
+            namespace: write.namespace,
+            key: write.key,
+            type: "list.metaobject_reference",
+            value: "[]",
+            fieldId: `${write.namespace}.${write.key}`,
+            label: write.attributeName,
+            reason: write.reason,
+            action: "clear-invalid",
+            productId: write.productId,
+            productHandle: write.handle,
+            productTitle: write.handle,
+          });
+        }
+        continue;
+      }
+
       const definition = await ensureCategoryMetaobjectDefinition(write, definitionCache);
-      const expectedFields = categoryMetaobjectExpectedFields(writes, definition);
-      const currentReferenceIds = [...new Set(writes.flatMap((entry) => entry.currentReferenceIds || []))];
-      const currentMatches = currentReferenceIds.some((id) => {
-        const node = existingById.get(String(id));
-        return expectedFields.every((expected) => {
-          const field = (node?.fields || []).find((entry) => entry?.key === expected.fieldDefinition.key);
-          return categoryMetaobjectFieldContainsValue(field, expected.taxonomyValueId);
-        });
-      });
+      // color-pattern is a single object with a list of base colors and one
+      // required pattern. Other Shopify taxonomy metaobjects have a scalar
+      // taxonomy field, so each evidenced value needs its own reference.
+      const colorPattern = String(write.key || "").toLowerCase() === "color-pattern";
+      const referenceIds = [];
+      const referenceGroups = colorPattern ? colorPatternReferenceGroups(writes) : writes.map((entry) => [entry]);
+      for (const referenceWrites of referenceGroups) {
+        const referenceId = await resolveCategoryMetaobjectReference(
+          referenceWrites[0],
+          cache,
+          definitionCache,
+          definition,
+          referenceWrites,
+          metaobjectsCache,
+        );
+        if (referenceId && !referenceIds.includes(referenceId)) referenceIds.push(referenceId);
+      }
+      if (!referenceIds.length) continue;
+      const currentMatches = currentReferenceIds.length === referenceIds.length &&
+        currentReferenceIds.every((id) => referenceIds.includes(id));
       if (currentMatches) continue;
-      const referenceId = await resolveCategoryMetaobjectReference(write, cache, definitionCache, definition, writes, metaobjectsCache);
       resolved.push({
         ownerId: write.productGid,
         ownerType: "PRODUCT",
@@ -2210,10 +2409,11 @@ async function resolveCategoryMetafieldWrites(categoryWrites) {
         namespace: write.namespace,
         key: write.key,
         type: "list.metaobject_reference",
-        value: JSON.stringify([referenceId]),
+        value: JSON.stringify(referenceIds),
         fieldId: `${write.namespace}.${write.key}`,
-        label: write.attributeName,
-        reason: write.reason,
+        label: writes.map((entry) => entry.attributeName).filter(Boolean).join(" / "),
+        reason: writes.map((entry) => entry.reason).filter(Boolean).join("; "),
+        action: "verify-or-replace",
         productId: write.productId,
         productHandle: write.handle,
         productTitle: write.handle,
@@ -2631,9 +2831,14 @@ async function main() {
   const diaperDiscovery = await discoverDiaperTypeOptions();
   const disclosureDiscovery = await discoverDisclosureOptions();
 
+  const localCollections = Array.isArray(collectionsPayload.collections) ? collectionsPayload.collections : [];
+  const collectionsForMarketing = args.productOnly || args.categoryOnly || args.categoryMetafieldsOnly
+    ? localCollections
+    : await hydrateMarketingCollections(localCollections);
+
   const backfillPlan = buildBackfillPlan({
     products: hydratedProducts,
-    collections: Array.isArray(collectionsPayload.collections) ? collectionsPayload.collections : [],
+    collections: localCollections,
     collectionProducts: collectionProductsPayload,
     reviewSummaries,
     diaperTypeOptions: diaperDiscovery.options,
@@ -2657,7 +2862,7 @@ async function main() {
       }
     : buildMarketingBackfillPlan({
         products: hydratedProducts,
-        collections: Array.isArray(collectionsPayload.collections) ? collectionsPayload.collections : [],
+        collections: collectionsForMarketing,
         collectionProducts: collectionProductsPayload,
         shop:
           /^gid:\/\/shopify\/Shop\/\d+$/i.test(String(shopPayload?.shop?.id || ""))
@@ -2704,6 +2909,11 @@ async function main() {
         },
       }));
   const categoryMetafieldWrites = categoryMetafieldPlanResult.writes;
+  const categoryMetafieldProductCount = new Set(
+    categoryMetafieldWrites
+      .map((entry) => Number(entry.productId))
+      .filter((productId) => Number.isFinite(productId) && productId > 0),
+  ).size;
   const scopedWritesByField = {};
   for (const plan of productPlans) {
     for (const write of plan.writes || []) {
@@ -2804,7 +3014,7 @@ async function main() {
   await writeManifest(args.outputFile, manifest);
   process.stdout.write(`Manifest written to ${args.outputFile}\n`);
   process.stdout.write(
-    `Dry-run plan: ${scopedProductSummary.totalWrites + marketingPlans.reduce((sum, plan) => sum + plan.writes.length, 0)} product/marketing metafield write(s), ${categoryMetafieldWrites.length} category metafield candidate(s), and ${categoryPlans.length} category update(s) across ${scopedProductSummary.productsWithWrites} product(s) and ${marketingBackfillPlan.summary.scannedCollections} collection(s)\n`,
+    `Dry-run plan: ${scopedProductSummary.totalWrites + marketingPlans.reduce((sum, plan) => sum + plan.writes.length, 0)} product/marketing metafield write(s), ${categoryMetafieldWrites.length} category metafield candidate(s) across ${categoryMetafieldProductCount} product(s), and ${categoryPlans.length} category update(s) across ${scopedProductSummary.productsWithWrites} product(s) and ${marketingBackfillPlan.summary.scannedCollections} collection(s)\n`,
   );
 
   if (!args.apply) {

@@ -92,6 +92,182 @@ function buildProductEvidenceText(product) {
 // Keep these fallbacks narrow and return paths, not guessed IDs: the backfill
 // resolves every path against Shopify before applying it.
 const DETERMINISTIC_CATEGORY_RULES = Object.freeze([
+  // High-signal repairs for the current Future Light catalog. These rules
+  // run before the broad catalog classifier so a secondary supplier noun
+  // (for example "speaker" in a projector listing or "skin" in a game
+  // controller case) cannot assign the product to the wrong Shopify branch.
+  // They return verified taxonomy paths; the backfill resolves each path
+  // against Shopify before applying it.
+  {
+    id: "projector-screens",
+    pattern: /\bprojector\s+screens?\b/i,
+    fullName: "Electronics > Video > Video Accessories > Projector Accessories > Projection Screens",
+  },
+  {
+    id: "projectors",
+    pattern: /\bprojectors?\b/i,
+    fullName: "Electronics > Video > Projectors",
+  },
+  {
+    id: "remote-control-cases",
+    pattern: /\b(?:remote|fire\s+tv|fire\s+stick)\b.{0,60}\b(?:case|cover|shell)\b|\b(?:case|cover|shell)\b.{0,60}\b(?:remote|fire\s+tv|fire\s+stick)\b/i,
+    fullName: "Electronics > Electronics Accessories > Remote Controls",
+  },
+  {
+    id: "controller-skins-and-cases",
+    pattern: /(?:\b(?:controller|gamepads?)\b).{0,60}\b(?:case|cover|skin|shell)\b|\b(?:case|cover|skin|shell)\b.{0,60}\b(?:controller|gamepads?)\b/i,
+    fullName: "Electronics > Electronics Accessories > Computer Components > Input Device Accessories > Game Controller Accessories > Game Controller Skins",
+  },
+  {
+    id: "controller-stands",
+    pattern: /\b(?:game\s+controller|gamepads?)\s+stand\b|\bstand\b.{0,40}\b(?:game\s+controller|gamepads?)\b/i,
+    fullName: "Electronics > Electronics Accessories > Computer Components > Input Device Accessories > Game Controller Accessories > Game Controller Stands",
+  },
+  {
+    id: "controller-accessories",
+    pattern: /(?:\b(?:controller|gamepads?)\b|\bgame\s+console\b).{0,70}\b(?:grip|wrist\s+strap|hand\s+rope|thumb\s*stick|high[-\s]?rise\s+stick|performance\s+stick|faceplate|housing)\b|\b(?:grip|wrist\s+strap|hand\s+rope|thumb\s*stick|high[-\s]?rise\s+stick|performance\s+stick|faceplate|housing)\b.{0,70}\b(?:controller|gamepads?|game\s+console)\b/i,
+    fullName: "Electronics > Electronics Accessories > Computer Components > Input Device Accessories > Game Controller Accessories",
+  },
+  {
+    id: "video-game-controllers",
+    pattern: /\b(?:gamepads?|game\s+controller|gaming\s+controller|wireless\s+controller|wired\s+controller|xbox\s+controller|switch\s+controller)\b/i,
+    fullName: "Electronics > Video Game Console Accessories > Video Game Controllers",
+  },
+  {
+    id: "handheld-game-consoles",
+    pattern: /\b(?:handheld|portable\s+pocket|pocket)\b.{0,70}\b(?:video\s+game\s+)?console\b|\b(?:video\s+game\s+)?console\b.{0,70}\b(?:handheld|portable\s+pocket|pocket)\b/i,
+    fullName: "Electronics > Video Game Consoles > Handheld Game Consoles",
+  },
+  {
+    id: "video-game-console-accessories",
+    pattern: /\b(?:game\s+reader|sd\s*\/\s*tf\s+card\s+adapter|game\s+console\s+accessor(?:y|ies))\b/i,
+    fullName: "Electronics > Video Game Console Accessories",
+  },
+  {
+    id: "digital-photo-frames",
+    pattern: /\bdigital\s+(?:photo|picture)\s+frames?\b/i,
+    fullName: "Home & Garden > Decor > Picture Frames > Digital Photo Frames",
+  },
+  {
+    id: "streaming-home-media-players",
+    pattern: /\b(?:smart\s+tv\s+box|android\s+tv\s+box|set[-\s]?top\s+box|tv\s+box|media\s+player)\b/i,
+    fullName: "Electronics > Video > Video Players & Recorders > Streaming & Home Media Players",
+  },
+  {
+    id: "voice-recorders",
+    pattern: /\b(?:voice\s+recorder|digital\s+dictaphone|dictaphone)\b/i,
+    fullName: "Electronics > Audio > Audio Players & Recorders > Voice Recorders",
+  },
+  {
+    id: "blank-audio-cassettes",
+    pattern: /\b(?:blank|standard)\s+(?:audio\s+)?cassette\b|\bcassette\b.{0,40}\b(?:blank\s+tape|speech\s+and\s+music)\b/i,
+    fullName: "Electronics > Electronics Accessories > Blank Media > Blank Audio Cassettes",
+  },
+  {
+    id: "blu-ray-media",
+    pattern: /\bblu[-\s]?ray\b/i,
+    fullName: "Media > Videos > Blu-ray",
+  },
+  {
+    id: "bluetooth-item-trackers",
+    pattern: /\b(?:bluetooth|find\s+hub|key\s+finder|key\s+tracker|phone\s+tracker|navigation\s+tracker|locating\s+key)\b.{0,60}\b(?:tracker|finder|tag)\b|\b(?:tracker|finder|tag)\b.{0,60}\b(?:bluetooth|find\s+hub|key|phone|android)\b/i,
+    fullName: "Electronics > GPS Tracking Devices > Bluetooth Trackers",
+  },
+  {
+    id: "zigbee-home-automation",
+    pattern: /\b(?:zigbee|home\s+automation).{0,60}\b(?:dongle|gateway|module|device)\b|\b(?:dongle|gateway|module|device)\b.{0,60}\b(?:zigbee|home\s+automation)\b/i,
+    fullName: "Hardware > Power & Electrical Supplies > Home Automation Kits",
+  },
+  {
+    id: "smart-home-switches",
+    pattern: /\b(?:tuya|smart\s+life|smart\s+home|wifi)\b.{0,50}\bswitch\b|\bswitch\b.{0,50}\b(?:tuya|smart\s+life|smart\s+home|wifi)\b/i,
+    fullName: "Electronics > Networking > Hubs & Switches > Smart Switches",
+  },
+  {
+    id: "bluetooth-audio-adapters",
+    pattern: /\b(?:bluetooth|wireless)\b.{0,35}\b(?:audio\s+)?(?:adapter|receiver|transmitter)\b|\baudio\s+(?:wireless\s+)?adapter\b/i,
+    fullName: "Electronics > Audio > Audio Accessories > Audio & Video Receiver Accessories > Bluetooth Adapters",
+  },
+  {
+    id: "display-video-adapters",
+    pattern: /\b(?:displayport|vga)\b.{0,40}\b(?:adapter|converter)\b|\b(?:adapter|converter)\b.{0,40}\b(?:displayport|vga)\b/i,
+    fullName: "Electronics > Electronics Accessories > Adapters > Audio & Video Cable Adapters & Couplers",
+  },
+  {
+    id: "laptop-docking-stations",
+    pattern: /\bdocking\s+stations?\b/i,
+    fullName: "Electronics > Electronics Accessories > Computer Accessories > Laptop Docking Stations",
+  },
+  {
+    id: "usb-extension-cables",
+    pattern: /\b(?:usb|type\s+c)\b.{0,35}\b(?:extension|extender)\s+cables?\b|\b(?:extension|extender)\s+cables?\b.{0,35}\b(?:usb|type\s+c)\b/i,
+    fullName: "Electronics > Electronics Accessories > Cables > Storage & Data Transfer Cables > USB Cables",
+  },
+  {
+    id: "cable-protectors",
+    pattern: /\b(?:cable|wire)\b.{0,60}\b(?:protector|protective\s+tube)\b|\b(?:protector|protective\s+tube)\b.{0,60}\b(?:cable|wire)\b/i,
+    fullName: "Electronics > Electronics Accessories > Cable Management > Cable Protectors & Ramps",
+  },
+  {
+    id: "cable-clips",
+    pattern: /\bcable\s+clips?\b/i,
+    fullName: "Electronics > Electronics Accessories > Cable Management > Cable Clips",
+  },
+  {
+    id: "wire-and-cable-ties",
+    pattern: /\b(?:cable\s+ties?|reusable\s+cable\s+ties?|velcro\s+fastening)\b/i,
+    fullName: "Electronics > Electronics Accessories > Cable Management > Wire & Cable Ties",
+  },
+  {
+    id: "cable-management",
+    pattern: /\bcable\s+(?:organizer|management)\b/i,
+    fullName: "Electronics > Electronics Accessories > Cable Management",
+  },
+  {
+    id: "watch-bands",
+    pattern: /\b(?:watchband|watch\s+(?:band|strap)|replacement\s+strap)\b.{0,60}\b(?:watch|amazfit|t[-\s]?rex)\b|\b(?:watch|amazfit|t[-\s]?rex)\b.{0,60}\b(?:strap|band)\b/i,
+    fullName: "Apparel & Accessories > Jewelry > Watch Accessories > Watch Bands",
+  },
+  {
+    id: "trauma-first-aid-kits",
+    pattern: /\btrauma\b.{0,45}\bfirst\s+aid\b|\bfirst\s+aid\b.{0,45}\btrauma\b/i,
+    fullName: "Health & Beauty > Health Care > First Aid > First Aid Kits > Trauma First Aid Kits",
+  },
+  {
+    id: "first-aid-kits",
+    pattern: /\bfirst\s+aid\s+kit\b/i,
+    fullName: "Health & Beauty > Health Care > First Aid > First Aid Kits",
+  },
+  {
+    id: "face-and-body-paint-palettes",
+    pattern: /\b(?:face|body)\s+paint\b|\bpaint\s+palette\b.{0,40}\b(?:makeup|cosplay|halloween)\b/i,
+    fullName: "Health & Beauty > Personal Care > Cosmetics > Makeup > Face Makeup > Face Palettes",
+  },
+  {
+    id: "pet-apparel",
+    pattern: /\b(?:pet\s+(?:outfit|apparel|clothing)|dog\s+(?:outfit|clothing)|cat\s+(?:outfit|clothing))\b/i,
+    fullName: "Animals & Pet Supplies > Pet Supplies > Pet Apparel",
+  },
+  {
+    id: "seasonal-holiday-decorations",
+    pattern: /^(?!.*\bstickers?\b)\b(?:seasonal|holiday|thanksgiving|christmas|fall\s+garland|winter\s+village)\b.{0,80}\b(?:decor|decoration|garland|lights?|village|ornament)\b|^(?!.*\bstickers?\b)\b(?:decor|decoration|garland|lights?|village|ornament)\b.{0,80}\b(?:seasonal|holiday|thanksgiving|christmas)\b/i,
+    fullName: "Home & Garden > Decor > Seasonal & Holiday Decorations",
+  },
+  {
+    id: "gift-boxes-and-tins",
+    pattern: /\b(?:gift|wedding|birthday)\b.{0,60}\bbox\b|\bbox\b.{0,60}\b(?:gift|wedding|birthday)\b/i,
+    fullName: "Arts & Entertainment > Party & Celebration > Gift Giving > Gift Wrapping > Gift Boxes & Tins",
+  },
+  {
+    id: "decorative-stickers",
+    pattern: /\b(?:four\s+seasons|seasonal\s+landscape|scrapbook|scrapbooking|journal|handbook)\b.{0,60}\bstickers?\b|\bstickers?\b.{0,60}\b(?:four\s+seasons|seasonal\s+landscape|scrapbook|scrapbooking|journal|handbook)\b/i,
+    fullName: "Arts & Entertainment > Hobbies & Creative Arts > Arts & Crafts > Art & Crafting Materials > Embellishments & Trims > Decorative Stickers",
+  },
+  {
+    id: "leggings",
+    pattern: /\bleggings?\b/i,
+    fullName: "Apparel & Accessories > Clothing > Pants > Leggings",
+  },
   {
     id: "pet-grooming-tools",
     pattern: /(?:pet|dog|cat|puppy|kitten).{0,80}(?:brush|slicker|deshedding|dematting|hair removal)|(?:brush|slicker|deshedding|dematting).{0,80}(?:pet|dog|cat|puppy|kitten)/i,

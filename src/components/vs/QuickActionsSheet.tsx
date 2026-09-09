@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Heart, Loader2, Minus, Plus, Ruler, ShieldCheck, Truck } from "lucide-react";
 import { toast } from "sonner";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { discountPercent, formatMoney, type ShopifyProduct } from "@/lib/shopify";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { discountPercent, fetchProduct, formatMoney, type ShopifyProduct } from "@/lib/shopify";
 import { useCartStore } from "@/stores/cartStore";
 import { useWishlistStore } from "@/stores/wishlistStore";
 import { cn } from "@/lib/utils";
@@ -18,8 +25,24 @@ export function QuickActionsSheet({
   onOpenChange: (open: boolean) => void;
 }) {
   const n = product.node;
-  const variants = useMemo(() => n.variants.edges.map((e) => e.node), [n]);
-  const [selectedId, setSelectedId] = useState<string | null>(variants.length === 1 ? (variants[0]?.id ?? null) : null);
+  const variantCount = n.variantsCount?.count ?? n.variants.edges.length;
+  const needsFullProduct = variantCount > n.variants.edges.length;
+  const {
+    data: fullProduct,
+    isError: fullProductError,
+    isLoading: fullProductLoading,
+  } = useQuery({
+    queryKey: ["product", n.handle, "quick-actions"],
+    queryFn: () => fetchProduct(n.handle),
+    enabled: open && needsFullProduct,
+    staleTime: 5 * 60 * 1000,
+  });
+  const activeProduct = fullProduct ? { node: fullProduct } : product;
+  const activeNode = activeProduct.node;
+  const variants = useMemo(() => activeNode.variants.edges.map((e) => e.node), [activeNode]);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    variants.length === 1 ? (variants[0]?.id ?? null) : null,
+  );
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
   const addItem = useCartStore((s) => s.addItem);
@@ -35,36 +58,55 @@ export function QuickActionsSheet({
     }
   }, [open, variants]);
 
-  const images = n.images.edges.map((e) => e.node);
+  const images = activeNode.images.edges.map((e) => e.node);
   const selected = variants.find((v) => v.id === selectedId) ?? null;
-  const price = selected?.price ?? n.priceRange.minVariantPrice;
+  const price = selected?.price ?? activeNode.priceRange.minVariantPrice;
   const compareAt = selected?.compareAtPrice?.amount ?? null;
   const off = discountPercent(price.amount, compareAt);
 
   const handleAdd = async () => {
+    if (fullProductLoading || fullProductError || (needsFullProduct && !fullProduct)) {
+      toast.error("Product options are still loading", { position: "top-center" });
+      return;
+    }
     if (!selected) {
       toast.error("Select an option first", { position: "top-center" });
       return;
     }
     if (!selected.availableForSale) return;
-    await addItem({
-      product,
+    const addResult = await addItem({
+      product: activeProduct,
       variantId: selected.id,
       variantTitle: selected.title,
       price: selected.price,
       quantity,
       selectedOptions: selected.selectedOptions ?? [],
     });
-    toast.success("Added to bag", { description: `${n.title} × ${quantity}`, position: "top-center" });
-    onOpenChange(false);
+    if (addResult.success) {
+      toast.success("Added to bag", {
+        description: `${activeNode.title} × ${quantity}`,
+        position: "top-center",
+      });
+      onOpenChange(false);
+    } else {
+      toast.error("Couldn’t add this item", {
+        description: addResult.message,
+        position: "top-center",
+      });
+    }
   };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-3xl sm:max-w-2xl sm:mx-auto">
+      <SheetContent
+        side="bottom"
+        className="max-h-[90vh] overflow-y-auto rounded-t-3xl sm:max-w-2xl sm:mx-auto"
+      >
         <SheetHeader className="text-left">
-          <SheetTitle className="font-display text-xl">{n.title}</SheetTitle>
-          <SheetDescription>{n.productType || n.vendor || "VS Store"}</SheetDescription>
+          <SheetTitle className="font-display text-xl">{activeNode.title}</SheetTitle>
+          <SheetDescription>
+            {activeNode.productType || activeNode.vendor || "VS Store"}
+          </SheetDescription>
         </SheetHeader>
 
         <div className="grid gap-6 pt-4 sm:grid-cols-2">
@@ -73,11 +115,13 @@ export function QuickActionsSheet({
               {images[imageIndex] ? (
                 <img
                   src={images[imageIndex]!.url}
-                  alt={images[imageIndex]!.altText ?? n.title}
+                  alt={images[imageIndex]!.altText ?? activeNode.title}
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <div className="grid h-full place-items-center text-xs text-muted-foreground">No image</div>
+                <div className="grid h-full place-items-center text-xs text-muted-foreground">
+                  No image
+                </div>
               )}
             </div>
             {images.length > 1 && (
@@ -101,7 +145,9 @@ export function QuickActionsSheet({
 
           <div className="space-y-4">
             <div className="flex items-baseline gap-2">
-              <span className="font-display text-2xl font-bold">{formatMoney(price.amount, price.currencyCode)}</span>
+              <span className="font-display text-2xl font-bold">
+                {formatMoney(price.amount, price.currencyCode)}
+              </span>
               {off > 0 && compareAt && (
                 <>
                   <span className="text-sm text-muted-foreground line-through">
@@ -117,7 +163,9 @@ export function QuickActionsSheet({
             {variants.length > 1 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Select option</p>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    Select option
+                  </p>
                   <button className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
                     <Ruler className="h-3 w-3" /> Size guide
                   </button>
@@ -144,7 +192,9 @@ export function QuickActionsSheet({
             )}
 
             <div className="flex items-center gap-3">
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Qty</span>
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Qty
+              </span>
               <div className="flex items-center gap-1 rounded-xl border border-border p-1">
                 <button
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
@@ -162,15 +212,20 @@ export function QuickActionsSheet({
                   <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <span className={cn("text-xs", n.availableForSale ? "text-muted-foreground" : "text-signal")}>
-                {n.availableForSale ? "In stock" : "Sold out"}
+              <span
+                className={cn(
+                  "text-xs",
+                  activeNode.availableForSale ? "text-muted-foreground" : "text-signal",
+                )}
+              >
+                {activeNode.availableForSale ? "In stock" : "Sold out"}
               </span>
             </div>
 
             <div className="flex gap-2">
               <button
                 onClick={handleAdd}
-                disabled={isLoading || !n.availableForSale}
+                disabled={isLoading || fullProductLoading || !activeNode.availableForSale}
                 className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
               >
                 {isLoading ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Add to bag"}
@@ -178,7 +233,9 @@ export function QuickActionsSheet({
               <button
                 onClick={() => {
                   const added = toggleWishlist(product);
-                  toast(added ? "Saved to wishlist" : "Removed from wishlist", { position: "top-center" });
+                  toast(added ? "Saved to wishlist" : "Removed from wishlist", {
+                    position: "top-center",
+                  });
                 }}
                 aria-label="Toggle wishlist"
                 className="grid h-12 w-12 place-items-center rounded-xl border border-border transition-colors hover:border-signal"

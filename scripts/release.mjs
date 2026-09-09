@@ -2,11 +2,12 @@
 
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { lookup } from "node:dns/promises";
 import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { stableJson } from "./lib/performance-runtime.mjs";
+import { retryDelayMs, sleep, stableJson } from "./lib/performance-runtime.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -18,6 +19,17 @@ const releaseName = process.env.SALT_RELEASE_NAME || "Future Light Store";
 const catalogBatchSize = Math.max(1, Math.min(1000, Number(process.env.SALT_CATALOG_BATCH_SIZE || 50)));
 const releaseRunStatePath = resolve(rootDir, "output", "release-run-state.json");
 const releaseHeartbeatMs = Math.max(10_000, Number(process.env.SALT_RELEASE_HEARTBEAT_MS || 30_000));
+const releaseNetworkPollMs = Math.max(5_000, Number(process.env.SALT_RELEASE_NETWORK_POLL_MS || 30_000));
+const releaseNetworkProbeTimeoutMs = Math.max(2_000, Number(process.env.SALT_RELEASE_NETWORK_PROBE_TIMEOUT_MS || 15_000));
+const releaseNetworkFailureBackoffMs = Math.max(1_000, Number(process.env.SALT_RELEASE_NETWORK_FAILURE_BACKOFF_MS || 2_000));
+const releaseNetworkFailureBackoffMaxMs = Math.max(
+  releaseNetworkFailureBackoffMs,
+  Number(process.env.SALT_RELEASE_NETWORK_FAILURE_BACKOFF_MAX_MS || 30_000),
+);
+const releaseFailureOutputLimit = 8_000;
+const releaseFailureStateLimit = 1_500;
+const networkFailurePattern = /429|rate limit|throttl|timeout|timed out|network|socket|temporar|aborted|econnreset|econnrefused|econnaborted|enetunreach|ehostunreach|enotfound|eai_again|getaddrinfo|dns|err_network|und_err|fetch failed|could not resolve host|name resolution|no such host|connection refused|connection reset|service unavailable|bad gateway|gateway timeout/i;
+const remoteReleaseStagePattern = /shopify|sync:data|seo:new-products:apply|catalog-integrity/i;
 
 function releaseStepFingerprint(step, profile) {
   return createHash("sha256")
@@ -46,6 +58,189 @@ function formatCommand(command, args) {
 
 let releaseRunState = {};
 
+function stripAnsi(value) {
+  return String(value || "").replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
+}
+
+function redactFailureText(value, limit = releaseFailureOutputLimit) {
+  const redacted = stripAnsi(value)
+    .replace(/(authorization|x-shopify-access-token|access[_-]?token|api[_-]?key|secret|password|token)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]")
+    .replace(/Bearer\s+[^\s]+/gi, "Bearer [redacted]")
+    .trim();
+  return redacted.length > limit ? `…${redacted.slice(-limit)}` : redacted;
+}
+
+export function isNetworkFailureText(value) {
+  return networkFailurePattern.test(redactFailureText(value));
+}
+
+export function isRemoteReleaseStage(command, args = []) {
+  return remoteReleaseStagePattern.test(`${command} ${args.join(" ")}`);
+}
+
+export function shouldRepairKnowledgeModel(label, failureText) {
+  return label === "Verify trained 256M-record catalog knowledge model"
+    && /Catalog knowledge model training fingerprint does not match the checked-in taxonomy\./i.test(
+      stripAnsi(String(failureText || "")),
+    );
+}
+
+const RELEASE_REPAIR_ROUTES = [
+  {
+    failedLabel: "Verify every active product has product-specific SEO and metafields",
+    startLabel: "Run local SEO and product-content quality audit",
+    matches: /product-specificity|SEO and metafields/i,
+    reason: "product-specificity verification failed after content rules changed; replaying guarded content and live-readback steps",
+    message: "so updated product content reaches Shopify before verification",
+  },
+  {
+    failedLabel: "Apply all-active-catalog product categories and merchandising metafields",
+    startLabel: "Refresh Shopify data after final product publication",
+    matches: /metafield|category|taxonomy|owner subtype|union|schema/i,
+    reason: "category or merchandising backfill failed; replaying the final publication refresh and live-aware backfill",
+    message: "so the category/metafield repair can retry from a fresh live catalog",
+  },
+  {
+    failedLabel: "Verify Shopify merchandising backfill",
+    startLabel: "Apply all-active-catalog product categories and merchandising metafields",
+    matches: /merchandising|mismatch|collection|shop/i,
+    reason: "merchandising readback found stale generated collection or shop data; replaying live-aware merchandising backfill before verification",
+    message: "so live-aware merchandising values reach Shopify before verification",
+  },
+  {
+    failedLabel: "Automatically clear visual classification review with guarded evidence",
+    startLabel: "Build visual taxonomy review queue",
+    matches: /visual|classification|review|image|evidence/i,
+    reason: "visual classification automation did not clear its guarded queue; rebuilding the evidence queue and retrying",
+    message: "so visual evidence is regenerated before the classification gate",
+  },
+  {
+    failedLabel: "Require image-backed taxonomy evidence",
+    startLabel: "Build visual taxonomy review queue",
+    matches: /visual|classification|review|image|evidence/i,
+    reason: "image-backed taxonomy evidence was incomplete; rebuilding the persisted review queue",
+    message: "so image-backed evidence is regenerated before validation",
+  },
+  {
+    failedLabel: "Apply resumable variant-image mapping with live readback",
+    startLabel: "Dry-run deterministic and visual variant-image mapping",
+    matches: /variant|image|mapping|bulk|readback/i,
+    reason: "variant-image apply/readback failed; replaying the deterministic plan and resumable mapping",
+    message: "so the variant-image plan is rebuilt before live apply",
+  },
+  {
+    failedLabel: "Apply approved taxonomy tags and metafields with live readback",
+    startLabel: "Dry-run exact full-catalog collection reconciliation",
+    matches: /taxonomy|tag|metafield|collection|manifest|readback/i,
+    reason: "taxonomy apply encountered a stale or incomplete plan; replaying the guarded full-catalog classification and live-readback steps",
+    message: "so the classification manifest covers every active product",
+  },
+  {
+    failedLabel: "Verify live full-catalog cost-based pricing before base SEO",
+    startLabel: "Dry-run products with missing live Shopify variant costs",
+    matches: /missing|invalid|cost-based pricing|unitCost|price/i,
+    reason: "full-catalog pricing verification found products with missing or invalid live costs; replaying the approval-gated cost repair before pricing",
+    message: "so missing-cost products are handled before pricing is retried",
+  },
+  {
+    failedLabel: "Verify exact collection membership and price rules",
+    startLabel: "Dry-run exact full-catalog collection reconciliation",
+    matches: /collection|tag|classification|collectionless|govern|price|cost/i,
+    reason: "collection, classification, or price-integrity readback found drift; replaying the guarded full-catalog reconciliation",
+    message: "so evidence-backed collection and price repairs reach live readback",
+  },
+  {
+    failedLabel: "Validate final catalog taxonomy snapshot",
+    startLabel: "Read live Shopify tag inventory",
+    matches: /taxonomy|tag|classification|collection|snapshot|review/i,
+    reason: "final taxonomy snapshot validation found stale catalog evidence; replaying the live tag and taxonomy audit",
+    message: "so the final taxonomy snapshot is rebuilt from live evidence",
+  },
+  {
+    failedLabel: "Verify daily manual collection shuffle",
+    startLabel: "Dry-run daily manual collection shuffle",
+    matches: /shuffle|order|collection|readback/i,
+    reason: "collection shuffle readback failed; replaying the same-seed guarded shuffle plan",
+    message: "so failed collection order entries are repaired and read back",
+  },
+  {
+    failedLabel: "Final live-readback gate after tag cleanup and collection merges",
+    startLabel: "Dry-run exact full-catalog collection reconciliation",
+    matches: /collection|tag|classification|collectionless|govern|price|cost|readback/i,
+    reason: "the final live-readback gate found governed catalog drift; replaying the guarded reconciliation before the final gate",
+    message: "so the final live-readback gate can verify the repaired catalog",
+  },
+];
+
+export function getReleaseRepairRoute(steps, previousRunState, requestedResumeFromStep) {
+  if (previousRunState?.status !== "failed") {
+    return null;
+  }
+
+  const failureText = `${previousRunState?.stepLabel || ""}\n${previousRunState?.error || ""}`;
+  for (const route of RELEASE_REPAIR_ROUTES) {
+    const failedStep = steps.findIndex((step) => step.label === route.failedLabel) + 1;
+    const startStep = steps.findIndex((step) => step.label === route.startLabel) + 1;
+    if (failedStep < 1 || startStep < 1 || requestedResumeFromStep !== failedStep) {
+      continue;
+    }
+    if (!route.matches.test(failureText) || startStep >= requestedResumeFromStep) {
+      continue;
+    }
+    return {
+      fromStep: startStep,
+      failedStep,
+      reason: route.reason,
+      message: `Repair-aware resume: replaying steps ${startStep}-${failedStep} ${route.message}.\n`,
+    };
+  }
+
+  return null;
+}
+
+async function probeReleaseNetwork() {
+  const shopUrl = String(process.env.SALT_SHOP_URL || "").trim();
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(shopUrl);
+  } catch {
+    return { available: false, reason: "release store URL is unavailable" };
+  }
+
+  try {
+    await lookup(parsedUrl.hostname);
+  } catch (error) {
+    return { available: false, reason: `DNS lookup unavailable (${error?.code || "lookup failure"})` };
+  }
+
+  try {
+    const response = await fetch(parsedUrl, {
+      method: "HEAD",
+      redirect: "manual",
+      signal: AbortSignal.timeout(releaseNetworkProbeTimeoutMs),
+    });
+    response.body?.cancel?.();
+    return { available: true, status: response.status };
+  } catch (error) {
+    return { available: false, reason: redactFailureText(error?.message || error, 300) || "store network probe failed" };
+  }
+}
+
+function stageFailureError({ label, commandLine, cwd, result }) {
+  const exitDetail = result.error
+    ? `process error ${result.error.code || result.error.message || result.error}`
+    : result.signal
+      ? `signal ${result.signal}`
+      : `exit code ${result.code}`;
+  const output = redactFailureText(result.output);
+  return new Error([
+    `Release stopped at step ${result.index}/${result.total} (${label}) with ${exitDetail}.`,
+    `Command: ${commandLine}`,
+    `Working directory: ${cwd}`,
+    output ? `Output tail: ${redactFailureText(output, releaseFailureStateLimit)}` : "",
+  ].filter(Boolean).join("\n"));
+}
+
 async function writeReleaseRunState(patch = {}) {
   releaseRunState = {
     ...releaseRunState,
@@ -63,42 +258,193 @@ async function writeReleaseRunState(patch = {}) {
   }
 }
 
-function runStage({ label, command, args, cwd, index, total }) {
+function runStageAttempt({ command, args, cwd, index, total }) {
+  return new Promise((resolveAttempt) => {
+    let output = "";
+    let settled = false;
+    const appendOutput = (chunk) => {
+      output += String(chunk || "");
+      if (output.length > releaseFailureOutputLimit) output = output.slice(-releaseFailureOutputLimit);
+    };
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolveAttempt({ ...result, output, index, total });
+    };
+    const child = spawn(command, args, {
+      cwd,
+      env: process.env,
+      stdio: ["inherit", "pipe", "pipe"],
+    });
+    child.stdout?.on("data", (chunk) => {
+      process.stdout.write(chunk);
+      appendOutput(chunk);
+    });
+    child.stderr?.on("data", (chunk) => {
+      process.stderr.write(chunk);
+      appendOutput(chunk);
+    });
+    child.on("error", (error) => finish({ error }));
+    child.on("close", (code, signal) => finish({ code, signal }));
+  });
+}
+
+async function waitForNetworkBeforeRetry({ label, commandLine, cwd, index, total, attempt, initialProbe = null }) {
+  const startedAt = releaseRunState.networkWait?.active && releaseRunState.networkWait?.startedAt
+    ? releaseRunState.networkWait.startedAt
+    : new Date().toISOString();
+  const baseWait = retryDelayMs({
+    attempt: Math.max(0, attempt - 1),
+    baseMs: releaseNetworkFailureBackoffMs,
+    maxMs: releaseNetworkFailureBackoffMaxMs,
+    jitterMs: 500,
+  });
+  let pollCount = 0;
+  let probe = initialProbe;
+
+  await writeReleaseRunState({
+    status: "waiting_for_network",
+    networkWait: {
+      active: true,
+      stepIndex: index,
+      totalSteps: total,
+      stepLabel: label,
+      command: commandLine,
+      cwd,
+      attempt,
+      startedAt,
+      pollCount,
+      reason: releaseRunState.networkWait?.reason || "transient network or DNS failure",
+      nextProbeAt: new Date(Date.now() + baseWait).toISOString(),
+    },
+  });
+  process.stdout.write(
+    `Network/DNS failure at step ${index}/${total}; entering wait state before retry ${attempt}. Polling until the store network is restored.\n`,
+  );
+  await sleep(baseWait);
+
+  while (true) {
+    probe ||= await probeReleaseNetwork();
+    const now = new Date().toISOString();
+    if (probe.available) {
+      await writeReleaseRunState({
+        status: "running",
+        networkWait: {
+          active: false,
+          stepIndex: index,
+          totalSteps: total,
+          stepLabel: label,
+          command: commandLine,
+          cwd,
+          attempt,
+          startedAt,
+          pollCount,
+          lastProbeAt: now,
+          restoredAt: now,
+          nextProbeAt: null,
+          reason: "network restored; retrying the same guarded step",
+        },
+      });
+      process.stdout.write(`Network restored; retrying step ${index}/${total} (${label}) from its guarded checkpoint.\n`);
+      return;
+    }
+
+    pollCount += 1;
+    const nextProbeAt = new Date(Date.now() + releaseNetworkPollMs).toISOString();
+    await writeReleaseRunState({
+      status: "waiting_for_network",
+      networkWait: {
+        active: true,
+        stepIndex: index,
+        totalSteps: total,
+        stepLabel: label,
+        command: commandLine,
+        cwd,
+        attempt,
+        startedAt,
+        pollCount,
+        lastProbeAt: now,
+        nextProbeAt,
+        reason: probe.reason || "store network probe failed",
+      },
+    });
+    process.stdout.write(`Network still unavailable; next probe in ${Math.round(releaseNetworkPollMs / 1000)}s (poll ${pollCount}).\n`);
+    await sleep(releaseNetworkPollMs);
+    probe = null;
+  }
+}
+
+async function runStage({ label, command, args, cwd, index, total }) {
   const commandLine = formatCommand(command, args);
 
   process.stdout.write(`\n[${index}/${total}] ${label}\n`);
   process.stdout.write(`$ ${commandLine}\n`);
 
-  return new Promise((resolveStep, rejectStep) => {
-    const child = spawn(command, args, {
-      cwd,
-      env: process.env,
-      stdio: "inherit",
-    });
+  let networkAttempt = 0;
+  let knowledgeModelRepairAttempted = false;
+  while (true) {
+    const result = await runStageAttempt({ command, args, cwd, index, total });
+    if (result.code === 0) {
+      process.stdout.write(`[ok] ${label}\n`);
+      return;
+    }
 
-    child.on("error", (error) => {
-      rejectStep(
-        new Error(
-          `Release stopped at step ${index}/${total} (${label}).\nCommand: ${commandLine}\nWorking directory: ${cwd}\nReason: ${error.message}`,
-        ),
+    const failure = stageFailureError({ label, commandLine, cwd, result });
+    if (!knowledgeModelRepairAttempted && shouldRepairKnowledgeModel(label, `${result.error?.message || ""}\n${result.output}`)) {
+      knowledgeModelRepairAttempted = true;
+      process.stdout.write(
+        "Knowledge model fingerprint drift detected; retraining the approved 256M-record local model before retrying verification.\n",
       );
-    });
-
-    child.on("exit", (code, signal) => {
-      if (code === 0) {
-        process.stdout.write(`[ok] ${label}\n`);
-        resolveStep();
-        return;
+      const repairCommand = formatCommand(npmBin, ["run", "catalog:knowledge:model:train"]);
+      const repairResult = await runStageAttempt({
+        command: npmBin,
+        args: ["run", "catalog:knowledge:model:train"],
+        cwd,
+        index,
+        total,
+      });
+      if (repairResult.code !== 0) {
+        throw stageFailureError({
+          label: "Repair catalog knowledge model fingerprint",
+          commandLine: repairCommand,
+          cwd,
+          result: repairResult,
+        });
       }
+      process.stdout.write("Catalog knowledge model retrained; retrying the original verification gate.\n");
+      continue;
+    }
+    let initialProbe = null;
+    let networkFailure = isNetworkFailureText(`${result.error?.code || ""} ${result.error?.message || ""} ${result.output}`);
+    if (!networkFailure && isRemoteReleaseStage(command, args)) {
+      initialProbe = await probeReleaseNetwork();
+      networkFailure = !initialProbe.available;
+    }
+    if (!networkFailure) throw failure;
 
-      const exitDetail = signal ? `signal ${signal}` : `exit code ${code}`;
-      rejectStep(
-        new Error(
-          `Release stopped at step ${index}/${total} (${label}) with ${exitDetail}.\nCommand: ${commandLine}\nWorking directory: ${cwd}`,
-        ),
-      );
+    networkAttempt += 1;
+    const failureReason = redactFailureText(
+      `${result.error?.code || ""} ${result.error?.message || ""} ${result.output}`,
+      releaseFailureStateLimit,
+    );
+    releaseRunState = {
+      ...releaseRunState,
+      networkWait: {
+        ...(releaseRunState.networkWait || {}),
+        reason: failureReason || initialProbe?.reason || "transient network or DNS failure",
+        lastFailureAt: new Date().toISOString(),
+      },
+    };
+    await waitForNetworkBeforeRetry({
+      label,
+      commandLine,
+      cwd,
+      index,
+      total,
+      attempt: networkAttempt,
+      initialProbe,
     });
-  });
+  }
 }
 
 async function ensurePathExists(path, label) {
@@ -163,6 +509,24 @@ function buildCatalogReleaseSteps({
       cwd: releaseRootDir,
     },
     {
+      label: "Dry-run active low-stock product removal",
+      command: npmBin,
+      args: ["run", "shopify:products:low-stock:dry-run"],
+      cwd: releaseRootDir,
+    },
+    {
+      label: "Apply approved active low-stock product removal with live readback",
+      command: npmBin,
+      args: ["run", "shopify:products:low-stock:apply"],
+      cwd: releaseRootDir,
+    },
+    {
+      label: "Verify active low-stock product removal",
+      command: npmBin,
+      args: ["run", "shopify:products:low-stock:verify"],
+      cwd: releaseRootDir,
+    },
+    {
       label: "Read live Shopify tag inventory",
       command: npmBin,
       args: ["run", "catalog:tags:fetch"],
@@ -220,6 +584,24 @@ function buildCatalogReleaseSteps({
       label: "Ensure Shopify product metafield definitions",
       command: npmBin,
       args: ["run", "shopify:product-metafields:ensure"],
+      cwd: releaseRootDir,
+    },
+    {
+      label: "Dry-run products with missing live Shopify variant costs",
+      command: npmBin,
+      args: ["run", "shopify:products:missing-cost:dry-run"],
+      cwd: releaseRootDir,
+    },
+    {
+      label: "Apply approved missing-cost product removal with live readback",
+      command: npmBin,
+      args: ["run", "shopify:products:missing-cost:apply"],
+      cwd: releaseRootDir,
+    },
+    {
+      label: "Verify missing-cost product removal",
+      command: npmBin,
+      args: ["run", "shopify:products:missing-cost:verify"],
       cwd: releaseRootDir,
     },
     {
@@ -605,7 +987,7 @@ async function main() {
       } catch {
         throw new Error(`Cannot resume release: no readable run state at ${releaseRunStatePath}`);
       }
-      if (!previousRunState || !["failed", "running"].includes(previousRunState.status)) {
+      if (!previousRunState || !["failed", "running", "waiting_for_network"].includes(previousRunState.status)) {
         throw new Error(`Cannot resume release: run state is ${previousRunState?.status || "missing"}, not failed or interrupted`);
       }
       if (previousRunState.profile && previousRunState.profile !== args.profile) {
@@ -621,7 +1003,7 @@ async function main() {
         }
       }
     }
-    const requestedResumeFromStep = args.resume
+    let requestedResumeFromStep = args.resume
       ? Math.max(1, Number(previousRunState?.stepIndex || previousRunState?.completedStepIndex || 1))
       : 1;
     releaseRunState = {
@@ -678,9 +1060,21 @@ async function main() {
       throw new Error(`Cannot resume from step ${requestedResumeFromStep}; release has ${steps.length} steps`);
     }
     if (args.resume && previousRunState?.totalSteps && previousRunState.totalSteps !== steps.length) {
-      throw new Error(
-        `Cannot resume safely: the release step graph changed from ${previousRunState.totalSteps} to ${steps.length} steps. Use --fresh after reviewing the new graph.`,
+      // A guarded step may be added while an older release is still running.
+      // Resume by the persisted step label, never by the old numeric index;
+      // newly inserted steps are intentionally deferred to the next fresh
+      // release so they cannot be applied halfway through an old graph.
+      const priorStepLabel = String(previousRunState?.stepLabel || "").trim();
+      const migratedIndex = steps.findIndex((step) => step.label === priorStepLabel) + 1;
+      if (!priorStepLabel || migratedIndex < 1) {
+        throw new Error(
+          `Cannot resume safely: the release step graph changed from ${previousRunState.totalSteps} to ${steps.length} steps and the prior step label is unavailable. Use --fresh after reviewing the new graph.`,
+        );
+      }
+      process.stdout.write(
+        `Migrating resumable release checkpoint from ${previousRunState.totalSteps} to ${steps.length} steps by label; new steps before ${priorStepLabel} will run on the next fresh release.\n`,
       );
+      requestedResumeFromStep = migratedIndex;
     }
     if (args.resume && previousRunState?.stepFingerprint) {
       const currentStepFingerprint = releaseStepFingerprint(steps[requestedResumeFromStep - 1], args.profile);
@@ -692,37 +1086,13 @@ async function main() {
     }
     let resumeFromStep = requestedResumeFromStep;
     let resumeRepair = null;
-    const productSpecificityStep = steps.findIndex((step) => step.label === "Verify every active product has product-specific SEO and metafields") + 1;
-    const contentRepairStep = steps.findIndex((step) => step.label === "Run local SEO and product-content quality audit") + 1;
-    const taxonomyApplyStep = steps.findIndex((step) => step.label === "Apply approved taxonomy tags and metafields with live readback") + 1;
-    const taxonomyManifestRepairStep = steps.findIndex((step) => step.label === "Dry-run exact full-catalog collection reconciliation") + 1;
-    const failedAtProductSpecificity = args.resume
-      && previousRunState?.status === "failed"
-      && requestedResumeFromStep === productSpecificityStep
-      && /product-specificity|SEO and metafields/i.test(String(previousRunState?.error || previousRunState?.stepLabel || ""));
-    const failedWithStaleTaxonomyManifest = args.resume
-      && previousRunState?.status === "failed"
-      && requestedResumeFromStep === taxonomyApplyStep
-      && previousRunState?.stepLabel === "Apply approved taxonomy tags and metafields with live readback";
-    const repairStartStep = failedAtProductSpecificity
-      ? contentRepairStep
-      : failedWithStaleTaxonomyManifest
-        ? taxonomyManifestRepairStep
-        : 0;
-    if (repairStartStep > 0 && repairStartStep < resumeFromStep) {
-      resumeFromStep = repairStartStep;
-      resumeRepair = {
-        fromStep: repairStartStep,
-        failedStep: failedAtProductSpecificity ? productSpecificityStep : taxonomyApplyStep,
-        reason: failedAtProductSpecificity
-          ? "product-specificity verification failed after content rules changed; replaying guarded content and live-readback steps"
-          : "taxonomy apply detected a stale collection-integrity scope; replaying the guarded full-catalog classification and live-readback steps",
-      };
-      process.stdout.write(
-        failedAtProductSpecificity
-          ? `Repair-aware resume: replaying steps ${contentRepairStep}-${productSpecificityStep} so updated product content reaches Shopify before verification.\n`
-          : `Repair-aware resume: replaying steps ${taxonomyManifestRepairStep}-${taxonomyApplyStep} so the classification manifest covers every active product.\n`,
-      );
+    const repairRoute = args.resume
+      ? getReleaseRepairRoute(steps, previousRunState, requestedResumeFromStep)
+      : null;
+    if (repairRoute && repairRoute.fromStep < resumeFromStep) {
+      resumeFromStep = repairRoute.fromStep;
+      resumeRepair = repairRoute;
+      process.stdout.write(`${repairRoute.message}`);
     }
     await writeReleaseRunState({
       totalSteps: steps.length,

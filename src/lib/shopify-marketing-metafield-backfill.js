@@ -175,7 +175,7 @@ function isGeneratedCollectionHeroSummary(value) {
   const normalized = normalizePlainText(value || "");
   return (
     /^Discover [\d,]+ products in .+ selected for easier browsing and stronger conversion\.$/i.test(normalized) ||
-    /^Discover [\d,]+ products across the full Future Light Store catalog\.$/i.test(normalized)
+    /^Discover [\d,]+ products across the full (?:Future Light Store|SALT) catalog\.$/i.test(normalized)
   );
 }
 

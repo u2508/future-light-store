@@ -873,7 +873,7 @@ async function main() {
     },
     policy: {
       scope: "all Shopify products and variants with a valid live inventory cost",
-      formula: "max(cost + $16 overhead, cost multiplied by the cost band multiplier), then psychological rounding",
+      formula: "cost multiplied by the cost band multiplier plus $16 per-product overhead, then psychological rounding",
       costBands: PRICE_REWORK_RULES.costBands.map(({ maxCostExclusive, multiplier }) => ({
         maxCostExclusive: Number.isFinite(maxCostExclusive) ? maxCostExclusive : null,
         multiplier,
@@ -901,6 +901,17 @@ async function main() {
     failures: [],
   };
   refreshSummary(manifest);
+
+  const blockedCatalogVariants = summary.missingCostVariants + summary.invalidPriceVariants;
+  if (blockedCatalogVariants > 0) {
+    manifest.completedAt = new Date().toISOString();
+    await writeManifest(args.output, manifest);
+    throw new Error(
+      `Cost-based pricing is blocked for ${blockedCatalogVariants} catalog variant(s): ` +
+      `${summary.missingCostVariants} missing/invalid live costs and ${summary.invalidPriceVariants} invalid prices. ` +
+      `Populate the Shopify inventoryItem.unitCost source before any price apply. See ${args.output}.`,
+    );
+  }
 
   if (args.mode === "dry-run") {
     for (const product of manifest.products) {

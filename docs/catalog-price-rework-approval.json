@@ -1,12 +1,12 @@
 {
-  "approvalId": "future-light-store-cost-pricing-approved-2026-08-24",
+  "approvalId": "future-light-store-cost-pricing-approved-2026-09-05-additive-overhead",
   "approved": true,
-  "approvedAt": "2026-08-24T00:00:00Z",
+  "approvedAt": "2026-09-05T00:00:00+05:30",
   "approvedBy": "Future Light Store owner (explicit Codex authorization)",
-  "approvalSource": "Explicit Future Light Store owner authorization in Codex on 2026-08-24",
+  "approvalSource": "Explicit Future Light Store owner clarification in Codex on 2026-09-05",
   "scope": {
     "products": "all active Shopify products and variants",
-    "strategyId": "cost-based-retail-2026-08-24-v1",
+    "strategyId": "cost-based-retail-2026-09-05-additive-overhead-v2",
     "costSource": "live Shopify variant inventoryItem.unitCost.amount",
     "overhead": 16,
     "costBands": {
@@ -16,7 +16,7 @@
       "30To50": "2.35x",
       "50Plus": "1.95x"
     },
-    "formula": "max(cost + $16 overhead, cost * band multiplier), then psychological rounding",
+    "formula": "cost multiplied by the cost band multiplier plus $16 per-product overhead, then psychological rounding",
     "minimumSellPrice": 0.99,
     "compareAtPrices": "preserve absence; when present normalize to at least 1.25x the cost-based sell price with psychological rounding",
     "variantPrices": "calculate independently per variant; preserve quality, size, color, bundle, and quantity-tier differences",

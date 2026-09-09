@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Heart, Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
@@ -11,9 +11,11 @@ import {
   PRODUCT_CARD_IMAGE_SIZES,
 } from "@/components/vs/productCardImage";
 import { cn } from "@/lib/utils";
+import { dispatchProductViewWhenReady } from "@/lib/shopifyStandardEvents";
 
 export function ProductCard({ product }: { product: ShopifyProduct }) {
   const n = product.node;
+  const cardRef = useRef<HTMLElement>(null);
   const [quickOpen, setQuickOpen] = useState(false);
   const addItem = useCartStore((s) => s.addItem);
   const isLoading = useCartStore((s) => s.isLoading);
@@ -27,11 +29,37 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
   const price = firstVariant?.price ?? n.priceRange.minVariantPrice;
   const compareAt = firstVariant?.compareAtPrice?.amount ?? null;
   const off = discountPercent(price.amount, compareAt);
-  const singleVariant = variants.length === 1;
+  const variantCount = n.variantsCount?.count ?? variants.length;
+  const singleVariant = variantCount === 1;
   const soldOut = !n.availableForSale;
   const lowStock = variants.some(
     (v) => v.quantityAvailable != null && v.quantityAvailable > 0 && v.quantityAvailable <= 5,
   );
+
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card || typeof IntersectionObserver === "undefined") return;
+
+    let cancelViewEvent: () => void = () => undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        cancelViewEvent = dispatchProductViewWhenReady({
+          target: card,
+          product: n,
+          context: "collection",
+        });
+        observer.disconnect();
+      },
+      { threshold: 0.25 },
+    );
+    observer.observe(card);
+
+    return () => {
+      observer.disconnect();
+      cancelViewEvent();
+    };
+  }, [n]);
 
   const quickAdd = async () => {
     if (soldOut) return;
@@ -40,7 +68,7 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
       return;
     }
     if (!firstVariant) return;
-    await addItem({
+    const addResult = await addItem({
       product,
       variantId: firstVariant.id,
       variantTitle: firstVariant.title,
@@ -48,12 +76,22 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
       quantity: 1,
       selectedOptions: firstVariant.selectedOptions ?? [],
     });
-    toast.success("Added to bag", { description: n.title, position: "top-center" });
+    if (addResult.success) {
+      toast.success("Added to bag", { description: n.title, position: "top-center" });
+    } else {
+      toast.error("Couldn’t add this item", {
+        description: addResult.message,
+        position: "top-center",
+      });
+    }
   };
 
   return (
     <>
-      <article className="group relative flex flex-col overflow-hidden vs-card hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)]">
+      <article
+        ref={cardRef}
+        className="group relative flex flex-col overflow-hidden vs-card hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)]"
+      >
         <div className="relative aspect-square overflow-hidden bg-secondary">
           <Link to="/products/$handle" params={{ handle: n.handle }} aria-label={n.title}>
             {image ? (
