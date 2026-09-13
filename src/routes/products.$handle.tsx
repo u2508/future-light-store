@@ -93,6 +93,7 @@ function ProductPage() {
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [unavailableVariantIds, setUnavailableVariantIds] = useState<Set<string>>(new Set());
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
   const addItem = useCartStore((s) => s.addItem);
@@ -100,6 +101,10 @@ function ProductPage() {
   const toggleWishlist = useWishlistStore((s) => s.toggle);
   const wishlisted = useWishlistStore((s) => s.items.some((i) => i.node.handle === handle));
   const pushRecent = useRecentStore((s) => s.push);
+
+  useEffect(() => {
+    setUnavailableVariantIds(new Set());
+  }, [handle]);
 
   useEffect(() => {
     if (product) {
@@ -145,7 +150,8 @@ function ProductPage() {
   const images = product.images.edges.map((e) => e.node);
   const variants = product.variants.edges.map((e) => e.node);
   const selected = variants.find((v) => v.id === selectedId) ?? null;
-  const selectedAvailable = Boolean(selected?.availableForSale);
+  const selectedAvailable =
+    Boolean(selected?.availableForSale) && !unavailableVariantIds.has(selected?.id ?? "");
   const price = selected?.price ?? product.priceRange.minVariantPrice;
   const compareAt = selected?.compareAtPrice?.amount ?? null;
   const off = discountPercent(price.amount, compareAt);
@@ -174,11 +180,15 @@ function ProductPage() {
     if (addResult.success) {
       toast.success("Added to bag", { description: product.title, position: "top-center" });
     } else {
+      if (addResult.unavailable) {
+        setUnavailableVariantIds((current) => new Set(current).add(selected.id));
+      }
       const refreshed = await refetchProduct();
       const refreshedSelected = refreshed.data?.variants.edges
         .map((edge) => edge.node)
         .find((variant) => variant.id === selected.id);
-      const soldOutDuringAdd = refreshedSelected?.availableForSale === false;
+      const soldOutDuringAdd =
+        addResult.unavailable || refreshedSelected?.availableForSale === false;
       toast.error("Couldn’t add this item", {
         description: soldOutDuringAdd
           ? "This option just sold out. Choose another option."
@@ -203,7 +213,7 @@ function ProductPage() {
           "@type": "Offer",
           price: price.amount,
           priceCurrency: price.currencyCode,
-          availability: selected?.availableForSale
+          availability: selectedAvailable
             ? "https://schema.org/InStock"
             : "https://schema.org/OutOfStock",
           url: canonicalUrl(`/products/${handle}`),
@@ -337,14 +347,15 @@ function ProductPage() {
                 {variants.map((v) => (
                   <button
                     key={v.id}
-                    disabled={!v.availableForSale}
+                    disabled={!v.availableForSale || unavailableVariantIds.has(v.id)}
                     onClick={() => setSelectedId(v.id)}
                     className={cn(
                       "rounded-xl border px-4 py-2 text-sm transition-colors",
                       v.id === selectedId
                         ? "border-primary bg-accent text-accent-foreground"
                         : "border-border hover:border-primary",
-                      !v.availableForSale && "cursor-not-allowed opacity-40 line-through",
+                      (!v.availableForSale || unavailableVariantIds.has(v.id)) &&
+                        "cursor-not-allowed opacity-40 line-through",
                     )}
                   >
                     {v.title}

@@ -43,6 +43,7 @@ export function QuickActionsSheet({
   const [selectedId, setSelectedId] = useState<string | null>(
     variants.length === 1 ? (variants[0]?.id ?? null) : null,
   );
+  const [unavailableVariantIds, setUnavailableVariantIds] = useState<Set<string>>(new Set());
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
   const addItem = useCartStore((s) => s.addItem);
@@ -54,12 +55,18 @@ export function QuickActionsSheet({
     if (open) {
       setQuantity(1);
       setImageIndex(0);
-      setSelectedId(variants.length === 1 ? (variants[0]?.id ?? null) : null);
+      setUnavailableVariantIds(new Set());
     }
+  }, [open, n.handle]);
+
+  useEffect(() => {
+    if (open) setSelectedId(variants.length === 1 ? (variants[0]?.id ?? null) : null);
   }, [open, variants]);
 
   const images = activeNode.images.edges.map((e) => e.node);
   const selected = variants.find((v) => v.id === selectedId) ?? null;
+  const selectedAvailable =
+    Boolean(selected?.availableForSale) && !unavailableVariantIds.has(selected?.id ?? "");
   const price = selected?.price ?? activeNode.priceRange.minVariantPrice;
   const compareAt = selected?.compareAtPrice?.amount ?? null;
   const off = discountPercent(price.amount, compareAt);
@@ -73,7 +80,7 @@ export function QuickActionsSheet({
       toast.error("Select an option first", { position: "top-center" });
       return;
     }
-    if (!selected.availableForSale) return;
+    if (!selectedAvailable) return;
     const addResult = await addItem({
       product: activeProduct,
       variantId: selected.id,
@@ -89,6 +96,9 @@ export function QuickActionsSheet({
       });
       onOpenChange(false);
     } else {
+      if (addResult.unavailable) {
+        setUnavailableVariantIds((current) => new Set(current).add(selected.id));
+      }
       toast.error("Couldn’t add this item", {
         description: addResult.message,
         position: "top-center",
@@ -174,14 +184,15 @@ export function QuickActionsSheet({
                   {variants.map((v) => (
                     <button
                       key={v.id}
-                      disabled={!v.availableForSale}
+                      disabled={!v.availableForSale || unavailableVariantIds.has(v.id)}
                       onClick={() => setSelectedId(v.id)}
                       className={cn(
                         "rounded-xl border px-3 py-2 text-sm transition-colors",
                         v.id === selectedId
                           ? "border-primary bg-accent text-accent-foreground"
                           : "border-border hover:border-primary",
-                        !v.availableForSale && "cursor-not-allowed opacity-40 line-through",
+                        (!v.availableForSale || unavailableVariantIds.has(v.id)) &&
+                          "cursor-not-allowed opacity-40 line-through",
                       )}
                     >
                       {v.title}
@@ -215,17 +226,19 @@ export function QuickActionsSheet({
               <span
                 className={cn(
                   "text-xs",
-                  activeNode.availableForSale ? "text-muted-foreground" : "text-signal",
+                  selectedAvailable ? "text-muted-foreground" : "text-signal",
                 )}
               >
-                {activeNode.availableForSale ? "In stock" : "Sold out"}
+                {selectedAvailable ? "In stock" : "Sold out"}
               </span>
             </div>
 
             <div className="flex gap-2">
               <button
                 onClick={handleAdd}
-                disabled={isLoading || fullProductLoading || !activeNode.availableForSale}
+                disabled={
+                  isLoading || fullProductLoading || Boolean(fullProductError) || !selectedAvailable
+                }
                 className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
               >
                 {isLoading ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Add to bag"}

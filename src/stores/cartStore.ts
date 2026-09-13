@@ -149,10 +149,15 @@ type CartWarnings = Array<{ code: string; message: string }>;
 export interface CartAddResult {
   success: boolean;
   message?: string;
+  unavailable?: boolean;
 }
 
 function getCartFailureMessage(warnings: CartWarnings = [], userErrors: UserErrors = []): string {
   return warnings[0]?.message ?? userErrors[0]?.message ?? "This item is currently unavailable.";
+}
+
+function hasOutOfStockWarning(warnings: CartWarnings = []): boolean {
+  return warnings.some((warning) => warning.code === "MERCHANDISE_OUT_OF_STOCK");
 }
 
 function hasAcceptedCartLine(
@@ -208,6 +213,7 @@ async function createShopifyCart(item: CartItem) {
     return {
       success: false as const,
       message: getCartFailureMessage(warnings, userErrors),
+      unavailable: hasOutOfStockWarning(warnings),
     };
   }
   return {
@@ -232,11 +238,16 @@ async function addLineToShopifyCart(cartId: string, item: CartItem) {
       success: false,
       cartNotFound: true,
       message: getCartFailureMessage(warnings, userErrors),
+      unavailable: hasOutOfStockWarning(warnings),
     };
   }
   if (userErrors.length > 0) {
     console.error("Add line failed:", userErrors);
-    return { success: false, message: getCartFailureMessage(warnings, userErrors) };
+    return {
+      success: false,
+      message: getCartFailureMessage(warnings, userErrors),
+      unavailable: hasOutOfStockWarning(warnings),
+    };
   }
   const cart = payload?.cart;
   const lines = cart?.lines?.edges ?? [];
@@ -246,7 +257,11 @@ async function addLineToShopifyCart(cartId: string, item: CartItem) {
   );
   if (!hasAcceptedCartLine(cart, item.variantId, item.quantity)) {
     console.warn("Shopify did not accept the requested cart line", { warnings });
-    return { success: false, message: getCartFailureMessage(warnings) };
+    return {
+      success: false,
+      message: getCartFailureMessage(warnings),
+      unavailable: hasOutOfStockWarning(warnings),
+    };
   }
   return {
     success: true,
@@ -268,17 +283,26 @@ async function updateShopifyCartLine(cartId: string, lineId: string, quantity: n
       success: false,
       cartNotFound: true,
       message: getCartFailureMessage(warnings, userErrors),
+      unavailable: hasOutOfStockWarning(warnings),
     };
   }
   if (userErrors.length > 0) {
-    return { success: false, message: getCartFailureMessage(warnings, userErrors) };
+    return {
+      success: false,
+      message: getCartFailureMessage(warnings, userErrors),
+      unavailable: hasOutOfStockWarning(warnings),
+    };
   }
   const cart = payload?.cart;
   const line = cart?.lines?.edges?.find(
     (edge: { node?: { id?: string } }) => edge.node?.id === lineId,
   );
   if (!line?.node || Number(line.node.quantity) < quantity) {
-    return { success: false, message: getCartFailureMessage(warnings) };
+    return {
+      success: false,
+      message: getCartFailureMessage(warnings),
+      unavailable: hasOutOfStockWarning(warnings),
+    };
   }
   return { success: true, cart };
 }
@@ -392,7 +416,7 @@ export const useCartStore = create<CartStore>()(
             }
             const message = result.message ?? "Cart line update failed";
             cartEvent?.resolve(null, [{ field: [], message }]);
-            return { success: false, message };
+            return { success: false, message, unavailable: result.unavailable };
           } else {
             cartEvent = beginProductCartAddEvent({
               variantId: item.variantId,
@@ -421,7 +445,7 @@ export const useCartStore = create<CartStore>()(
             }
             const message = result.message ?? "Cart line add failed";
             cartEvent?.resolve(null, [{ field: [], message }]);
-            return { success: false, message };
+            return { success: false, message, unavailable: result.unavailable };
           }
         } catch (error) {
           console.error("Failed to add item:", error);

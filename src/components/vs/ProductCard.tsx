@@ -17,6 +17,7 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
   const n = product.node;
   const cardRef = useRef<HTMLElement>(null);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
   const addItem = useCartStore((s) => s.addItem);
   const isLoading = useCartStore((s) => s.isLoading);
   const wishlisted = useWishlistStore((s) => s.items.some((i) => i.node.handle === n.handle));
@@ -31,7 +32,7 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
   const off = discountPercent(price.amount, compareAt);
   const variantCount = n.variantsCount?.count ?? variants.length;
   const singleVariant = variantCount === 1;
-  const soldOut = !n.availableForSale;
+  const soldOut = !n.availableForSale || unavailable;
   const lowStock = variants.some(
     (v) => v.quantityAvailable != null && v.quantityAvailable > 0 && v.quantityAvailable <= 5,
   );
@@ -79,6 +80,7 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
     if (addResult.success) {
       toast.success("Added to bag", { description: n.title, position: "top-center" });
     } else {
+      if (addResult.unavailable) setUnavailable(true);
       toast.error("Couldn’t add this item", {
         description: addResult.message,
         position: "top-center",
