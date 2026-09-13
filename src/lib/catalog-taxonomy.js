@@ -2636,7 +2636,7 @@ const TAXONOMY_RULES = Object.freeze([
     terms: ["face mask", "facial mask", "sheet mask", "eye mask"],
     excludes: ["medical face mask", "sleep mask", "mask storage"],
     aliases: ["facial mask", "sheet mask", "beauty mask"],
-    collectionTargets: ["face-mask", "womens-beauty-essentials"],
+    collectionTargets: ["health-wellness", "womens-beauty-essentials"],
     shopifyCategory: "Health & Beauty > Personal Care > Cosmetics > Skin Care",
   }),
   rule("hair-care", {

@@ -6,6 +6,7 @@ import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { recommendedConcurrency } from "./lib/performance-runtime.mjs";
+import { areCompatibleReleaseProfiles, readReleaseRunState } from "./release.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const envFiles = [
@@ -19,7 +20,6 @@ const approvalFiles = [
   "docs/catalog-missing-cost-product-removal-approval.json",
   "docs/catalog-collection-merge-approval.json",
 ];
-const releaseRunStatePath = resolve(rootDir, "output", "release-run-state.json");
 const listingIntelligenceCachePath = resolve(rootDir, "output", "listing-intelligence-preflight.json");
 const listingIntelligenceInputs = [
   "public/data/products.json",
@@ -104,6 +104,7 @@ async function runListingIntelligencePreflight() {
 
 async function main() {
   await loadReleaseEnv();
+  process.env.FUTURE_LIGHT_STORE ||= "1";
 
   const shopUrl = String(process.env.SALT_SHOP_URL || "").trim();
   if (!shopUrl) {
@@ -148,9 +149,9 @@ async function main() {
   process.env.SALT_CATALOG_INTEGRITY_VERIFY_APPLY ||= "1";
   process.env.SALT_RELEASE_WAIT_FOR_VISUAL_REVIEW ||= "1";
   process.env.SALT_RELEASE_REUSE_VERIFIED_PLAN ||= "1";
-  const tunedConcurrency = String(recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }));
-  const tunedCpuConcurrency = String(recommendedConcurrency({ kind: "cpu", reserve: 1, max: 8 }));
-  const tunedVisionConcurrency = String(recommendedConcurrency({ kind: "vision", reserve: 1, max: 2 }));
+  const tunedConcurrency = String(recommendedConcurrency({ kind: "io", reserve: 1, max: 12 }));
+  const tunedCpuConcurrency = String(recommendedConcurrency({ kind: "cpu", reserve: 1, max: 12 }));
+  const tunedVisionConcurrency = String(recommendedConcurrency({ kind: "vision", reserve: 1, max: 3 }));
   const supervisedVisionEnabled = process.env.SALT_CATALOG_VISION_SUPERVISED === "1";
   const setAutoTuned = (name, value) => {
     if (!process.env[name] || /^(auto|adaptive|tuned)$/i.test(String(process.env[name]).trim())) {
@@ -165,11 +166,11 @@ async function main() {
   setAutoTuned("SALT_CATALOG_TAXONOMY_CONCURRENCY", tunedCpuConcurrency);
   setAutoTuned("SALT_CATEGORY_READ_CONCURRENCY", tunedConcurrency);
   setAutoTuned("SALT_VARIANT_IMAGE_FETCH_CONCURRENCY", tunedConcurrency);
-  process.env.SALT_VARIANT_IMAGE_APPLY_CONCURRENCY ||= "3";
+  setAutoTuned("SALT_VARIANT_IMAGE_APPLY_CONCURRENCY", String(Math.min(Number(tunedConcurrency), 6)));
   setAutoTuned("SALT_VARIANT_IMAGE_PLAN_CONCURRENCY", tunedConcurrency);
-  process.env.SALT_VARIANT_IMAGE_VERIFY_CONCURRENCY ||= "3";
-  process.env.SALT_VARIANT_COST_APPLY_CONCURRENCY ||= "4";
-  process.env.SALT_COLLECTION_TAG_CONCURRENCY ||= "4";
+  setAutoTuned("SALT_VARIANT_IMAGE_VERIFY_CONCURRENCY", String(Math.min(Number(tunedConcurrency), 6)));
+  setAutoTuned("SALT_VARIANT_COST_APPLY_CONCURRENCY", String(Math.min(Number(tunedConcurrency), 6)));
+  setAutoTuned("SALT_COLLECTION_TAG_CONCURRENCY", String(Math.min(Number(tunedConcurrency), 6)));
   // The local model is memory-bound, but a second bounded worker keeps image
   // fetches and GPU work overlapped on machines with enough headroom. An
   // explicit value still wins when a host needs a stricter limit.
@@ -185,8 +186,11 @@ async function main() {
   process.env.SALT_VARIANT_IMAGE_VISION_IMAGE_LIMIT ||= "8";
   process.env.SALT_VARIANT_IMAGE_VISION_CIRCUIT_FAILURE_THRESHOLD ||= "2";
   process.env.SALT_VARIANT_IMAGE_VISION_CIRCUIT_COOLDOWN_MS ||= "300000";
-  process.env.SALT_BACKFILL_APPLY_CONCURRENCY ||= "4";
-  process.env.SALT_SHOPIFY_PUBLICATION_CONCURRENCY ||= "4";
+  setAutoTuned("SALT_BACKFILL_APPLY_CONCURRENCY", String(Math.min(Number(tunedConcurrency), 6)));
+  setAutoTuned("SALT_SHOPIFY_PUBLICATION_CONCURRENCY", String(Math.min(Number(tunedConcurrency), 6)));
+  process.env.SALT_RELEASE_STAGE_RETRIES ||= "2";
+  process.env.SALT_RELEASE_STAGE_RETRY_DELAY_MS ||= "3000";
+  process.env.SALT_RELEASE_STAGE_RETRY_DELAY_MAX_MS ||= "30000";
   process.env.SALT_SHOPIFY_THEME_DIR = themeDir;
   process.env.SHOPIFY_THEME_DIR = themeDir;
   process.env.SHOPIFY_CLI_AGENT_INFO ||= "n:future-light-store|v:1|p:openai";
@@ -205,9 +209,9 @@ async function main() {
   const requestedProfile = profileIndex >= 0 ? forwardedArgs[profileIndex + 1] : "catalog";
   if (!hasResumeFlag && !hasFreshFlag && process.env.SALT_RELEASE_AUTO_RESUME !== "0") {
     try {
-      const previousRun = JSON.parse(await readFile(releaseRunStatePath, "utf8"));
+      const previousRun = await readReleaseRunState(requestedProfile);
       const resumable = ["failed", "running", "waiting_for_network"].includes(previousRun?.status);
-      const sameProfile = !previousRun?.profile || previousRun.profile === requestedProfile;
+      const sameProfile = areCompatibleReleaseProfiles(previousRun?.profile, requestedProfile);
       if (resumable && sameProfile) {
         forwardedArgs.push("--resume");
         process.stdout.write(`Detected resumable ${previousRun.profile || requestedProfile} release state; continuing from its last guarded step.\n`);

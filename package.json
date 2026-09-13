@@ -67,7 +67,9 @@
     "release:resume": "node scripts/run-future-light-release.mjs --resume",
     "release:daily:resume": "node scripts/run-future-light-release.mjs --profile daily --resume",
     "release:resilience:test": "node --test scripts/release-resilience.test.mjs",
-    "category:metafields:test": "node --test scripts/category-metafield-evidence.test.mjs"
+    "category:metafields:test": "node --test scripts/category-metafield-evidence.test.mjs",
+    "category:collections:test": "node scripts/validate-collection-repair-rules.mjs",
+    "release:proactive-repair": "node scripts/release-proactive-repair.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

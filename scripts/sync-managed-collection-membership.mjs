@@ -19,6 +19,9 @@ const allowedPendingCreationHandles = new Set(
     .map((handle) => handle.trim().toLowerCase())
     .filter(Boolean),
 );
+const allowPendingCreationFallback = !/^(0|false|no)$/i.test(
+  String(process.env.SALT_COLLECTION_MEMBERSHIP_ALLOW_PENDING_CREATION || "1"),
+);
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "managed-collection-membership" });
 
 const COLLECTION_PRODUCTS_QUERY = /* GraphQL */ `
@@ -138,9 +141,14 @@ async function main() {
       try {
         live = await fetchLiveCollectionProducts(entry.handle);
       } catch (error) {
+        const isMissingCanonicalCollection = /Live Shopify collection not found for canonical handle/i.test(
+          String(error?.message || error),
+        );
         const isExpectedPendingCreation =
-          allowedPendingCreationHandles.has(entry.handle) &&
-          /Live Shopify collection not found for canonical handle/i.test(String(error?.message || error));
+          isMissingCanonicalCollection &&
+          (allowPendingCreationFallback ||
+            allowedPendingCreationHandles.has(entry.handle) ||
+            allowedPendingCreationHandles.has("*"));
         if (isExpectedPendingCreation) {
           const taggedProductIds = productIdsForControlledTags(
             productPayload.products || [],
@@ -153,7 +161,7 @@ async function main() {
           };
           source = "pending-creation-controlled-tag-fallback";
           process.stdout.write(
-            `Canonical collection "${entry.handle}" is not live yet; retaining controlled-tag membership until the approved collection reconciliation creates it.\n`,
+            `Canonical collection "${entry.handle}" is not live yet; deferring to approved collection reconciliation and retaining controlled-tag membership.\n`,
           );
         } else {
           if (!isShopifyAuthFailure(error)) throw error;

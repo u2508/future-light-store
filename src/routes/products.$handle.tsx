@@ -85,6 +85,8 @@ function ProductPage() {
     data: product,
     isLoading,
     isError,
+    isFetching,
+    refetch: refetchProduct,
   } = useQuery({
     queryKey: ["product", handle],
     queryFn: () => fetchProduct(handle),
@@ -143,6 +145,7 @@ function ProductPage() {
   const images = product.images.edges.map((e) => e.node);
   const variants = product.variants.edges.map((e) => e.node);
   const selected = variants.find((v) => v.id === selectedId) ?? null;
+  const selectedAvailable = Boolean(selected?.availableForSale);
   const price = selected?.price ?? product.priceRange.minVariantPrice;
   const compareAt = selected?.compareAtPrice?.amount ?? null;
   const off = discountPercent(price.amount, compareAt);
@@ -156,6 +159,10 @@ function ProductPage() {
       toast.error("Select an option first", { position: "top-center" });
       return;
     }
+    if (!selectedAvailable) {
+      toast.error("This option is sold out", { position: "top-center" });
+      return;
+    }
     const addResult = await addItem({
       product: { node: product },
       variantId: selected.id,
@@ -167,8 +174,15 @@ function ProductPage() {
     if (addResult.success) {
       toast.success("Added to bag", { description: product.title, position: "top-center" });
     } else {
+      const refreshed = await refetchProduct();
+      const refreshedSelected = refreshed.data?.variants.edges
+        .map((edge) => edge.node)
+        .find((variant) => variant.id === selected.id);
+      const soldOutDuringAdd = refreshedSelected?.availableForSale === false;
       toast.error("Couldn’t add this item", {
-        description: addResult.message,
+        description: soldOutDuringAdd
+          ? "This option just sold out. Choose another option."
+          : addResult.message,
         position: "top-center",
       });
     }
@@ -288,7 +302,7 @@ function ProductPage() {
             </p>
             <div className="flex flex-wrap gap-2 text-xs font-semibold">
               <span className="rounded-full border border-border bg-card px-3 py-1.5 text-muted-foreground">
-                {product.availableForSale ? "In stock" : "Currently unavailable"}
+                {selectedAvailable ? "In stock" : "Currently unavailable"}
               </span>
               {product.productType && (
                 <span className="rounded-full border border-border bg-card px-3 py-1.5 text-muted-foreground">
@@ -359,22 +373,25 @@ function ProductPage() {
               </button>
             </div>
             <span
-              className={cn(
-                "text-sm",
-                product.availableForSale ? "text-muted-foreground" : "text-signal",
-              )}
+              className={cn("text-sm", selectedAvailable ? "text-muted-foreground" : "text-signal")}
             >
-              {product.availableForSale ? "In stock" : "Sold out"}
+              {selectedAvailable ? "In stock" : "Sold out"}
             </span>
           </div>
 
           <div className="flex gap-2">
             <button
               onClick={handleAdd}
-              disabled={isAdding || !product.availableForSale}
+              disabled={isAdding || isFetching || !selectedAvailable}
               className="flex-1 rounded-xl bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
             >
-              {isAdding ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Add to bag"}
+              {isAdding || isFetching ? (
+                <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+              ) : selectedAvailable ? (
+                "Add to bag"
+              ) : (
+                "Sold out"
+              )}
             </button>
             <button
               onClick={() => {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, cp, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readdir, readFile, rm, symlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -17,24 +17,81 @@ async function ensure(path, label) {
   }
 }
 
-function run(command, args, env = process.env, cwd = rootDir) {
+function run(command, args, env = process.env, cwd = rootDir, { timeoutMs = 0 } = {}) {
   return new Promise((resolveRun, rejectRun) => {
     const child = spawn(command, args, {
       cwd,
       env,
       stdio: "inherit",
+      detached: timeoutMs > 0 && process.platform !== "win32",
     });
 
-    child.on("error", rejectRun);
+    let timedOut = false;
+    let forceKillTimer;
+    const stop = (signal) => {
+      if (!child.pid) return;
+      if (process.platform !== "win32") {
+        try {
+          process.kill(-child.pid, signal);
+          return;
+        } catch {
+          // The child may already have exited; fall through to the direct kill.
+        }
+      }
+      try {
+        child.kill(signal);
+      } catch {
+        // The child may already have exited.
+      }
+    };
+    const timeout = timeoutMs > 0
+      ? setTimeout(() => {
+        timedOut = true;
+        stop("SIGTERM");
+        forceKillTimer = setTimeout(() => stop("SIGKILL"), 5000);
+      }, timeoutMs)
+      : null;
+
+    child.on("error", (error) => {
+      if (timeout) clearTimeout(timeout);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
+      rejectRun(error);
+    });
     child.on("exit", (code, signal) => {
+      if (timeout) clearTimeout(timeout);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
       if (code === 0) {
         resolveRun();
         return;
       }
 
-      rejectRun(new Error(`${command} ${args.join(" ")} failed with ${signal || `exit code ${code}`}`));
+      const reason = timedOut ? `timed out after ${timeoutMs}ms` : signal || `exit code ${code}`;
+      rejectRun(new Error(`${command} ${args.join(" ")} failed with ${reason}`));
     });
   });
+}
+
+async function copyDirectoryWithNode(sourcePath, destinationPath, { deleteExtraneous = false } = {}) {
+  await mkdir(destinationPath, { recursive: true });
+  const sourceEntries = await readdir(sourcePath, { withFileTypes: true });
+  const sourceNames = new Set(sourceEntries.map((entry) => entry.name));
+
+  for (const entry of sourceEntries) {
+    await cp(
+      join(sourcePath, entry.name),
+      join(destinationPath, entry.name),
+      { recursive: true, force: true, preserveTimestamps: true },
+    );
+  }
+
+  if (deleteExtraneous) {
+    const destinationEntries = await readdir(destinationPath, { withFileTypes: true });
+    for (const entry of destinationEntries) {
+      if (!sourceNames.has(entry.name)) {
+        await rm(join(destinationPath, entry.name), { recursive: true, force: true });
+      }
+    }
+  }
 }
 
 async function syncDirectory(sourcePath, destinationPath, { deleteExtraneous = false } = {}) {
@@ -43,18 +100,29 @@ async function syncDirectory(sourcePath, destinationPath, { deleteExtraneous = f
   if (deleteExtraneous) args.push("--delete");
   args.push(`${sourcePath}/`, `${destinationPath}/`);
 
+  const requestedTimeoutMs = Number(process.env.SALT_BUILD_SYNC_TIMEOUT_MS || 20000);
+  const syncTimeoutMs = Number.isFinite(requestedTimeoutMs)
+    ? Math.max(5000, requestedTimeoutMs)
+    : 20000;
   let lastError;
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      await run("/usr/bin/rsync", args);
+      await run("/usr/bin/rsync", args, process.env, rootDir, { timeoutMs: syncTimeoutMs });
       return;
     } catch (error) {
       lastError = error;
-      if (attempt < 3) await new Promise((resolveWait) => setTimeout(resolveWait, 750 * attempt));
+      console.warn(`Build artifact sync attempt ${attempt}/2 failed: ${error.message}`);
+      if (attempt < 2) await new Promise((resolveWait) => setTimeout(resolveWait, 750 * attempt));
     }
   }
 
-  throw lastError;
+  console.warn("Falling back to bounded Node filesystem copy for build artifact handoff");
+  try {
+    await copyDirectoryWithNode(sourcePath, destinationPath, { deleteExtraneous });
+  } catch (fallbackError) {
+    fallbackError.cause = lastError;
+    throw fallbackError;
+  }
 }
 
 async function repairPackageJsonIfNeeded(sourcePath, destinationPath) {

@@ -3,7 +3,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
-import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -18,7 +18,17 @@ const require = createRequire(import.meta.url);
 const releaseName = process.env.SALT_RELEASE_NAME || "Future Light Store";
 const catalogBatchSize = Math.max(1, Math.min(1000, Number(process.env.SALT_CATALOG_BATCH_SIZE || 50)));
 const releaseRunStatePath = resolve(rootDir, "output", "release-run-state.json");
+const releaseRunStateMirrorDir = resolve(rootDir, "output");
 const releaseHeartbeatMs = Math.max(10_000, Number(process.env.SALT_RELEASE_HEARTBEAT_MS || 30_000));
+const releaseStageTelemetryMs = Math.max(1_000, Number(process.env.SALT_RELEASE_STAGE_TELEMETRY_MS || 5_000));
+const releaseStageRetries = Math.max(0, Math.min(3, Number(process.env.SALT_RELEASE_STAGE_RETRIES || 2)));
+const releaseStageRetryDelayMs = Math.max(1_000, Number(process.env.SALT_RELEASE_STAGE_RETRY_DELAY_MS || 5_000));
+const releaseStageRetryDelayMaxMs = Math.max(
+  releaseStageRetryDelayMs,
+  Number(process.env.SALT_RELEASE_STAGE_RETRY_DELAY_MAX_MS || 30_000),
+);
+const releaseOwnerLockPath = resolve(rootDir, "output", "release-process.lock");
+const proactiveRepairScriptPath = resolve(rootDir, "scripts", "release-proactive-repair.mjs");
 const releaseNetworkPollMs = Math.max(5_000, Number(process.env.SALT_RELEASE_NETWORK_POLL_MS || 30_000));
 const releaseNetworkProbeTimeoutMs = Math.max(2_000, Number(process.env.SALT_RELEASE_NETWORK_PROBE_TIMEOUT_MS || 15_000));
 const releaseNetworkFailureBackoffMs = Math.max(1_000, Number(process.env.SALT_RELEASE_NETWORK_FAILURE_BACKOFF_MS || 2_000));
@@ -29,6 +39,7 @@ const releaseNetworkFailureBackoffMaxMs = Math.max(
 const releaseFailureOutputLimit = 8_000;
 const releaseFailureStateLimit = 1_500;
 const networkFailurePattern = /429|rate limit|throttl|timeout|timed out|network|socket|temporar|aborted|econnreset|econnrefused|econnaborted|enetunreach|ehostunreach|enotfound|eai_again|getaddrinfo|dns|err_network|und_err|fetch failed|could not resolve host|name resolution|no such host|connection refused|connection reset|service unavailable|bad gateway|gateway timeout/i;
+const retryableStageFailurePattern = /429|too many requests|rate limit|throttl|timeout|timed out|network|socket|temporar|aborted|econn|enet|ehost|enotfound|eai_again|getaddrinfo|dns|fetch failed|service unavailable|bad gateway|gateway timeout|\bHTTP\s+5\d\d\b|\b5\d\d\s+(?:error|response)|bulk operation .*?(?:did not finish|failed to complete|timed out)|readback .*?(?:pending|temporar|not ready)|temporar(?:y|ily) unavailable/i;
 const remoteReleaseStagePattern = /shopify|sync:data|seo:new-products:apply|catalog-integrity/i;
 
 function releaseStepFingerprint(step, profile) {
@@ -57,6 +68,9 @@ function formatCommand(command, args) {
 }
 
 let releaseRunState = {};
+let releaseOwnerLockAcquired = false;
+let releaseRunStateOwned = false;
+let releaseStateWriteQueue = Promise.resolve();
 
 function stripAnsi(value) {
   return String(value || "").replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, "");
@@ -74,6 +88,10 @@ export function isNetworkFailureText(value) {
   return networkFailurePattern.test(redactFailureText(value));
 }
 
+export function isRetryableStageFailure(value) {
+  return retryableStageFailurePattern.test(redactFailureText(value));
+}
+
 export function isRemoteReleaseStage(command, args = []) {
   return remoteReleaseStagePattern.test(`${command} ${args.join(" ")}`);
 }
@@ -83,6 +101,119 @@ export function shouldRepairKnowledgeModel(label, failureText) {
     && /Catalog knowledge model training fingerprint does not match the checked-in taxonomy\./i.test(
       stripAnsi(String(failureText || "")),
     );
+}
+
+function releaseRunStateMirrorPath(profile) {
+  const safeProfile = String(profile || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+  return safeProfile ? resolve(releaseRunStateMirrorDir, `release-run-state.${safeProfile}.json`) : null;
+}
+
+function releaseStateTimestamp(state) {
+  return [
+    state?.heartbeatAt,
+    state?.completedAt,
+    state?.failedAt,
+    state?.startedAt,
+  ].map((value) => Date.parse(String(value || ""))).find((value) => Number.isFinite(value)) || 0;
+}
+
+async function readJsonFile(path) {
+  try {
+    return JSON.parse(await readFile(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+export async function readReleaseRunState(profile = "") {
+  const candidates = [
+    await readJsonFile(releaseRunStatePath),
+    await readJsonFile(releaseRunStateMirrorPath(profile)),
+  ].filter(Boolean);
+  const exactProfileCandidates = candidates.filter((candidate) =>
+    !profile || !candidate.profile || candidate.profile === profile);
+  return (exactProfileCandidates.length ? exactProfileCandidates : candidates)
+    .sort((left, right) => releaseStateTimestamp(right) - releaseStateTimestamp(left))[0] || null;
+}
+
+export function areCompatibleReleaseProfiles(previousProfile, requestedProfile) {
+  const previous = String(previousProfile || "").trim();
+  const requested = String(requestedProfile || "").trim();
+  if (!previous || !requested || previous === requested) return true;
+  return [previous, requested].every((profile) => ["catalog", "daily"].includes(profile));
+}
+
+export function resolveResumeStep(steps, previousRunState, requestedResumeFromStep = 1) {
+  const requested = Math.max(1, Number(requestedResumeFromStep || 1));
+  const priorLabel = String(previousRunState?.stepLabel || "").trim();
+  const byLabel = priorLabel ? steps.findIndex((step) => step.label === priorLabel) + 1 : 0;
+  if (byLabel > 0) {
+    return {
+      resumeFromStep: byLabel,
+      migrated: byLabel !== requested,
+      priorStepLabel: priorLabel,
+    };
+  }
+  if (requested <= steps.length) {
+    return { resumeFromStep: requested, migrated: false, priorStepLabel: priorLabel };
+  }
+  return {
+    resumeFromStep: requested,
+    migrated: false,
+    priorStepLabel: priorLabel,
+    error: `Cannot resume from step ${requested}; release has ${steps.length} steps and the prior step label is unavailable.`,
+  };
+}
+
+function isProcessAlive(pid) {
+  const parsedPid = Number(pid || 0);
+  if (!Number.isInteger(parsedPid) || parsedPid <= 0) return false;
+  try {
+    process.kill(parsedPid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function writeOwnerLock(profile) {
+  await mkdir(releaseOwnerLockPath);
+  await writeFile(
+    resolve(releaseOwnerLockPath, "owner.json"),
+    `${JSON.stringify({ pid: process.pid, profile, startedAt: new Date().toISOString() })}\n`,
+    "utf8",
+  );
+  releaseOwnerLockAcquired = true;
+}
+
+async function acquireReleaseOwnerLock(profile) {
+  try {
+    await writeOwnerLock(profile);
+    return;
+  } catch (error) {
+    if (error?.code !== "EEXIST") throw error;
+  }
+
+  const owner = await readJsonFile(resolve(releaseOwnerLockPath, "owner.json"));
+  const ownerPid = Number(owner?.pid || 0);
+  if (ownerPid && ownerPid !== process.pid && isProcessAlive(ownerPid)) {
+    throw new Error(`Another Future Light Store release process is active (pid ${ownerPid}); refusing to overlap releases.`);
+  }
+
+  // The directory is an exact Future Light Store lock target. Reclaim only a
+  // stale lock whose recorded owner is no longer alive or whose owner file
+  // was never completed after a process interruption.
+  await rm(releaseOwnerLockPath, { recursive: true, force: true });
+  await writeOwnerLock(profile);
+}
+
+async function releaseOwnerLock() {
+  if (!releaseOwnerLockAcquired) return;
+  const owner = await readJsonFile(resolve(releaseOwnerLockPath, "owner.json"));
+  if (Number(owner?.pid || 0) === process.pid) {
+    await rm(releaseOwnerLockPath, { recursive: true, force: true });
+  }
+  releaseOwnerLockAcquired = false;
 }
 
 const RELEASE_REPAIR_ROUTES = [
@@ -248,34 +379,82 @@ async function writeReleaseRunState(patch = {}) {
     heartbeatAt: new Date().toISOString(),
   };
 
-  try {
-    await mkdir(resolve(rootDir, "output"), { recursive: true });
-    const tempPath = `${releaseRunStatePath}.tmp-${process.pid}`;
-    await writeFile(tempPath, `${JSON.stringify(releaseRunState, null, 2)}\n`, "utf8");
-    await rename(tempPath, releaseRunStatePath);
-  } catch {
-    // Run-state telemetry must never turn a valid release into a failed release.
-  }
+  const snapshot = { ...releaseRunState };
+  const persist = async () => {
+    try {
+      await mkdir(resolve(rootDir, "output"), { recursive: true });
+      const targets = [releaseRunStatePath, releaseRunStateMirrorPath(snapshot.profile)].filter(Boolean);
+      for (const targetPath of targets) {
+        const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}`;
+        await writeFile(tempPath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+        await rename(tempPath, targetPath);
+      }
+    } catch {
+      // Run-state telemetry must never turn a valid release into a failed release.
+    }
+  };
+
+  // Heartbeat, stage telemetry, and retry updates can overlap. Serialize
+  // atomic snapshots so a late heartbeat cannot overwrite a newer checkpoint.
+  releaseStateWriteQueue = releaseStateWriteQueue.then(persist, persist);
+  await releaseStateWriteQueue;
 }
 
-function runStageAttempt({ command, args, cwd, index, total }) {
+function runStageAttempt({ command, args, cwd, index, total, label = "release stage", attempt = 1 }) {
   return new Promise((resolveAttempt) => {
     let output = "";
+    let outputBytes = 0;
     let settled = false;
+    let child;
+    let telemetryTimer;
+    const stageStartedAt = new Date().toISOString();
+    let lastOutputAt = stageStartedAt;
     const appendOutput = (chunk) => {
-      output += String(chunk || "");
+      const text = String(chunk || "");
+      outputBytes += Buffer.byteLength(text);
+      lastOutputAt = new Date().toISOString();
+      output += text;
       if (output.length > releaseFailureOutputLimit) output = output.slice(-releaseFailureOutputLimit);
+    };
+    const writeStageTelemetry = (patch = {}) => {
+      void writeReleaseRunState({
+        stageStatus: "running",
+        stageLabel: label,
+        stageAttempt: attempt,
+        stageStartedAt,
+        stageLastOutputAt: lastOutputAt,
+        stageOutputBytes: outputBytes,
+        ...patch,
+      }).catch(() => {});
     };
     const finish = (result) => {
       if (settled) return;
       settled = true;
+      if (telemetryTimer) clearInterval(telemetryTimer);
+      writeStageTelemetry({
+        stageStatus: result.code === 0 ? "completed" : "failed",
+        stageFinishedAt: new Date().toISOString(),
+        stageExitCode: result.code ?? null,
+        stageSignal: result.signal || null,
+        stageChildPid: child?.pid || null,
+      });
       resolveAttempt({ ...result, output, index, total });
     };
-    const child = spawn(command, args, {
+    child = spawn(command, args, {
       cwd,
       env: process.env,
       stdio: ["inherit", "pipe", "pipe"],
     });
+    writeStageTelemetry({
+      stageChildPid: child.pid || null,
+      stageFinishedAt: null,
+      stageExitCode: null,
+      stageSignal: null,
+    });
+    telemetryTimer = setInterval(() => {
+      writeStageTelemetry({ stageChildPid: child.pid || null });
+    }, releaseStageTelemetryMs);
+    telemetryTimer.unref?.();
     child.stdout?.on("data", (chunk) => {
       process.stdout.write(chunk);
       appendOutput(chunk);
@@ -304,6 +483,7 @@ async function waitForNetworkBeforeRetry({ label, commandLine, cwd, index, total
 
   await writeReleaseRunState({
     status: "waiting_for_network",
+    stageStatus: "waiting_for_network",
     networkWait: {
       active: true,
       stepIndex: index,
@@ -329,6 +509,7 @@ async function waitForNetworkBeforeRetry({ label, commandLine, cwd, index, total
     if (probe.available) {
       await writeReleaseRunState({
         status: "running",
+        stageStatus: "retrying",
         networkWait: {
           active: false,
           stepIndex: index,
@@ -353,6 +534,7 @@ async function waitForNetworkBeforeRetry({ label, commandLine, cwd, index, total
     const nextProbeAt = new Date(Date.now() + releaseNetworkPollMs).toISOString();
     await writeReleaseRunState({
       status: "waiting_for_network",
+      stageStatus: "waiting_for_network",
       networkWait: {
         active: true,
         stepIndex: index,
@@ -374,17 +556,85 @@ async function waitForNetworkBeforeRetry({ label, commandLine, cwd, index, total
   }
 }
 
+function proactiveRepairModesForStage(label) {
+  const text = String(label || "").toLowerCase();
+  const modes = ["preflight", "collection"];
+  if (/visual|classification|image|evidence/.test(text)) modes.push("visual");
+  if (/seo|specificity|content|metafield/.test(text)) modes.push("seo");
+  if (/shuffle|final|readback|integrity/.test(text)) modes.push("postflight");
+  return [...new Set(modes)];
+}
+
+async function pathExists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function runProactiveDiagnostic(mode, { optional = false } = {}) {
+  if (process.env.FUTURE_LIGHT_RELEASE_SKIP_PROACTIVE_DIAGNOSTICS === "1") return false;
+  if (!await pathExists(proactiveRepairScriptPath)) {
+    if (optional) return false;
+    throw new Error(`Future Light Store proactive repair script is missing at ${proactiveRepairScriptPath}`);
+  }
+
+  const diagnosticArgs = [proactiveRepairScriptPath, `--${mode}`];
+  try {
+    execFileSync(nodeBin, diagnosticArgs, {
+      cwd: rootDir,
+      env: { ...process.env, FUTURE_LIGHT_STORE: "1" },
+      stdio: "inherit",
+    });
+    return true;
+  } catch (error) {
+    if (optional) {
+      process.stdout.write(`Proactive ${mode} diagnostic was unavailable during retry; preserving the original stage failure.\n`);
+      return false;
+    }
+    throw new Error(`Future Light Store proactive ${mode} diagnostic failed: ${error?.message || error}`);
+  }
+}
+
+async function runStandbyProactiveRepairs({ label, failureText }) {
+  if (process.env.FUTURE_LIGHT_RELEASE_SKIP_PROACTIVE_DIAGNOSTICS === "1") return;
+  const modes = proactiveRepairModesForStage(`${label}\n${failureText}`);
+  for (const mode of modes) {
+    if (mode === "visual" && !await pathExists(resolve(rootDir, "output", "shopify-catalog-integrity-manifest.json"))) continue;
+    if (mode === "seo" && !await pathExists(resolve(rootDir, "output", "shopify-seo-release-manifest.json"))) continue;
+    if (mode === "postflight" && !await pathExists(resolve(rootDir, "output", "shopify-collection-shuffle-manifest.json"))) continue;
+    await runProactiveDiagnostic(mode, { optional: true });
+  }
+}
+
 async function runStage({ label, command, args, cwd, index, total }) {
   const commandLine = formatCommand(command, args);
 
   process.stdout.write(`\n[${index}/${total}] ${label}\n`);
   process.stdout.write(`$ ${commandLine}\n`);
 
+  let stageAttempt = 0;
   let networkAttempt = 0;
   let knowledgeModelRepairAttempted = false;
   while (true) {
-    const result = await runStageAttempt({ command, args, cwd, index, total });
+    stageAttempt += 1;
+    await writeReleaseRunState({
+      status: "running",
+      stageStatus: "starting",
+      stageAttempt,
+      stageRetryLimit: releaseStageRetries,
+      stageRetryable: false,
+    });
+    const result = await runStageAttempt({ command, args, cwd, index, total, label, attempt: stageAttempt });
     if (result.code === 0) {
+      await writeReleaseRunState({
+        status: "running",
+        stageStatus: "completed",
+        stageAttempt,
+        stageFinishedAt: new Date().toISOString(),
+      });
       process.stdout.write(`[ok] ${label}\n`);
       return;
     }
@@ -402,6 +652,8 @@ async function runStage({ label, command, args, cwd, index, total }) {
         cwd,
         index,
         total,
+        label: "Repair catalog knowledge model fingerprint",
+        attempt: stageAttempt,
       });
       if (repairResult.code !== 0) {
         throw stageFailureError({
@@ -420,30 +672,60 @@ async function runStage({ label, command, args, cwd, index, total }) {
       initialProbe = await probeReleaseNetwork();
       networkFailure = !initialProbe.available;
     }
-    if (!networkFailure) throw failure;
-
-    networkAttempt += 1;
-    const failureReason = redactFailureText(
-      `${result.error?.code || ""} ${result.error?.message || ""} ${result.output}`,
-      releaseFailureStateLimit,
-    );
-    releaseRunState = {
-      ...releaseRunState,
-      networkWait: {
-        ...(releaseRunState.networkWait || {}),
-        reason: failureReason || initialProbe?.reason || "transient network or DNS failure",
-        lastFailureAt: new Date().toISOString(),
-      },
-    };
-    await waitForNetworkBeforeRetry({
-      label,
-      commandLine,
-      cwd,
-      index,
-      total,
-      attempt: networkAttempt,
-      initialProbe,
+    // Network failures intentionally stay in the unbounded DNS/transport
+    // wait above. This bounded branch handles only non-network transient
+    // failures such as Shopify throttling or an eventually-consistent readback.
+    const failureText = `${result.error?.code || ""} ${result.error?.message || ""} ${result.output}`;
+    if (networkFailure) {
+      networkAttempt += 1;
+      const failureReason = redactFailureText(failureText, releaseFailureStateLimit);
+      releaseRunState = {
+        ...releaseRunState,
+        networkWait: {
+          ...(releaseRunState.networkWait || {}),
+          reason: failureReason || initialProbe?.reason || "transient network or DNS failure",
+          lastFailureAt: new Date().toISOString(),
+        },
+      };
+      await waitForNetworkBeforeRetry({
+        label,
+        commandLine,
+        cwd,
+        index,
+        total,
+        attempt: networkAttempt,
+        initialProbe,
+      });
+      continue;
+    }
+    if (!isRetryableStageFailure(failureText)) {
+      throw failure;
+    }
+    if (stageAttempt > releaseStageRetries) {
+      await writeReleaseRunState({
+        status: "failed",
+        stageStatus: "retry-exhausted",
+        stageRetryable: true,
+      });
+      throw failure;
+    }
+    await runStandbyProactiveRepairs({ label, failureText });
+    const delayMs = retryDelayMs({
+      attempt: stageAttempt - 1,
+      baseMs: releaseStageRetryDelayMs,
+      maxMs: releaseStageRetryDelayMaxMs,
+      jitterMs: Math.min(500, Math.floor(releaseStageRetryDelayMs / 2)),
     });
+    await writeReleaseRunState({
+      status: "running",
+      stageStatus: "retrying",
+      stageAttempt,
+      stageRetryable: true,
+      stageRetryAt: new Date(Date.now() + delayMs).toISOString(),
+      stageRetryReason: redactFailureText(failureText, releaseFailureStateLimit),
+    });
+    process.stdout.write(`Transient stage failure; retry ${stageAttempt + 1}/${releaseStageRetries + 1} in ${Math.round(delayMs / 1000)}s.\n`);
+    await sleep(delayMs);
   }
 }
 
@@ -977,30 +1259,25 @@ async function main() {
   const invocationStartedAt = Date.now();
   try {
     args = parseArgs(process.argv);
+    await acquireReleaseOwnerLock(args.profile);
     if (args.resume) {
       process.env.SALT_VARIANT_IMAGE_RESUME = "1";
     }
     let previousRunState = null;
     if (args.resume) {
-      try {
-        previousRunState = JSON.parse(await readFile(releaseRunStatePath, "utf8"));
-      } catch {
+      previousRunState = await readReleaseRunState(args.profile);
+      if (!previousRunState) {
         throw new Error(`Cannot resume release: no readable run state at ${releaseRunStatePath}`);
       }
       if (!previousRunState || !["failed", "running", "waiting_for_network"].includes(previousRunState.status)) {
         throw new Error(`Cannot resume release: run state is ${previousRunState?.status || "missing"}, not failed or interrupted`);
       }
-      if (previousRunState.profile && previousRunState.profile !== args.profile) {
+      if (!areCompatibleReleaseProfiles(previousRunState.profile, args.profile)) {
         throw new Error(`Cannot resume ${args.profile} release from ${previousRunState.profile} run state`);
       }
       const previousPid = Number(previousRunState.pid || 0);
-      if (previousRunState.status === "running" && previousPid > 0 && previousPid !== process.pid) {
-        try {
-          process.kill(previousPid, 0);
-          throw new Error(`Cannot resume while release process ${previousPid} is still running`);
-        } catch (error) {
-          if (error?.message?.includes("still running")) throw error;
-        }
+      if (previousRunState.status === "running" && previousPid > 0 && previousPid !== process.pid && isProcessAlive(previousPid)) {
+        throw new Error(`Cannot resume while release process ${previousPid} is still running`);
       }
     }
     let requestedResumeFromStep = args.resume
@@ -1022,6 +1299,7 @@ async function main() {
         ? previousRunState.completedSteps
         : [],
     };
+    releaseRunStateOwned = true;
     await writeReleaseRunState();
     heartbeatTimer = setInterval(() => {
       void writeReleaseRunState().catch(() => {});
@@ -1056,32 +1334,35 @@ async function main() {
     }
 
     const steps = buildReleaseSteps({ rootDir, profile: args.profile });
+    if (args.resume) {
+      const resumeResolution = resolveResumeStep(steps, previousRunState, requestedResumeFromStep);
+      if (resumeResolution.error) {
+        throw new Error(
+          `${resumeResolution.error} Use --fresh after reviewing the changed release graph.`,
+        );
+      }
+      if (resumeResolution.migrated || previousRunState?.totalSteps !== steps.length) {
+        process.stdout.write(
+          `Migrating resumable release checkpoint from ${previousRunState?.totalSteps || "unknown"} to ${steps.length} steps by label at ${resumeResolution.priorStepLabel || "the saved numeric checkpoint"}.\n`,
+        );
+      }
+      requestedResumeFromStep = resumeResolution.resumeFromStep;
+    }
     if (requestedResumeFromStep > steps.length) {
       throw new Error(`Cannot resume from step ${requestedResumeFromStep}; release has ${steps.length} steps`);
     }
-    if (args.resume && previousRunState?.totalSteps && previousRunState.totalSteps !== steps.length) {
-      // A guarded step may be added while an older release is still running.
-      // Resume by the persisted step label, never by the old numeric index;
-      // newly inserted steps are intentionally deferred to the next fresh
-      // release so they cannot be applied halfway through an old graph.
-      const priorStepLabel = String(previousRunState?.stepLabel || "").trim();
-      const migratedIndex = steps.findIndex((step) => step.label === priorStepLabel) + 1;
-      if (!priorStepLabel || migratedIndex < 1) {
-        throw new Error(
-          `Cannot resume safely: the release step graph changed from ${previousRunState.totalSteps} to ${steps.length} steps and the prior step label is unavailable. Use --fresh after reviewing the new graph.`,
-        );
-      }
-      process.stdout.write(
-        `Migrating resumable release checkpoint from ${previousRunState.totalSteps} to ${steps.length} steps by label; new steps before ${priorStepLabel} will run on the next fresh release.\n`,
-      );
-      requestedResumeFromStep = migratedIndex;
-    }
     if (args.resume && previousRunState?.stepFingerprint) {
       const currentStepFingerprint = releaseStepFingerprint(steps[requestedResumeFromStep - 1], args.profile);
-      if (currentStepFingerprint !== previousRunState.stepFingerprint) {
+      const compatibleProfileChange = previousRunState.profile &&
+        previousRunState.profile !== args.profile &&
+        areCompatibleReleaseProfiles(previousRunState.profile, args.profile);
+      if (currentStepFingerprint !== previousRunState.stepFingerprint && !compatibleProfileChange) {
         throw new Error(
           `Cannot resume safely: step ${requestedResumeFromStep} changed since the prior run. Use --fresh after reviewing the changed step.`,
         );
+      }
+      if (compatibleProfileChange) {
+        process.stdout.write(`Compatible ${previousRunState.profile}->${args.profile} profile resume accepted by step label; guarded commands remain unchanged.\n`);
       }
     }
     let resumeFromStep = requestedResumeFromStep;
@@ -1099,6 +1380,12 @@ async function main() {
       resumedFromStep: args.resume ? resumeFromStep : null,
       resumeRepair,
     });
+
+    if (args.profile !== "products" && process.env.FUTURE_LIGHT_RELEASE_SKIP_PROACTIVE_DIAGNOSTICS !== "1") {
+      process.stdout.write("Running Future Light Store deterministic release preflight and collection-rule standby audit.\n");
+      await runProactiveDiagnostic("preflight");
+      await runProactiveDiagnostic("collection");
+    }
 
     for (const [index, step] of steps.entries()) {
       const stepIndex = index + 1;
@@ -1121,6 +1408,13 @@ async function main() {
 
       if (step.label === "Build web app") {
         await ensurePathExists(resolve(rootDir, "dist", "index.html"), "Vite build output");
+      }
+      if (step.label === "Apply full-catalog Shopify SEO and product-field reconciliation with live readback") {
+        await runProactiveDiagnostic("seo");
+      }
+      if (step.label === "Final live-readback gate after tag cleanup and collection merges") {
+        await runProactiveDiagnostic("visual");
+        await runProactiveDiagnostic("postflight");
       }
       const completedSteps = [
         ...(Array.isArray(releaseRunState.completedSteps) ? releaseRunState.completedSteps : []),
@@ -1161,14 +1455,17 @@ async function main() {
     });
     process.stdout.write(`\nRelease complete in ${Math.round((Date.now() - invocationStartedAt) / 1000)}s.\n`);
   } catch (error) {
-    await writeReleaseRunState({
-      status: "failed",
-      failedAt: new Date().toISOString(),
-      error: error?.message || String(error),
-    });
+    if (releaseRunStateOwned) {
+      await writeReleaseRunState({
+        status: "failed",
+        failedAt: new Date().toISOString(),
+        error: error?.message || String(error),
+      });
+    }
     throw error;
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
+    await releaseOwnerLock();
   }
 }
 

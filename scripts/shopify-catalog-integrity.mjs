@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import {
   ALL_PRODUCTS_COLLECTION_POLICY,
   COLLECTION_GOVERNANCE_VERSION,
+  DEFAULT_READ_ONLY_LIVE_COLLECTION_HANDLES,
   PRICE_COLLECTION_POLICIES,
   RETIRED_COLLECTION_HANDLE_MAP,
   SEMANTIC_COLLECTION_POLICIES,
@@ -1427,9 +1428,15 @@ function collectionSourceMatches(policy, collection) {
   const summary = sourceConditionSummary(source);
   if (policy.kind === "semantic") {
     const expectedTags = new Set(semanticCollectionRuleTags(policy).map(normalizeTag));
-    const actualTags = new Set(summary.conditions
-      .filter((condition) => condition.type === "tag" && condition.relation === "TAGGED_WITH" && condition.matchType === "ANY")
-      .flatMap((condition) => condition.values));
+    // Source equality is an exact contract. A collection with the expected
+    // tag plus an extra price/unknown condition is not equivalent: Shopify
+    // would compute a different membership set even if the tag set happens
+    // to look correct in a shallow readback.
+    if (summary.conditions.length !== expectedTags.size ||
+      summary.conditions.some((condition) => condition.type !== "tag" || condition.relation !== "TAGGED_WITH" || condition.matchType !== "ANY")) {
+      return false;
+    }
+    const actualTags = new Set(summary.conditions.flatMap((condition) => condition.values));
     return summary.matchType === (expectedTags.size > 1 ? "ANY" : "ALL") &&
       actualTags.size === expectedTags.size && [...expectedTags].every((tag) => actualTags.has(tag));
   }
@@ -1438,9 +1445,10 @@ function collectionSourceMatches(policy, collection) {
     const desired = [];
     if (Number.isFinite(policy.maximumExclusive)) desired.push({ relation: "LESS_THAN", amount: policy.maximumExclusive });
     if (Number.isFinite(policy.minimumExclusive)) desired.push({ relation: "GREATER_THAN", amount: policy.minimumExclusive });
-    return summary.conditions.length === desired.length && desired.every((condition) =>
-      summary.conditions.some((actual) => actual.type === "price" && actual.relation === condition.relation && actual.amount === condition.amount && actual.currencyCode === policy.currencyCode),
-    );
+    return summary.conditions.length === desired.length &&
+      summary.conditions.every((actual) => actual.type === "price" && actual.currencyCode === policy.currencyCode) &&
+      desired.every((condition) => summary.conditions.some((actual) =>
+        actual.type === "price" && actual.relation === condition.relation && actual.amount === condition.amount && actual.currencyCode === policy.currencyCode));
   }
   return false;
 }
@@ -1712,7 +1720,9 @@ async function verifyCollectionMembership({ targets, products, tagTasks, retryIn
     ...targets.map((target) => target.policy.handle),
   ]);
   const unexpectedLiveCollections = [...byHandle.keys()].filter(
-    (handle) => !expectedLiveHandles.has(handle) && !Object.prototype.hasOwnProperty.call(RETIRED_COLLECTION_HANDLE_MAP, handle),
+    (handle) => !expectedLiveHandles.has(handle) &&
+      !DEFAULT_READ_ONLY_LIVE_COLLECTION_HANDLES.includes(handle) &&
+      !Object.prototype.hasOwnProperty.call(RETIRED_COLLECTION_HANDLE_MAP, handle),
   );
   if (unexpectedLiveCollections.length) {
     failures.push(`live collections outside canonical governance: ${unexpectedLiveCollections.join(", ")}`);

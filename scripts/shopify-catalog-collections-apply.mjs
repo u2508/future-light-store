@@ -408,7 +408,7 @@ async function verifyCollectionApproval() {
   if (!approvalId) {
     throw new Error("Collection approval manifest has no approvalId.");
   }
-  if (normalizeCollectionPlanText(approval?.taxonomyVersion) !== CATALOG_COLLECTION_PLAN_VERSION.replace(/-collections\.1$/, "")) {
+  if (normalizeCollectionPlanText(approval?.taxonomyVersion) !== CATALOG_COLLECTION_PLAN_VERSION.replace(/-collections\.\d+$/, "")) {
     throw new Error("Collection approval targets a different taxonomy version than the active plan.");
   }
   if (approval?.scope?.managedCollections !== "create or rebuild only the canonical collections in the checked-in collection plan") {
@@ -716,7 +716,7 @@ function buildManifest({
 
   return {
     releaseVersion: CATALOG_COLLECTION_PLAN_VERSION,
-    taxonomyVersion: CATALOG_COLLECTION_PLAN_VERSION.replace(/-collections\.1$/, ""),
+    taxonomyVersion: CATALOG_COLLECTION_PLAN_VERSION.replace(/-collections\.\d+$/, ""),
     mode,
     generatedAt: new Date().toISOString(),
     approvalId,

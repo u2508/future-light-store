@@ -1,12 +1,12 @@
 {
-  "approvalId": "future-light-store-collections-approved-2026-08-17",
+  "approvalId": "future-light-store-collections-approved-2026-09-10-expanded-scope",
   "approved": true,
-  "approvedAt": "2026-08-17T06:41:25Z",
+  "approvedAt": "2026-09-10T18:06:11Z",
   "approvedBy": "Future Light Store owner (explicit Codex authorization)",
-  "approvalSource": "Explicit Future Light Store owner authorization in Codex on 2026-08-17",
+  "approvalSource": "Explicit Future Light Store owner approval in Codex on 2026-09-10 for the expanded collection scope derived from a read-only SALT workflow audit",
   "taxonomyVersion": "2026-08-06.1",
-  "collectionPlanVersion": "2026-08-06.1-collections.3",
-  "governanceVersion": "2026-08-10.3",
+  "collectionPlanVersion": "2026-08-06.1-collections.4",
+  "governanceVersion": "2026-09-10.1",
   "scope": {
     "managedCollections": "create or repair only canonical collections in the checked-in full-catalog governance registry",
     "controlledRuleTags": "exactly one canonical simple collection tag condition per semantic collection, except approved union rules for gifts and trending-finds",

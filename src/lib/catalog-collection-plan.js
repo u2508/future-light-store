@@ -1,8 +1,8 @@
 import { CATALOG_TAXONOMY_VERSION } from "./catalog-taxonomy.js";
 import { legacyCatalogTagToSimple } from "./catalog-simple-tags.js";
 
-export const CATALOG_COLLECTION_PLAN_VERSION = `${CATALOG_TAXONOMY_VERSION}-collections.3`;
-export const CATALOG_COLLECTION_SOURCE_TITLE = `SALT taxonomy ${CATALOG_TAXONOMY_VERSION}`;
+export const CATALOG_COLLECTION_PLAN_VERSION = `${CATALOG_TAXONOMY_VERSION}-collections.4`;
+export const CATALOG_COLLECTION_SOURCE_TITLE = `Future Light Store taxonomy ${CATALOG_TAXONOMY_VERSION}`;
 
 function collection(handle, title, ruleTag, description, legacyHandles = []) {
   const canonicalRuleTag = legacyCatalogTagToSimple(ruleTag) || ruleTag;
@@ -25,10 +25,21 @@ export const CATALOG_COLLECTION_PLAN = Object.freeze([
   collection("mens-fashion", "Men's Fashion", "salt:category:men-fashion", "Shop men's shirts, pants, jeans, footwear, and casual fashion essentials."),
   collection("mens-bags-wallets", "Men's Bags & Wallets", "salt:category:men-bags-wallets", "Shop men's bags, wallets, briefcases, organizers, and travel carry accessories."),
   collection("mens-accessories", "Men's Accessories", "salt:category:men-accessories", "Shop men's watches, belts, hats, jewelry, sunglasses, and style accessories."),
+  collection("mens-footwear", "Men's Footwear", "salt:category:mens-footwear", "Shop men's sneakers, boots, sandals, loafers, dress shoes, and everyday footwear."),
+  collection("formal-footwear", "Formal Footwear", "salt:category:formal-footwear", "Shop formal, dress, business, office, loafer, oxford, and wedding footwear."),
+  collection("footwear", "Footwear", "salt:category:footwear", "Shop all human footwear, including sneakers, boots, sandals, flats, heels, loafers, and everyday shoes."),
   collection("hats", "Hats", "salt:category:hats", "Shop hats, caps, beanies, visors, bucket hats, and other headwear accessories."),
+  collection("wigs", "Wigs", "salt:category:wigs", "Shop wigs, hair replacement systems, toupees, and cosplay wigs."),
   collection("mens-beauty-skincare", "Men's Beauty & Skincare", "salt:category:men-beauty-skincare", "Shop men's grooming, skincare, haircare, fragrance, and personal care essentials."),
   collection("kids", "Kids", "salt:department:kids", "Shop kids' wear, toys, games, baby care, and children's accessories."),
   collection("kids-wear", "Kids Wear", "salt:category:kids-wear", "Shop clothing, footwear, and everyday wear for babies, kids, and teens."),
+  collection("womens-footwear", "Women's Footwear", "salt:category:womens-footwear", "Shop women's sneakers, boots, sandals, flats, heels, loafers, and everyday footwear."),
+  collection("kids-footwear", "Kids Footwear", "salt:category:kids-footwear", "Shop children's sneakers, boots, sandals, school shoes, and everyday footwear."),
+  collection("rings", "Rings", "salt:category:rings", "Shop fashion, wedding, engagement, statement, and everyday rings."),
+  collection("necklaces", "Necklaces", "salt:category:necklaces", "Shop necklaces, pendants, chokers, chains, and everyday neckwear jewelry."),
+  collection("bracelets", "Bracelets", "salt:category:bracelets", "Shop bracelets, bangles, cuffs, charm bracelets, and everyday wrist jewelry."),
+  collection("earrings", "Earrings", "salt:category:earrings", "Shop studs, hoops, drop earrings, ear cuffs, and everyday earrings."),
+  collection("everyday-jewelry", "Everyday Jewelry", "salt:category:everyday-jewelry", "Shop wearable everyday jewelry across rings, necklaces, bracelets, earrings, and more."),
   collection("kids-toys-games", "Kids Toys & Games", "salt:category:kids-toys-games", "Shop toys, games, puzzles, educational play, and soft toys for kids."),
   collection("home-decor", "Home & Decor", "salt:department:home-decor", "Shop home decor, lighting, kitchen essentials, storage, cleaning, and household accessories."),
   collection("cookware", "Kitchen & Cookware", "salt:category:kitchen-cookware", "Shop cookware, kitchen tools, dining essentials, and food preparation accessories."),
@@ -40,6 +51,9 @@ export const CATALOG_COLLECTION_PLAN = Object.freeze([
   collection("mouse-keyboard", "Mouse & Keyboard", "salt:category:mouse-keyboard", "Shop wired and wireless mice, keyboards, keycaps, and computer input accessories."),
   collection("audio", "Audio & Earbuds", "salt:category:audio", "Shop earbuds, headphones, speakers, microphones, and personal audio accessories."),
   collection("office-school-supplies", "Office & School Supplies", "salt:category:office-school-supplies", "Shop stationery, writing supplies, planners, notebooks, school, and office essentials."),
+  collection("school-bags", "School Bags", "salt:category:school-bags", "Shop school backpacks, book bags, rucksacks, and student shoulder bags."),
+  collection("lunch-boxes", "Lunch Boxes", "salt:category:lunch-boxes", "Shop bento boxes, lunch containers, tiffins, and meal prep boxes."),
+  collection("water-bottles", "Water Bottles", "salt:category:water-bottles", "Shop reusable, sports, insulated, straw, and school water bottles."),
   collection("travel-outdoor", "Camping & Travel Essentials", "salt:department:camping-travel", "Shop luggage, outdoor gear, camping essentials, organizers, and travel accessories."),
   collection("watches", "Watches", "salt:category:watches", "Shop fashion watches, smart watches, watch bands, and watch accessories.", ["women-watches"]),
   collection("fitness-equipment", "Sports & Fitness", "salt:category:fitness-equipment", "Shop fitness training, sports protection, recovery, and active lifestyle essentials."),
@@ -67,7 +81,7 @@ export function buildCollectionSource(entry) {
 
   return {
     title: CATALOG_COLLECTION_SOURCE_TITLE,
-    description: `Controlled SALT collection rule for ${entry.title}; source tag ${entry.ruleTag}.`,
+    description: `Controlled Future Light Store collection rule for ${entry.title}; source tag ${entry.ruleTag}.`,
     targetType: "PRODUCTS",
     inclusion: {
       matchType: "ALL",

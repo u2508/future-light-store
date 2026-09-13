@@ -66,6 +66,36 @@ in-flight request reuse automatically. You can tune the limits with
 existing per-workflow concurrency variables without changing the release
 ordering or its live-readback gates.
 
+Every release also runs a deterministic Future-Light preflight and collection
+rule audit before step 1. During a stage, `output/release-run-state.json` and
+the profile mirror `output/release-run-state.daily.json` record the active
+child PID, attempt, output activity, retry timing, and network wait state.
+`output/release-process.lock` prevents two Future-Light releases from
+overlapping. These files are local release safety state; they do not contain
+Shopify credentials.
+
+Non-network transient failures receive a small bounded retry budget and a
+read-only proactive diagnostic pass. Schema, approval, taxonomy, price,
+publication, build, collection, visual-review, and live-readback failures are
+not hidden by generic retries. They stay failed and use the persisted,
+label-based repair route on the next `npm run release --resume`.
+
+The ported collection governance is Future-Light-specific. It evaluates
+exclusions before inherited tags or targets, requires positive product evidence
+for audience and special-purpose collections, treats connector words such as
+`male`/`female` as technical evidence rather than shopper gender, blocks
+pet/garden/apparel false positives, and keeps review-held products out of
+semantic collections. Run the local rule audit without a live mutation with:
+
+```sh
+npm run category:collections:test
+npm run release:proactive-repair -- --preflight
+```
+
+No new live collection policy is enabled by this port. Existing Future-Light
+approval manifests and the `test` read-only exception remain the only release
+scope controls.
+
 ### Network and DNS resilience
 
 Release-level transport failures are handled separately from catalog or

@@ -3,9 +3,12 @@ import assert from "node:assert/strict";
 
 import {
   buildReleaseSteps,
+  areCompatibleReleaseProfiles,
   getReleaseRepairRoute,
   isNetworkFailureText,
+  isRetryableStageFailure,
   isRemoteReleaseStage,
+  resolveResumeStep,
   shouldRepairKnowledgeModel,
 } from "./release.mjs";
 
@@ -20,6 +23,23 @@ test("only treats remote release stages as probe-eligible", () => {
   assert.equal(isRemoteReleaseStage("npm", ["run", "sync:data"]), true);
   assert.equal(isRemoteReleaseStage("shopify", ["store", "execute"]), true);
   assert.equal(isRemoteReleaseStage("npm", ["run", "build:web:release"]), false);
+});
+
+test("bounds non-DNS transient retries without retrying schema or policy failures", () => {
+  assert.equal(isRetryableStageFailure("HTTP 502 from Shopify"), true);
+  assert.equal(isRetryableStageFailure("bulk operation failed to complete"), true);
+  assert.equal(isRetryableStageFailure("Selections can't be made directly on unions"), false);
+  assert.equal(isRetryableStageFailure("approval manifest is missing"), false);
+});
+
+test("resumes by step label and keeps catalog and daily profiles compatible", () => {
+  const steps = [{ label: "first" }, { label: "second" }, { label: "third" }];
+  assert.deepEqual(
+    resolveResumeStep(steps, { stepLabel: "second" }, 3),
+    { resumeFromStep: 2, migrated: true, priorStepLabel: "second" },
+  );
+  assert.equal(areCompatibleReleaseProfiles("catalog", "daily"), true);
+  assert.equal(areCompatibleReleaseProfiles("products", "daily"), false);
 });
 
 test("repairs only an exact catalog knowledge-model fingerprint drift", () => {
