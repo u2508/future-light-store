@@ -11,6 +11,7 @@ import { useEffect } from "react";
 import { Header } from "@/components/vs/Header";
 import { MobileAppNav } from "@/components/vs/MobileAppNav";
 import { Footer } from "@/components/vs/Footer";
+import { ExitIntentPrompt } from "@/components/vs/ExitIntentPrompt";
 import { Toaster } from "@/components/ui/sonner";
 import { useCartSync } from "@/hooks/useCartSync";
 import { initializeTikTokPixel } from "@/lib/tiktok";
@@ -158,6 +159,7 @@ function StoreLayout() {
       <Footer />
       <MobileAppNav />
       <Toaster position="top-center" />
+      <ExitIntentPrompt />
     </div>
   );
 }

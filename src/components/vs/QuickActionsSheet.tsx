@@ -11,7 +11,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { discountPercent, fetchProduct, formatMoney, type ShopifyProduct } from "@/lib/shopify";
-import { useCartStore } from "@/stores/cartStore";
+import { requestCartOpen, useCartStore } from "@/stores/cartStore";
 import { useWishlistStore } from "@/stores/wishlistStore";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +95,7 @@ export function QuickActionsSheet({
         position: "top-center",
       });
       onOpenChange(false);
+      requestCartOpen();
     } else {
       if (addResult.unavailable) {
         setUnavailableVariantIds((current) => new Set(current).add(selected.id));

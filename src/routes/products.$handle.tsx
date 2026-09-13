@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Heart, Loader2, Minus, Plus, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { discountPercent, fetchProduct, formatMoney } from "@/lib/shopify";
-import { useCartStore } from "@/stores/cartStore";
+import { requestCartOpen, useCartStore } from "@/stores/cartStore";
 import { useRecentStore, useWishlistStore } from "@/stores/wishlistStore";
 import { cn } from "@/lib/utils";
 import { canonicalUrl } from "@/lib/seo";
@@ -179,6 +179,7 @@ function ProductPage() {
     });
     if (addResult.success) {
       toast.success("Added to bag", { description: product.title, position: "top-center" });
+      requestCartOpen();
     } else {
       if (addResult.unavailable) {
         setUnavailableVariantIds((current) => new Set(current).add(selected.id));

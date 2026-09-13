@@ -1,19 +1,36 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, Loader2, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { useCartStore } from "@/stores/cartStore";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { CART_OPEN_EVENT, useCartStore } from "@/stores/cartStore";
 import { formatMoney } from "@/lib/shopify";
 
 export function CartDrawer() {
   const [isOpen, setIsOpen] = useState(false);
-  const { items, isLoading, isSyncing, updateQuantity, removeItem, getCheckoutUrl, syncCart } = useCartStore();
+  const { items, isLoading, isSyncing, updateQuantity, removeItem, getCheckoutUrl, syncCart } =
+    useCartStore();
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
   const currency = items[0]?.price.currencyCode ?? "USD";
-  const totalPrice = items.reduce((sum, item) => sum + parseFloat(item.price.amount) * item.quantity, 0);
+  const totalPrice = items.reduce(
+    (sum, item) => sum + parseFloat(item.price.amount) * item.quantity,
+    0,
+  );
 
   useEffect(() => {
     if (isOpen) syncCart();
   }, [isOpen, syncCart]);
+
+  useEffect(() => {
+    const openCart = () => setIsOpen(true);
+    window.addEventListener(CART_OPEN_EVENT, openCart);
+    return () => window.removeEventListener(CART_OPEN_EVENT, openCart);
+  }, []);
 
   const handleCheckout = () => {
     const checkoutUrl = getCheckoutUrl();
@@ -43,7 +60,9 @@ export function CartDrawer() {
         <SheetHeader className="flex-shrink-0">
           <SheetTitle className="font-display">Your bag</SheetTitle>
           <SheetDescription>
-            {totalItems === 0 ? "Your bag is empty" : `${totalItems} item${totalItems !== 1 ? "s" : ""} ready`}
+            {totalItems === 0
+              ? "Your bag is empty"
+              : `${totalItems} item${totalItems !== 1 ? "s" : ""} ready`}
           </SheetDescription>
         </SheetHeader>
 
@@ -74,7 +93,9 @@ export function CartDrawer() {
                       <p className="text-xs text-muted-foreground">
                         {item.selectedOptions.map((o) => o.value).join(" • ")}
                       </p>
-                      <p className="text-sm font-semibold">{formatMoney(item.price.amount, item.price.currencyCode)}</p>
+                      <p className="text-sm font-semibold">
+                        {formatMoney(item.price.amount, item.price.currencyCode)}
+                      </p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
                       <button
@@ -109,7 +130,9 @@ export function CartDrawer() {
               <div className="flex-shrink-0 space-y-4 border-t border-border bg-background pt-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Subtotal</span>
-                  <span className="font-display text-xl font-bold">{formatMoney(totalPrice, currency)}</span>
+                  <span className="font-display text-xl font-bold">
+                    {formatMoney(totalPrice, currency)}
+                  </span>
                 </div>
                 <button
                   onClick={handleCheckout}

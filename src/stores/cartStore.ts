@@ -17,6 +17,12 @@ export interface CartItem {
   selectedOptions: Array<{ name: string; value: string }>;
 }
 
+export const CART_OPEN_EVENT = "vs:cart-open";
+
+export function requestCartOpen() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(CART_OPEN_EVENT));
+}
+
 const CART_QUERY = `
   query cart($id: ID!) {
     cart(id: $id) { id totalQuantity }

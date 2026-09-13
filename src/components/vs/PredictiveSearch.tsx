@@ -53,20 +53,28 @@ export function PredictiveSearch({
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["products", "all"],
     queryFn: () => fetchProducts(99),
+    enabled: open,
     staleTime: 5 * 60 * 1000,
   });
   const { data: collections = [] } = useQuery({
     queryKey: ["collections"],
     queryFn: () => fetchCollections(20),
+    enabled: open,
     staleTime: 5 * 60 * 1000,
   });
 
-  const matches = useMemo(() => searchProducts(products, debounced).slice(0, 6), [products, debounced]);
+  const matches = useMemo(
+    () => searchProducts(products, debounced).slice(0, 6),
+    [products, debounced],
+  );
   const collectionMatches = useMemo(
     () => searchCollections(collections, debounced).slice(0, 4),
     [collections, debounced],
   );
-  const categories = useMemo(() => suggestedCategories(products, debounced).slice(0, 4), [products, debounced]);
+  const categories = useMemo(
+    () => suggestedCategories(products, debounced).slice(0, 4),
+    [products, debounced],
+  );
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -224,7 +232,13 @@ export function PredictiveSearch({
                         )}
                       >
                         <span className="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-border bg-secondary">
-                          {img && <img src={img.url} alt={img.altText ?? n.title} className="h-full w-full object-cover" />}
+                          {img && (
+                            <img
+                              src={img.url}
+                              alt={img.altText ?? n.title}
+                              className="h-full w-full object-cover"
+                            />
+                          )}
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm">
@@ -235,7 +249,10 @@ export function PredictiveSearch({
                           </span>
                         </span>
                         <span className="shrink-0 text-sm font-semibold">
-                          {formatMoney(n.priceRange.minVariantPrice.amount, n.priceRange.minVariantPrice.currencyCode)}
+                          {formatMoney(
+                            n.priceRange.minVariantPrice.amount,
+                            n.priceRange.minVariantPrice.currencyCode,
+                          )}
                         </span>
                       </button>
                     );
@@ -288,7 +305,9 @@ export function PredictiveSearch({
               {matches.length === 0 && collectionMatches.length === 0 && (
                 <div className="space-y-3 px-3 py-6 text-center">
                   <p className="text-sm font-medium">No matches for “{debounced}”</p>
-                  <p className="text-xs text-muted-foreground">Try a broader term or browse popular searches.</p>
+                  <p className="text-xs text-muted-foreground">
+                    Try a broader term or browse popular searches.
+                  </p>
                   <div className="flex flex-wrap justify-center gap-1.5">
                     {POPULAR_SEARCHES.slice(0, 3).map((term) => (
                       <button

@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Heart, Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { discountPercent, formatMoney, type ShopifyProduct } from "@/lib/shopify";
-import { useCartStore } from "@/stores/cartStore";
+import { requestCartOpen, useCartStore } from "@/stores/cartStore";
 import { useWishlistStore } from "@/stores/wishlistStore";
 import { QuickActionsSheet } from "@/components/vs/QuickActionsSheet";
 import {
@@ -79,6 +79,7 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
     });
     if (addResult.success) {
       toast.success("Added to bag", { description: n.title, position: "top-center" });
+      requestCartOpen();
     } else {
       if (addResult.unavailable) setUnavailable(true);
       toast.error("Couldn’t add this item", {
@@ -201,7 +202,7 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
         </div>
       </article>
 
-      <QuickActionsSheet product={product} open={quickOpen} onOpenChange={setQuickOpen} />
+      {quickOpen && <QuickActionsSheet product={product} open onOpenChange={setQuickOpen} />}
     </>
   );
 }

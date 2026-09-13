@@ -451,7 +451,10 @@ export async function storefrontApiRequest(query: string, variables: Record<stri
 }
 
 export async function fetchProducts(first = 50, query?: string): Promise<ShopifyProduct[]> {
-  const data = await storefrontApiRequest(STOREFRONT_QUERY, {
+  // Listing surfaces only need one image, one representative variant and
+  // option metadata. Keep the full product fragment for PDP/Quick View so the
+  // first paint does not pay for descriptions, six images and 25 variants.
+  const data = await storefrontApiRequest(BROWSE_PRODUCTS_QUERY, {
     first,
     after: null,
     query: query ?? null,

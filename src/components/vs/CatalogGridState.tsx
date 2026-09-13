@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, Loader2, PackageOpen, RefreshCw } from "lucide-react";
 import type { ShopifyProduct } from "@/lib/shopify";
 import { ProductCard } from "@/components/vs/ProductCard";
@@ -141,6 +141,61 @@ export function ProductCatalogGridState({
         <ProductCard key={product.node.id} product={product} />
       ))}
     </div>
+  );
+}
+
+const INITIAL_PRODUCT_COUNT = 48;
+const PRODUCT_PAGE_SIZE = 48;
+
+/**
+ * Keep large catalog pages responsive by limiting the initial DOM size while
+ * retaining every result behind an explicit, fast client-side continuation.
+ */
+export function ProgressiveProductGrid({
+  products,
+  gridClassName,
+  resetKey,
+}: {
+  products: ShopifyProduct[];
+  gridClassName: string;
+  resetKey?: string;
+}) {
+  const [visibleCount, setVisibleCount] = useState(INITIAL_PRODUCT_COUNT);
+  const visibleProducts = useMemo(() => products.slice(0, visibleCount), [products, visibleCount]);
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_PRODUCT_COUNT);
+  }, [resetKey]);
+
+  return (
+    <>
+      <ProductCatalogGridState
+        products={visibleProducts}
+        isLoading={false}
+        isError={false}
+        gridClassName={gridClassName}
+        loadingLabel="Loading catalog products"
+        errorTitle="We couldn’t reach the catalog"
+        emptyTitle="No products found"
+        emptyDescription="Try removing one or more filters to widen your results."
+      />
+      {visibleCount < products.length && (
+        <div className="mt-7 flex flex-col items-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            Showing {visibleProducts.length} of {products.length} products
+          </p>
+          <button
+            type="button"
+            onClick={() =>
+              setVisibleCount((current) => Math.min(current + PRODUCT_PAGE_SIZE, products.length))
+            }
+            className="rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-primary shadow-sm transition-colors hover:border-primary hover:bg-accent"
+          >
+            Load more products
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 

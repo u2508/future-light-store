@@ -4,7 +4,8 @@ import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { fetchSearchProducts } from "@/lib/shopify";
 import { searchProducts } from "@/lib/vs-search";
-import { ProductCard, ProductGridSkeleton } from "@/components/vs/ProductCard";
+import { ProductGridSkeleton } from "@/components/vs/ProductCard";
+import { ProgressiveProductGrid } from "@/components/vs/CatalogGridState";
 
 const searchSchema = z.object({ q: fallback(z.string(), "").default("") });
 
@@ -62,11 +63,11 @@ function SearchPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {results.map((p) => (
-              <ProductCard key={p.node.id} product={p} />
-            ))}
-          </div>
+          <ProgressiveProductGrid
+            products={results}
+            resetKey={q}
+            gridClassName="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4"
+          />
         )}
       </div>
     </div>

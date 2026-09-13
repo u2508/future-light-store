@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { discountPercent, fetchAllProducts } from "@/lib/shopify";
-import { ProductCard, ProductGridSkeleton, EmptyProducts } from "@/components/vs/ProductCard";
+import { ProductGridSkeleton, EmptyProducts } from "@/components/vs/ProductCard";
+import { ProgressiveProductGrid } from "@/components/vs/CatalogGridState";
 import { canonicalUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/offers")({
@@ -71,11 +72,11 @@ function OffersPage() {
         ) : offers.length === 0 ? (
           <EmptyProducts message="No offers running right now" />
         ) : (
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {offers.map((p) => (
-              <ProductCard key={p.node.id} product={p} />
-            ))}
-          </div>
+          <ProgressiveProductGrid
+            products={offers}
+            resetKey="offers"
+            gridClassName="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4"
+          />
         )}
       </div>
     </div>

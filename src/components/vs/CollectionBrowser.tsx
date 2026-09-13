@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   CatalogEmptyState,
   CollectionListSkeleton,
+  ProgressiveProductGrid,
   ProductCatalogGridState,
 } from "@/components/vs/CatalogGridState";
 
@@ -175,6 +176,20 @@ export function CollectionBrowser({
       );
     return sorted;
   }, [products, search]);
+
+  const filterKey = [
+    search.q,
+    search.min_price,
+    search.max_price,
+    search.availability,
+    search.tag,
+    search.category,
+    search.vendor,
+    search.size,
+    search.color,
+    search.discount,
+    search.sort,
+  ].join("|");
 
   const activeChips = [
     search.availability && {
@@ -411,37 +426,45 @@ export function CollectionBrowser({
             </div>
           )}
 
-          <ProductCatalogGridState
-            products={filtered}
-            isLoading={isLoading}
-            isError={Boolean(isError)}
-            onRetry={() => window.location.reload()}
-            loadingLabel="Loading catalog products"
-            errorTitle="We couldn’t reach the catalog"
-            emptyTitle={
-              products.length === 0
-                ? "No products available yet"
-                : "No products match these filters"
-            }
-            emptyDescription={
-              products.length === 0
-                ? "The next catalog drop will appear here as soon as it is available."
-                : "Try removing one or more filters to widen your results."
-            }
-            emptyAction={
-              products.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={clearAll}
-                  className="text-sm font-semibold text-primary hover:underline"
-                >
-                  Clear all filters
-                </button>
-              ) : undefined
-            }
-            skeletonCount={12}
-            gridClassName="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"
-          />
+          {isLoading || isError || filtered.length === 0 ? (
+            <ProductCatalogGridState
+              products={filtered}
+              isLoading={isLoading}
+              isError={Boolean(isError)}
+              onRetry={() => window.location.reload()}
+              loadingLabel="Loading catalog products"
+              errorTitle="We couldn’t reach the catalog"
+              emptyTitle={
+                products.length === 0
+                  ? "No products available yet"
+                  : "No products match these filters"
+              }
+              emptyDescription={
+                products.length === 0
+                  ? "The next catalog drop will appear here as soon as it is available."
+                  : "Try removing one or more filters to widen your results."
+              }
+              emptyAction={
+                products.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={clearAll}
+                    className="text-sm font-semibold text-primary hover:underline"
+                  >
+                    Clear all filters
+                  </button>
+                ) : undefined
+              }
+              skeletonCount={12}
+              gridClassName="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"
+            />
+          ) : (
+            <ProgressiveProductGrid
+              products={filtered}
+              resetKey={filterKey}
+              gridClassName="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"
+            />
+          )}
         </div>
 
         <aside className="hidden 2xl:block">
