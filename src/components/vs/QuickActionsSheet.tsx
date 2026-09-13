@@ -40,9 +40,9 @@ export function QuickActionsSheet({
   const activeProduct = fullProduct ? { node: fullProduct } : product;
   const activeNode = activeProduct.node;
   const variants = useMemo(() => activeNode.variants.edges.map((e) => e.node), [activeNode]);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    variants.length === 1 ? (variants[0]?.id ?? null) : null,
-  );
+  const defaultVariantId =
+    variants.find((variant) => variant.availableForSale)?.id ?? variants[0]?.id ?? null;
+  const [selectedId, setSelectedId] = useState<string | null>(defaultVariantId);
   const [unavailableVariantIds, setUnavailableVariantIds] = useState<Set<string>>(new Set());
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
@@ -60,8 +60,8 @@ export function QuickActionsSheet({
   }, [open, n.handle]);
 
   useEffect(() => {
-    if (open) setSelectedId(variants.length === 1 ? (variants[0]?.id ?? null) : null);
-  }, [open, variants]);
+    if (open) setSelectedId(defaultVariantId);
+  }, [open, defaultVariantId]);
 
   const images = activeNode.images.edges.map((e) => e.node);
   const selected = variants.find((v) => v.id === selectedId) ?? null;
