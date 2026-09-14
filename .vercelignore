@@ -1,5 +1,6 @@
 # Local/generated artifacts that are not part of the Vite runtime bundle.
-output/
+output/*
+!output/product-knowledge.json
 dist/
 node_modules/
 .git/
