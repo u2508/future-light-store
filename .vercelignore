@@ -1,0 +1,9 @@
+# Local/generated artifacts that are not part of the Vite runtime bundle.
+output/
+dist/
+node_modules/
+.git/
+.playwright-cli/
+test-results/
+.wrangler/
+.output/
