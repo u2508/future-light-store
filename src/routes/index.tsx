@@ -1,92 +1,51 @@
-import { createFileRoute, Link, useHydrated } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BadgeCheck, ShieldCheck, Star, Truck, RotateCcw } from "lucide-react";
-import {
-  fetchProducts,
-  fetchCollections,
-  discountPercent,
-  type ShopifyProduct,
-} from "@/lib/shopify";
-import { SectionHeading } from "@/components/vs/ProductShelf";
+import { ArrowUpRight, PackageCheck, ShieldCheck, Headphones } from "lucide-react";
+import { fetchCollection, fetchCollections } from "@/lib/shopify";
 import { HeroCarousel } from "@/components/vs/HeroCarousel";
-import { canonicalUrl } from "@/lib/seo";
-import { HERO_COLLECTION_BANNERS, HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
+import { ProductCatalogGridState, CatalogRequestError } from "@/components/vs/CatalogGridState";
 import {
-  CatalogEmptyState,
-  CatalogRequestError,
-  CollectionCardGridSkeleton,
-  ProductCatalogGridState,
-} from "@/components/vs/CatalogGridState";
+  collectionArtwork,
+  collectionArtworkSrcSet,
+  MERCHANDISING_COLLECTIONS,
+} from "@/lib/collection-artwork";
+import { canonicalUrl } from "@/lib/seo";
+import { HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
 
-interface HomeProductShelfProps {
-  title: string;
-  subtitle: string;
-  products: ShopifyProduct[];
-  isLoading: boolean;
-  isError: boolean;
-  isRetrying: boolean;
-  onRetry: () => void;
-  action: { label: string; to: "/shop" | "/offers" };
-  emptyTitle: string;
-  emptyDescription: string;
-}
+const WORLDS = [
+  { handle: "portable-gadgets", title: "Everyday, upgraded.", label: "Tech & accessories" },
+  { handle: "home-decor", title: "Make room for better.", label: "Home & living" },
+  { handle: "beauty-makeup-essentials", title: "Your kind of glow.", label: "Beauty & self-care" },
+  { handle: "travel-outdoor", title: "Go a little further.", label: "Travel & outdoors" },
+  { handle: "pet-essentials", title: "For your favourite company.", label: "Pet essentials" },
+  { handle: "gifts", title: "Give something unexpected.", label: "Gifts & discoveries" },
+] as const;
 
-function HomeProductShelf({
-  title,
-  subtitle,
-  products,
-  isLoading,
-  isError,
-  isRetrying,
-  onRetry,
-  action,
-  emptyTitle,
-  emptyDescription,
-}: HomeProductShelfProps) {
-  return (
-    <section className="mx-auto max-w-7xl px-4 py-10" aria-label={title}>
-      <SectionHeading title={title} subtitle={subtitle} action={action} />
-      <ProductCatalogGridState
-        products={products}
-        isLoading={isLoading}
-        isError={isError}
-        isRetrying={isRetrying}
-        onRetry={onRetry}
-        loadingLabel={`Loading ${title.toLowerCase()}`}
-        errorTitle={`We couldn’t load ${title.toLowerCase()}`}
-        emptyTitle={emptyTitle}
-        emptyDescription={emptyDescription}
-        skeletonCount={6}
-        gridClassName="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6"
-      />
-    </section>
-  );
-}
-
-function takeDistinctProducts(source: ShopifyProduct[], usedIds: Set<string>, limit: number) {
-  const picked: ShopifyProduct[] = [];
-  for (const product of source) {
-    if (usedIds.has(product.node.id)) continue;
-    usedIds.add(product.node.id);
-    picked.push(product);
-    if (picked.length === limit) break;
-  }
-  return picked;
-}
+const QUICK_DISCOVERY = [
+  { handle: "travel-outdoor", label: "Travel & Outdoor", title: "Go a little further." },
+  { handle: "portable-gadgets", label: "Portable Gadgets", title: "Everyday, upgraded." },
+  { handle: "kitchen-gadgets", label: "Kitchen", title: "Make it easier." },
+  {
+    handle: "beauty-makeup-essentials",
+    label: "Beauty Essentials",
+    title: "Your kind of glow.",
+  },
+  { handle: "home-decor", label: "Home Decor", title: "Make room for better." },
+] as const;
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Everyday essentials, engineered forward — VS Store" },
+      { title: "The future looks good on you — VS Store" },
       {
         name: "description",
         content:
-          "Discover new arrivals, best sellers and limited-time offers at VS Store, with tracked delivery and secure checkout.",
+          "Unexpected finds and everyday upgrades. Explore New Arrivals, Best Sellers and Premium Picks at VS Store.",
       },
-      { property: "og:title", content: "Everyday essentials, engineered forward — VS Store" },
+      { property: "og:title", content: "The future looks good on you — VS Store" },
       {
         property: "og:description",
-        content: "New arrivals, best sellers and limited-time offers, with tracked delivery.",
+        content: "Unexpected finds. Everyday upgrades. Discover your next favourite.",
       },
       { property: "og:url", content: canonicalUrl("/") },
     ],
@@ -95,330 +54,308 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-function Index() {
-  const hydrated = useHydrated();
-  const {
-    data: products = [],
-    isLoading: productsLoading,
-    isError: productsError,
-    isFetching: productsFetching,
-    refetch: refetchProducts,
-  } = useQuery({
-    queryKey: ["products", "all"],
-    queryFn: () => fetchProducts(99),
+function CollectionShelf({
+  handle,
+  title,
+  subtitle,
+}: {
+  handle: string;
+  title: string;
+  subtitle: string;
+}) {
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    queryKey: ["collection", handle],
+    queryFn: () => fetchCollection(handle),
     staleTime: 5 * 60 * 1000,
   });
+  return (
+    <section className="vs-wide-shell py-10 sm:py-14" aria-label={title}>
+      <div className="mb-6 flex items-end justify-between gap-4">
+        <div>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            {subtitle}
+          </p>
+          <h2 className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">{title}</h2>
+        </div>
+        <Link
+          to="/collections/$handle"
+          params={{ handle }}
+          className="inline-flex min-h-11 shrink-0 items-center gap-2 text-xs font-semibold sm:text-sm"
+        >
+          View the edit
+          <ArrowUpRight className="h-4 w-4" />
+        </Link>
+      </div>
+      <ProductCatalogGridState
+        products={(data?.products ?? []).slice(0, 8)}
+        isLoading={isLoading}
+        isError={isError || (!isLoading && !data)}
+        isRetrying={isFetching}
+        onRetry={() => {
+          void refetch();
+        }}
+        loadingLabel={`Loading ${title}`}
+        errorTitle={`We couldn’t load ${title.toLowerCase()}`}
+        emptyTitle="The next edit is on its way"
+        emptyDescription="Explore the other collections while we prepare these picks."
+        skeletonCount={8}
+        gridClassName="grid grid-cols-2 gap-3 md:grid-cols-4 sm:gap-5"
+      />
+    </section>
+  );
+}
+
+function Index() {
   const {
     data: collections = [],
-    isLoading: collectionsLoading,
-    isError: collectionsError,
-    isFetching: collectionsFetching,
-    refetch: refetchCollections,
+    isError,
+    isFetching,
+    refetch,
   } = useQuery({
     queryKey: ["collections", "home"],
-    queryFn: () => fetchCollections(100),
+    queryFn: () => fetchCollections(250),
     staleTime: 10 * 60 * 1000,
   });
-  const isLoading = !hydrated || productsLoading;
-
-  const heroSlides = HERO_COLLECTION_BANNERS.map((banner) => {
-    const live = collections.find((c) => c.handle === banner.handle);
-    return {
-      handle: banner.handle,
-      eyebrow: banner.eyebrow,
-      title: banner.title,
-      copy: banner.copy,
-      image: live?.image?.url,
-    };
-  });
-
-  const spotlightCollections = collections
-    .filter((c) => c.handle !== "all-products" && c.handle !== "classification-review")
-    .slice(0, 12);
-
-  const discountedProducts = products.filter(
-    (p) =>
-      discountPercent(
-        p.node.priceRange.minVariantPrice.amount,
-        p.node.variants.edges[0]?.node.compareAtPrice?.amount ?? null,
-      ) > 0,
-  );
-  const underFifty = products.filter(
-    (p) => parseFloat(p.node.priceRange.minVariantPrice.amount) <= 50,
-  );
-  const usedProductIds = new Set<string>();
-  const newArrivals = takeDistinctProducts(products, usedProductIds, 12);
-  const offers = takeDistinctProducts(discountedProducts, usedProductIds, 12);
-  const valuePicks = takeDistinctProducts(underFifty, usedProductIds, 12);
-  const moreToExplore = takeDistinctProducts(products, usedProductIds, 18);
+  const slides = MERCHANDISING_COLLECTIONS.map((item) => ({
+    handle: item.handle,
+    eyebrow: item.eyebrow,
+    title: item.headline,
+    copy: item.copy,
+    cta: item.cta,
+    imageSrcSet: collectionArtworkSrcSet(item.handle),
+    image: collectionArtwork(
+      item.handle,
+      collections.find((c) => c.handle === item.handle)?.image?.url,
+    ),
+  }));
 
   return (
-    <div className="relative overflow-hidden">
-      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[780px] bg-[radial-gradient(circle_at_top,rgba(60,110,255,0.13),transparent_42%),radial-gradient(circle_at_80%_10%,rgba(42,186,170,0.16),transparent_24%),linear-gradient(to_bottom,rgba(255,255,255,0.85),transparent)]" />
-      <HeroCarousel slides={heroSlides} />
+    <div>
+      <HeroCarousel slides={slides} />
+      <div className="vs-wide-shell flex flex-wrap items-center justify-center gap-x-8 gap-y-3 border-b border-border/60 py-6 text-[11px] text-muted-foreground sm:gap-x-16">
+        <span className="inline-flex items-center gap-2">
+          <PackageCheck className="h-4 w-4" />
+          Tracked delivery
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4" />
+          Secure Shopify checkout
+        </span>
+        <Link to="/help" className="inline-flex items-center gap-2">
+          <Headphones className="h-4 w-4" />
+          Here to help
+        </Link>
+      </div>
 
-      <section className="mx-auto max-w-7xl px-4 pt-8">
-        <div className="grid gap-3 sm:grid-cols-3">
-          {[
-            {
-              icon: Truck,
-              title: "Tracked delivery",
-              copy: "Live status on every order",
-              accent: "from-primary/10 to-primary/5",
-            },
-            {
-              icon: RotateCcw,
-              title: "Easy returns",
-              copy: "30-day return window",
-              accent: "from-electric/10 to-electric/5",
-            },
-            {
-              icon: ShieldCheck,
-              title: "Secure checkout",
-              copy: "Payments handled by Shopify",
-              accent: "from-signal/10 to-signal/5",
-            },
-          ].map((item) => (
-            <div
-              key={item.title}
-              className={`flex items-center gap-4 rounded-3xl border border-border/70 bg-gradient-to-br ${item.accent} p-5 shadow-[var(--shadow-card)]`}
-            >
-              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/80 shadow-sm">
-                <item.icon className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold">{item.title}</p>
-                <p className="text-xs leading-5 text-muted-foreground">{item.copy}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto grid max-w-7xl gap-4 px-4 pt-8 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="vs-premium-panel rounded-[2rem] p-6 sm:p-8">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-            <Star className="h-4 w-4 text-primary" />
-            Premium curation
-          </div>
-          <h2 className="mt-3 font-display text-2xl font-bold sm:text-3xl">
-            Designed to feel editorial, not transactional.
-          </h2>
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {["Silky gradients", "Refined cards", "Luxury spacing"].map((feature) => (
-              <div
-                key={feature}
-                className="rounded-2xl border border-border/70 bg-white/70 px-4 py-3 text-sm font-medium shadow-sm"
-              >
-                {feature}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="vs-card flex flex-col justify-between rounded-[2rem] p-6 sm:p-8">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-            <BadgeCheck className="h-4 w-4 text-electric" />
-            Trusted shopping
-          </div>
-          <div className="mt-6 rounded-2xl border border-border bg-muted/60 p-4">
-            <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">
-              Experience upgrade
-            </p>
-            <p className="mt-2 text-sm font-medium">
-              More depth, more breathing room, and a more premium visual cadence.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <HomeProductShelf
-        title="New arrivals"
-        subtitle="Fresh in the VS catalog"
-        products={newArrivals}
-        isLoading={isLoading}
-        isError={productsError}
-        isRetrying={productsError && productsFetching}
-        onRetry={() => {
-          void refetchProducts();
-        }}
-        action={{ label: "Shop all", to: "/shop" }}
-        emptyTitle="New arrivals are being prepared"
-        emptyDescription="The next catalog drop will appear here as soon as it is ready."
-      />
-
-      <HomeProductShelf
-        title="Limited-time offers"
-        subtitle="Reduced while stock lasts"
-        products={offers}
-        isLoading={isLoading}
-        isError={productsError}
-        isRetrying={productsError && productsFetching}
-        onRetry={() => {
-          void refetchProducts();
-        }}
-        action={{ label: "All offers", to: "/offers" }}
-        emptyTitle="No offers running right now"
-        emptyDescription="New promotions will appear here automatically when they go live."
-      />
-
-      <HomeProductShelf
-        title="Under $50"
-        subtitle="Price-led discovery"
-        products={valuePicks}
-        isLoading={isLoading}
-        isError={productsError}
-        isRetrying={productsError && productsFetching}
-        onRetry={() => {
-          void refetchProducts();
-        }}
-        action={{ label: "Shop all", to: "/shop" }}
-        emptyTitle="Nothing under $50 yet"
-        emptyDescription="Explore the full catalog while we prepare more value-led picks."
-      />
-
-      <HomeProductShelf
-        title="Keep exploring"
-        subtitle="More of the catalog, hand-picked"
-        products={moreToExplore}
-        isLoading={isLoading}
-        isError={productsError}
-        isRetrying={productsError && productsFetching}
-        onRetry={() => {
-          void refetchProducts();
-        }}
-        action={{ label: "Shop all", to: "/shop" }}
-        emptyTitle="More products coming soon"
-        emptyDescription="You’ve reached the end of this edit. The full catalog is still available."
-      />
-
-      <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="home-collection-paths">
-        <div className="flex items-end justify-between gap-4">
+      <section className="vs-wide-shell py-8 sm:py-12" aria-labelledby="quick-discovery">
+        <div className="mb-6 flex items-end justify-between gap-4">
           <div>
-            <h2 id="home-collection-paths" className="font-display text-2xl font-bold">
-              Shop by intent
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Find the right starting point for your next upgrade.
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Keep exploring
             </p>
+            <h2
+              id="quick-discovery"
+              className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl"
+            >
+              More worlds to discover.
+            </h2>
           </div>
           <Link
             to="/collections"
-            className="hidden text-sm font-semibold text-primary hover:underline sm:block"
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 text-xs font-semibold sm:text-sm"
           >
-            View all collections →
+            Browse all
+            <ArrowUpRight className="h-4 w-4" />
           </Link>
         </div>
-        {collectionsError ? (
-          <div className="mt-5">
-            <CatalogRequestError
-              title="We couldn’t load the collection paths"
-              isRetrying={collectionsFetching}
-              onRetry={() => {
-                void refetchCollections();
-              }}
-            />
-          </div>
-        ) : !hydrated || collectionsLoading ? (
-          <div className="mt-5">
-            <CollectionCardGridSkeleton count={8} label="Loading collection paths" />
-          </div>
-        ) : spotlightCollections.length === 0 ? (
-          <div className="mt-5">
-            <CatalogEmptyState
-              title="No collections available yet"
-              description="Browse the full catalog while we prepare the next collection edit."
-              action={
-                <Link to="/shop" className="text-sm font-semibold text-primary hover:underline">
-                  Browse all products →
-                </Link>
-              }
-            />
-          </div>
-        ) : (
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {spotlightCollections.map((collection) => (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-4">
+          {QUICK_DISCOVERY.map((world) => {
+            const art = collectionArtwork(
+              world.handle,
+              collections.find((c) => c.handle === world.handle)?.image?.url,
+            );
+            return (
               <Link
-                key={collection.handle}
+                key={world.handle}
                 to="/collections/$handle"
-                params={{ handle: collection.handle }}
-                className="group overflow-hidden rounded-3xl border border-border/70 bg-card shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow-lift)]"
+                params={{ handle: world.handle }}
+                className="vs-artwork-card group relative isolate flex min-h-[190px] flex-col justify-end overflow-hidden rounded-[1.25rem] bg-[#101116] p-5 text-white sm:min-h-[230px]"
               >
-                {collection.image?.url ? (
+                {art && (
                   <img
-                    src={collection.image.url}
-                    alt={collection.image.altText ?? collection.title}
+                    src={art}
+                    srcSet={collectionArtworkSrcSet(world.handle)}
+                    sizes="(min-width: 640px) 20vw, 50vw"
+                    alt=""
+                    width={1536}
+                    height={1024}
                     loading="lazy"
-                    className="h-36 w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    className="absolute inset-0 -z-20 h-full w-full object-cover object-right transition-transform duration-500 group-hover:scale-[1.04]"
                   />
-                ) : (
-                  <div className="h-36 w-full bg-gradient-to-br from-primary/10 to-electric/10" />
                 )}
-                <div className="p-5">
-                  <h3 className="font-semibold">{collection.title}</h3>
-                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
-                    {collection.description || "Explore this edit of everyday upgrades."}
-                  </p>
+                <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/95 via-black/20 to-transparent" />
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/75">
+                  {world.label}
+                </p>
+                <div className="mt-2 flex items-end justify-between gap-3">
+                  <h3 className="text-lg font-medium leading-tight tracking-[-0.03em]">
+                    {world.title}
+                  </h3>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/30">
+                    <ArrowUpRight className="h-4 w-4" />
+                  </span>
                 </div>
               </Link>
-            ))}
+            );
+          })}
+        </div>
+      </section>
+
+      <CollectionShelf handle="new-arrivals" title="Just landed." subtitle="New arrivals" />
+
+      <section className="vs-wide-shell py-8 sm:py-12" aria-labelledby="discover-worlds">
+        <div className="mb-7 flex items-end justify-between gap-4">
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Follow your curiosity
+            </p>
+            <h2
+              id="discover-worlds"
+              className="text-3xl font-semibold tracking-[-0.04em] sm:text-4xl"
+            >
+              Find your world.
+            </h2>
           </div>
+          <Link
+            to="/collections"
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 text-xs font-semibold sm:text-sm"
+          >
+            All collections
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        </div>
+        {isError && (
+          <CatalogRequestError
+            title="Collection details couldn’t load"
+            isRetrying={isFetching}
+            onRetry={() => {
+              void refetch();
+            }}
+          />
         )}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {WORLDS.map((world) => {
+            const art = collectionArtwork(
+              world.handle,
+              collections.find((c) => c.handle === world.handle)?.image?.url,
+            );
+            return (
+              <Link
+                key={world.handle}
+                to="/collections/$handle"
+                params={{ handle: world.handle }}
+                className="vs-artwork-card group relative isolate flex min-h-[310px] flex-col justify-end overflow-hidden rounded-[1.5rem] bg-[#101116] p-6 text-white"
+              >
+                {art && (
+                  <img
+                    src={art}
+                    srcSet={collectionArtworkSrcSet(world.handle)}
+                    sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw"
+                    alt=""
+                    width={1536}
+                    height={1024}
+                    loading="lazy"
+                    className="absolute inset-0 -z-20 h-full w-full object-cover object-right"
+                  />
+                )}
+                <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/95 via-black/10 to-transparent" />
+                <p className="text-[10px] uppercase tracking-[0.2em] text-white/75">
+                  {world.label}
+                </p>
+                <div className="mt-2 flex items-end justify-between gap-4">
+                  <h3 className="max-w-[235px] text-2xl font-medium leading-tight tracking-[-0.03em]">
+                    {world.title}
+                  </h3>
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/30">
+                    <ArrowUpRight className="h-4 w-4" />
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      <CollectionShelf handle="best-sellers" title="Worth the attention." subtitle="Best sellers" />
+
+      <section className="vs-wide-shell py-6" aria-labelledby="premium-edit">
         <Link
-          to="/collections"
-          className="mt-6 inline-flex items-center rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold transition-colors hover:border-primary"
+          to="/collections/$handle"
+          params={{ handle: "premium-picks" }}
+          className="vs-artwork-card relative isolate flex min-h-[420px] items-end overflow-hidden rounded-[1.5rem] bg-[#111217] p-7 text-white sm:min-h-[450px] sm:items-center sm:p-14"
         >
-          Show more collections →
+          <img
+            src={collectionArtwork("premium-picks")}
+            srcSet={collectionArtworkSrcSet("premium-picks")}
+            sizes="(min-width: 1280px) 1248px, 100vw"
+            alt=""
+            width={1536}
+            height={1024}
+            loading="lazy"
+            className="absolute inset-0 -z-20 h-full w-full object-cover object-right"
+          />
+          <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black/90 via-black/25 to-transparent max-sm:bg-gradient-to-t max-sm:from-black/95" />
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-white/75">
+              The premium edit
+            </p>
+            <h2
+              id="premium-edit"
+              className="mt-5 max-w-[350px] text-4xl font-medium leading-[1.08] tracking-[-0.04em] sm:text-5xl"
+            >
+              Extraordinary.
+              <br />
+              Every day.
+            </h2>
+            <p className="mt-4 max-w-[290px] text-sm leading-6 text-white/75">
+              A considered collection of pieces that bring a little more to your world.
+            </p>
+            <span className="mt-6 inline-flex min-h-12 items-center gap-6 rounded-full border border-white/40 px-5 text-sm">
+              Discover Premium Picks
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          </div>
         </Link>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-10" aria-labelledby="vs-store-answers">
-        <div className="rounded-[2rem] border border-border/70 bg-card p-6 shadow-[var(--shadow-card)] sm:p-8">
-          <h2 id="vs-store-answers" className="font-display text-2xl font-bold">
-            Answers for everyday shopping
-          </h2>
-          <div className="mt-5 grid gap-5 md:grid-cols-3">
-            {HOME_ANSWER_BLOCKS.map((block) => (
-              <article key={block.question} className="rounded-2xl bg-muted/50 p-4">
-                <h3 className="font-semibold">{block.question}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{block.answer}</p>
-              </article>
-            ))}
-          </div>
-          <Link
-            to="/help"
-            className="mt-6 inline-block text-sm font-semibold text-primary hover:underline"
-          >
-            Read all delivery, returns and tracking answers →
-          </Link>
-        </div>
-      </section>
+      <CollectionShelf
+        handle="premium-picks"
+        title="A little more special."
+        subtitle="Premium picks"
+      />
 
-      <section className="mx-auto max-w-7xl px-4 py-10">
-        <div className="rounded-[2rem] border border-border/70 vs-hero-gradient p-10 text-center text-primary-foreground shadow-[var(--shadow-lift)]">
-          <h2 className="font-display text-2xl font-bold sm:text-3xl">
-            Get drops before anyone else
-          </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm opacity-90">
-            Restock alerts, new arrivals and members-only pricing straight to your inbox.
-          </p>
-          <form
-            className="mx-auto mt-5 flex max-w-md gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-            }}
-          >
-            <input
-              type="email"
-              required
-              placeholder="you@email.com"
-              aria-label="Email address"
-              className="w-full rounded-full border border-border bg-card px-4 py-3 text-sm text-foreground shadow-sm outline-none ring-0 transition-colors placeholder:text-muted-foreground focus:border-primary"
-            />
-            <button className="rounded-full bg-card px-5 py-3 text-sm font-semibold text-foreground shadow-sm transition-transform hover:-translate-y-0.5">
-              Notify me
-            </button>
-          </form>
+      <section
+        className="vs-wide-shell border-t border-border py-12"
+        aria-labelledby="vs-store-answers"
+      >
+        <h2 id="vs-store-answers" className="text-2xl font-semibold tracking-tight">
+          Good finds. Clear answers.
+        </h2>
+        <div className="mt-6 grid gap-7 md:grid-cols-3">
+          {HOME_ANSWER_BLOCKS.map((block) => (
+            <article key={block.question}>
+              <h3 className="text-sm font-semibold">{block.question}</h3>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">{block.answer}</p>
+            </article>
+          ))}
         </div>
+        <Link
+          to="/help"
+          className="mt-7 inline-flex min-h-11 items-center gap-2 text-sm font-medium"
+        >
+          Visit the help centre
+          <ArrowUpRight className="h-4 w-4" />
+        </Link>
       </section>
     </div>
   );

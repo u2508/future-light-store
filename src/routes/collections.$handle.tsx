@@ -5,6 +5,7 @@ import { ProductCard, ProductGridSkeleton, EmptyProducts } from "@/components/vs
 import { getCollectionEditorial } from "@/lib/collection-seo";
 import { canonicalUrl } from "@/lib/seo";
 import { CatalogErrorState } from "@/components/vs/CatalogState";
+import { collectionArtwork, collectionArtworkSrcSet } from "@/lib/collection-artwork";
 
 export const Route = createFileRoute("/collections/$handle")({
   head: ({ params }) => ({
@@ -32,6 +33,7 @@ function CollectionPage() {
     queryKey: ["collection", handle],
     queryFn: () => fetchCollection(handle),
   });
+  const artwork = collectionArtwork(handle, data?.image?.url);
 
   const collectionJsonLd = {
     "@context": "https://schema.org",
@@ -69,17 +71,51 @@ function CollectionPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="vs-wide-shell py-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
       />
-      <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
-        {data?.title ?? handle.replace(/-/g, " ")}
-      </h1>
-      {data?.description && (
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{data.description}</p>
-      )}
+      <div
+        className={
+          artwork
+            ? "relative isolate flex min-h-[360px] flex-col justify-end overflow-hidden rounded-3xl bg-[#101116] p-6 text-white sm:min-h-[390px] sm:p-12"
+            : ""
+        }
+      >
+        {artwork && (
+          <>
+            <img
+              src={artwork}
+              srcSet={collectionArtworkSrcSet(handle)}
+              sizes="(min-width: 1280px) 1248px, 100vw"
+              alt=""
+              width={1536}
+              height={1024}
+              fetchPriority="high"
+              className="absolute inset-0 -z-20 h-full w-full object-cover object-right"
+            />
+            <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/95 via-black/30 to-transparent sm:bg-gradient-to-r sm:from-black/90 sm:via-black/40" />
+            <p className="mb-4 text-[10px] uppercase tracking-[0.24em] text-white/75">
+              The VS Store edit
+            </p>
+          </>
+        )}
+        <h1 className="max-w-xl text-3xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          {data?.title ?? handle.replace(/-/g, " ")}
+        </h1>
+        {data?.description && (
+          <p
+            className={
+              artwork
+                ? "mt-4 max-w-lg text-sm leading-6 text-white/80"
+                : "mt-2 max-w-2xl text-sm text-muted-foreground"
+            }
+          >
+            {data.description}
+          </p>
+        )}
+      </div>
       {getCollectionEditorial(handle) && (
         <section
           className="mt-6 max-w-3xl rounded-2xl border border-border bg-card p-5"

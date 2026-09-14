@@ -13,7 +13,7 @@ export function MobileAppNav() {
   return (
     <nav
       aria-label="Mobile app navigation"
-      className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 flex items-center justify-around rounded-[1.35rem] border border-border/80 bg-background/90 p-1.5 shadow-[0_16px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl lg:hidden"
+      className="vs-mobile-app-nav fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 flex items-center justify-around rounded-[1.35rem] border border-border/80 bg-background/90 p-1.5 shadow-[0_16px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl lg:hidden"
     >
       {ITEMS.map(({ label, to, icon: Icon }) => (
         <Link

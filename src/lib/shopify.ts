@@ -35,12 +35,12 @@ export interface ShopifyProductNode {
   id: string;
   title: string;
   description: string;
-  descriptionHtml?: string;
+  descriptionHtml?: string | undefined;
   handle: string;
   vendor: string;
   productType: string;
   tags: string[];
-  updatedAt?: string;
+  updatedAt?: string | undefined;
   availableForSale: boolean;
   priceRange: { minVariantPrice: { amount: string; currencyCode: string } };
   compareAtPriceRange?: { minVariantPrice: { amount: string; currencyCode: string } };
@@ -157,7 +157,7 @@ function searchRecordToProduct(record: SearchProductRecord): ShopifyProduct | nu
 
   const rawVariants = Array.isArray(record.variants) ? record.variants : [];
   const variants = rawVariants
-    .map((variant) => {
+    .map((variant): ShopifyVariant | null => {
       const id = shopifyGid("ProductVariant", variant.id);
       if (!id) return null;
       const price = moneyValue(variant.price);
@@ -215,7 +215,7 @@ function catalogRecordToProduct(record: CatalogProductRecord): ShopifyProduct | 
   if (!productId || !handle || !title) return null;
 
   const variants = (record.variants ?? [])
-    .map((variant) => {
+    .map((variant): ShopifyVariant | null => {
       const id = shopifyGid("ProductVariant", variant.legacyResourceId ?? variant.id);
       if (!id) return null;
       const price = moneyValue(variant.price);

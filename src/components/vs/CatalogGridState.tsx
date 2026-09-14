@@ -5,7 +5,7 @@ import { ProductCard } from "@/components/vs/ProductCard";
 
 interface CatalogRequestErrorProps {
   title: string;
-  description?: string;
+  description?: string | undefined;
   onRetry?: (() => void) | undefined;
   isRetrying?: boolean | undefined;
 }

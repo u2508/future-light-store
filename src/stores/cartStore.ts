@@ -155,7 +155,7 @@ type CartWarnings = Array<{ code: string; message: string }>;
 export interface CartAddResult {
   success: boolean;
   message?: string;
-  unavailable?: boolean;
+  unavailable?: boolean | undefined;
 }
 
 function getCartFailureMessage(warnings: CartWarnings = [], userErrors: UserErrors = []): string {

@@ -18,12 +18,15 @@ export const Route = createFileRoute("/wishlist")({
 function WishlistPage() {
   const items = useWishlistStore((s) => s.items);
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10">
+    <div className="vs-wide-shell py-10">
       <h1 className="font-display text-3xl font-bold">Wishlist</h1>
       {items.length === 0 ? (
         <div className="vs-card mt-6 p-12 text-center">
           <p className="font-display text-lg font-semibold">Nothing saved yet</p>
-          <Link to="/shop" className="mt-3 inline-block text-sm font-semibold text-primary hover:underline">
+          <Link
+            to="/shop"
+            className="mt-3 inline-block text-sm font-semibold text-primary hover:underline"
+          >
             Find something you love →
           </Link>
         </div>

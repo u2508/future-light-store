@@ -50,7 +50,7 @@ export function ProductShelf({
   emptyMessage?: string | undefined;
 }) {
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10">
+    <section className="vs-wide-shell py-10">
       <SectionHeading title={title} subtitle={subtitle} action={action} />
       {isError ? (
         <CatalogErrorState onRetry={onRetry} />

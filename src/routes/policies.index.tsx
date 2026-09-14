@@ -53,7 +53,7 @@ export const Route = createFileRoute("/policies/")({
 
 function PoliciesIndexPage() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:py-14">
+    <div className="vs-wide-shell py-10 sm:py-14">
       <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="rounded-[2rem] vs-hero-gradient p-7 text-primary-foreground shadow-[var(--shadow-lift)] sm:p-10">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] opacity-70">

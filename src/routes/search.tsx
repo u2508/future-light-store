@@ -40,7 +40,7 @@ function SearchPage() {
   const results = searchProducts(products, q).map((m) => m.product);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="vs-wide-shell py-8">
       <h1 className="font-display text-3xl font-bold">{q ? `Results for “${q}”` : "Search"}</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         {isLoading ? "Searching…" : `${results.length} result${results.length === 1 ? "" : "s"}`}

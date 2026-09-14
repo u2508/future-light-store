@@ -537,7 +537,10 @@ function renderDocument(template, { path, title, description, body, structuredDa
   // text and leaving the deployed storefront unstyled.
   const assetTags = [...template.matchAll(/<link\b[^>]*>|<script\b[^>]*\bsrc=["'][^"']+["'][^>]*>(?:<\/script>)?/gi)]
     .map((match) => {
-      const tag = match[0];
+      // Vite's relative base keeps imported assets portable to Shopify's CDN.
+      // Static HTML pages live at different depths, but their entry tags must
+      // always start at the web root (not /collections/foo/assets/).
+      const tag = match[0].replace(/\b(src|href)=(["'])\.\/assets\//g, "$1=$2/assets/");
       // Also repair an already-generated stale document so a partial local
       // build cannot silently drop the app entry while the fixed pipeline is
       // being rolled out.

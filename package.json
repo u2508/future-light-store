@@ -69,7 +69,13 @@
     "release:resilience:test": "node --test scripts/release-resilience.test.mjs",
     "category:metafields:test": "node --test scripts/category-metafield-evidence.test.mjs",
     "category:collections:test": "node scripts/validate-collection-repair-rules.mjs",
-    "release:proactive-repair": "node scripts/release-proactive-repair.mjs"
+    "release:proactive-repair": "node scripts/release-proactive-repair.mjs",
+    "social:daily": "node scripts/run-vs-store-social-daily.mjs",
+    "social:daily:resume": "node scripts/run-vs-store-social-daily.mjs --resume",
+    "social:daily:resume-browser": "node scripts/run-vs-store-social-daily.mjs --resume-browser",
+    "social:daily:resume-imagegen": "node scripts/run-vs-store-social-daily.mjs --resume-imagegen",
+    "social:daily:check-config": "node scripts/run-vs-store-social-daily.mjs --check-config",
+    "social:daily:dry-run": "node scripts/run-vs-store-social-daily.mjs --dry-run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

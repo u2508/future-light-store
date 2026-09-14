@@ -4,6 +4,11 @@ import { fetchCollections } from "@/lib/shopify";
 import { canonicalUrl } from "@/lib/seo";
 import { FEATURED_COLLECTION_LINKS } from "@/lib/seo-content";
 import { CatalogErrorState, CollectionGridSkeleton } from "@/components/vs/CatalogState";
+import {
+  collectionArtwork,
+  collectionArtworkSrcSet,
+  INTERNAL_COLLECTION_HANDLES,
+} from "@/lib/collection-artwork";
 
 export const Route = createFileRoute("/collections/")({
   head: () => ({
@@ -26,11 +31,11 @@ export const Route = createFileRoute("/collections/")({
 function CollectionsIndex() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["collections", "all"],
-    queryFn: () => fetchCollections(100),
+    queryFn: () => fetchCollections(250),
   });
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10">
+    <div className="vs-wide-shell py-10">
       <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Collections</h1>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
         Curated edits from the VS catalogue — shop by theme, category and season.
@@ -98,35 +103,41 @@ function CollectionsIndex() {
         </div>
       ) : (
         <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-          {(data ?? []).map((c) => (
-            <Link
-              key={c.id}
-              to="/collections/$handle"
-              params={{ handle: c.handle }}
-              className="group overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary"
-            >
-              <div className="aspect-[4/3] overflow-hidden bg-muted">
-                {c.image?.url ? (
-                  <img
-                    src={c.image.url}
-                    alt={c.image.altText ?? `${c.title} collection`}
-                    loading="lazy"
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                ) : (
-                  <div className="grid h-full w-full place-items-center text-xs text-muted-foreground">
-                    VS
-                  </div>
-                )}
-              </div>
-              <div className="p-3">
-                <h2 className="font-display text-sm font-semibold">{c.title}</h2>
-                {c.description && (
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{c.description}</p>
-                )}
-              </div>
-            </Link>
-          ))}
+          {(data ?? [])
+            .filter((c) => !INTERNAL_COLLECTION_HANDLES.has(c.handle))
+            .map((c) => (
+              <Link
+                key={c.id}
+                to="/collections/$handle"
+                params={{ handle: c.handle }}
+                className="group overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-primary"
+              >
+                <div className="aspect-[4/3] overflow-hidden bg-muted">
+                  {collectionArtwork(c.handle, c.image?.url) ? (
+                    <img
+                      src={collectionArtwork(c.handle, c.image?.url)}
+                      srcSet={collectionArtworkSrcSet(c.handle)}
+                      sizes="(min-width: 1024px) 300px, (min-width: 768px) 33vw, 50vw"
+                      alt={`${c.title} collection artwork`}
+                      loading="lazy"
+                      className="h-full w-full object-cover object-right motion-safe:transition-transform motion-safe:duration-500 motion-safe:group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="grid h-full w-full place-items-center text-xs text-muted-foreground">
+                      VS
+                    </div>
+                  )}
+                </div>
+                <div className="p-3">
+                  <h2 className="font-display text-sm font-semibold">{c.title}</h2>
+                  {c.description && (
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      {c.description}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
         </div>
       )}
     </div>

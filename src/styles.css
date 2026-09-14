@@ -4,6 +4,100 @@
 
 @custom-variant dark (&:is(.dark *));
 
+.vs-wide-shell {
+  width: 100%;
+  max-width: 1600px;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+.vs-mobile-content {
+  padding-bottom: 0;
+}
+
+@media (min-width: 640px) {
+  .vs-wide-shell {
+    padding-inline: 1.25rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  html {
+    scroll-padding-bottom: 6.5rem;
+  }
+
+  .vs-mobile-content {
+    padding-bottom: max(5rem, calc(5rem + env(safe-area-inset-bottom)));
+  }
+}
+
+.vs-cinematic-image {
+  object-position: 80% center;
+}
+.vs-cinematic-shade {
+  background: linear-gradient(90deg, #090b10 0%, #090b10c9 23%, transparent 65%);
+}
+.vs-artwork-card img {
+  transition: transform 650ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.vs-artwork-card:hover img {
+  transform: scale(1.035);
+}
+@media (max-width: 639px) {
+  .vs-cinematic-image {
+    height: 330px;
+    object-position: right center;
+  }
+  .vs-cinematic-shade {
+    background: linear-gradient(180deg, transparent 16%, #090b1033 33%, #090b10 54%);
+  }
+}
+@media (max-width: 639px) and (max-height: 700px) {
+  .vs-cinematic-hero {
+    min-height: calc(100svh - 5.05rem);
+  }
+  .vs-cinematic-copy {
+    min-height: calc(100svh - 5.05rem) !important;
+    justify-content: flex-end;
+    padding: 7.25rem 1.25rem 7rem !important;
+  }
+  .vs-cinematic-copy h1 {
+    font-size: clamp(2.15rem, 10vw, 2.8rem);
+  }
+  .vs-cinematic-copy > div:last-child {
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+  .vs-cinematic-copy > div:last-child a:first-child {
+    gap: 0.75rem;
+    padding-inline: 1rem;
+  }
+  .vs-cinematic-image {
+    height: 250px;
+  }
+  .vs-cinematic-hero > div:last-child {
+    top: 0.75rem;
+    bottom: auto;
+  }
+}
+@media (max-width: 359px) and (max-height: 700px) {
+  .vs-mobile-app-nav {
+    display: none;
+  }
+  .vs-mobile-content {
+    padding-bottom: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vs-artwork-card img {
+    transition: none;
+  }
+  .vs-artwork-card:hover img {
+    transform: none;
+  }
+}
+
 /*
  * VS design system — luxury retail interface from the near future.
  * Light-first: cool white canvas, near-black type, cobalt actions,
@@ -149,7 +243,12 @@
     background:
       radial-gradient(circle at top left, oklch(0.92 0.03 255 / 0.55), transparent 32%),
       radial-gradient(circle at top right, oklch(0.88 0.06 205 / 0.25), transparent 28%),
-      linear-gradient(to bottom, oklch(0.99 0.002 250), oklch(0.985 0.004 250) 24%, oklch(0.976 0.004 250));
+      linear-gradient(
+        to bottom,
+        oklch(0.99 0.002 250),
+        oklch(0.985 0.004 250) 24%,
+        oklch(0.976 0.004 250)
+      );
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -175,9 +274,7 @@
 }
 
 @utility vs-card {
-  background:
-    linear-gradient(180deg, oklch(1 0 0 / 0.82), oklch(1 0 0 / 0.96)),
-    var(--color-card);
+  background: linear-gradient(180deg, oklch(1 0 0 / 0.82), oklch(1 0 0 / 0.96)), var(--color-card);
   border: 1px solid color-mix(in oklch, var(--color-border) 86%, white);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
@@ -197,7 +294,6 @@
 @utility vs-section-shell {
   border: 1px solid color-mix(in oklch, var(--color-border) 80%, white);
   background:
-    linear-gradient(180deg, oklch(1 0 0 / 0.9), oklch(0.995 0.002 250 / 0.96)),
-    var(--color-card);
+    linear-gradient(180deg, oklch(1 0 0 / 0.9), oklch(0.995 0.002 250 / 0.96)), var(--color-card);
   box-shadow: var(--shadow-card);
 }

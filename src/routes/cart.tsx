@@ -25,7 +25,7 @@ function CartPage() {
   const subtotal = items.reduce((sum, i) => sum + parseFloat(i.price.amount) * i.quantity, 0);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
+    <div className="vs-wide-shell py-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">

@@ -1,0 +1,802 @@
+{
+  "shop": {
+    "id": "gid://shopify/Shop/106570088529",
+    "myshopifyDomain": "vs-future-store-0jl2t-jxu6tnr3.myshopify.com"
+  },
+  "receipts": [
+    {
+      "handle": "artificial-plants",
+      "title": "Artificial Plants",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Artificial Plants\". Subject: a small carefully curated set of realistic products unmistakably belonging to the Artificial Plants category. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-ab95228b-f4e2-44c1-9e95-35320e3bd127.png",
+      "file": "src/assets/collection-artwork/artificial-plants.jpg"
+    },
+    {
+      "handle": "home-decor",
+      "title": "Home & Decor",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Home & Decor\". Subject: a sculptural lamp, ceramic vase and folded linen in a futuristic calm living room. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, cool cyan edge light on charcoal. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-bcc20bf9-906c-4853-93f8-9d6cdfcc579a.png",
+      "file": "src/assets/collection-artwork/home-decor.jpg"
+    },
+    {
+      "handle": "cookware",
+      "title": "Kitchen & Cookware",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Kitchen & Cookware\". Subject: a small carefully curated set of realistic products unmistakably belonging to the Kitchen & Cookware category. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-a8aa870c-935b-43a2-82bf-aef9715bea53.png",
+      "file": "src/assets/collection-artwork/cookware.jpg"
+    },
+    {
+      "handle": "under-60",
+      "title": "Under $60",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Under $60\". Subject: a satin metal desk lamp, wireless earbuds case and travel bottle. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-227d4aaa-8afe-4b37-84b1-a61e7f75952e.png",
+      "file": "src/assets/collection-artwork/under-60.jpg"
+    },
+    {
+      "handle": "garden-tools",
+      "title": "Garden & Tools",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Garden & Tools\". Subject: a small carefully curated set of realistic products unmistakably belonging to the Garden & Tools category. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-7ae32c7c-672f-401f-8c89-0c935d8ef78d.png",
+      "file": "src/assets/collection-artwork/garden-tools.jpg"
+    },
+    {
+      "handle": "new-arrivals",
+      "title": "New Arrivals",
+      "prompt": "Use case: ads-marketing. Asset: one wide 1536x1024 text-free website collection banner for VS Store New Arrivals, sleek Apple-like restraint with cinematic sci-fi energy for ages 10–50. Scene: a dark obsidian gallery, a large thin luminous cyan orbital arc hovering behind an elegant silver over-ear headphone, a small sculptural warm-white mushroom lamp, and a brushed-steel insulated bottle, levitating naturally with subtle reflections. Main objects grouped in the RIGHT 55 percent; left 40 percent nearly black generous empty space for live website headline. Sophisticated realistic materials, cool silver/cyan rim light, restrained violet in distance, dramatic depth. Products should feel physical and desirable, no busy HUD, no stars, no gaming RGB, no brand logos, no words, no typography, no watermark. Clear silhouettes readable on mobile; premium lifestyle campaign photograph/3D hybrid, not a website mockup.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-cd128ac8-cbed-48de-a03d-9d29154a8d31.png",
+      "file": "src/assets/collection-artwork/new-arrivals.jpg"
+    },
+    {
+      "handle": "pet-essentials",
+      "title": "Pet Essentials",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Pet Essentials\". Subject: a friendly dog beside a clean pet bed, tasteful pet toys and a feeding bowl. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, cool cyan edge light on charcoal. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-a9088b1b-df96-4311-ae6d-dd591740cce1.png",
+      "file": "src/assets/collection-artwork/pet-essentials.jpg"
+    },
+    {
+      "handle": "all-products",
+      "title": "All Products",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"All Products\". Subject: a curated mix of headphones, home decor ceramic and minimal bag. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-73886dc0-4f49-476a-8566-0bb622d1e0b1.png",
+      "file": "src/assets/collection-artwork/all-products.jpg"
+    },
+    {
+      "handle": "medical-accessories",
+      "title": "Medical Accessories",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Medical Accessories\". Subject: a plain first-aid case, soft bandage roll and unlabelled pill organizer, no treatments or health claims. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-f39befb6-6d0a-4763-b6ac-c10a1438f810.png",
+      "file": "src/assets/collection-artwork/medical-accessories.jpg"
+    },
+    {
+      "handle": "t-shirt",
+      "title": "T-Shirts",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"T-Shirts\". Subject: a small carefully curated set of realistic products unmistakably belonging to the T-Shirts category. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-aa52f6ea-2835-48d9-88d3-b8c3af878c7b.png",
+      "file": "src/assets/collection-artwork/t-shirt.jpg"
+    },
+    {
+      "handle": "trousers",
+      "title": "Trousers",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Trousers\". Subject: a small carefully curated set of realistic products unmistakably belonging to the Trousers category. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-4fea032d-c160-4aa3-9d05-419118a11865.png",
+      "file": "src/assets/collection-artwork/trousers.jpg"
+    },
+    {
+      "handle": "jeans",
+      "title": "Jeans",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Jeans\". Subject: a small carefully curated set of realistic products unmistakably belonging to the Jeans category. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-cee518ed-69ad-49af-8458-9626cff970fc.png",
+      "file": "src/assets/collection-artwork/jeans.jpg"
+    },
+    {
+      "handle": "men-collection",
+      "title": "Men",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Men\". Subject: a premium jacket, casual shoes and minimal travel bag. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-f1efb113-4ade-478a-b27c-405c57d32212.png",
+      "file": "src/assets/collection-artwork/men-collection.jpg"
+    },
+    {
+      "handle": "health-wellness",
+      "title": "Health & Wellness",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Health & Wellness\". Subject: a rolled yoga mat, reusable bottle and soft eye pillow, no medical claims. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-a4495e5c-1c64-4dea-9e2c-6e0aaceb31b8.png",
+      "file": "src/assets/collection-artwork/health-wellness.jpg"
+    },
+    {
+      "handle": "travel-outdoor",
+      "title": "Camping & Travel Essentials",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Camping & Travel Essentials\". Subject: a technical backpack, steel travel bottle and compact camping lantern. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, warm ivory with blue accents. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-94bb2993-3e3e-4d68-982d-a16e19afe7a3.png",
+      "file": "src/assets/collection-artwork/travel-outdoor.jpg"
+    },
+    {
+      "handle": "trending-finds",
+      "title": "Trending Finds",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Trending Finds\". Subject: a sculptural desk light, unbranded phone accessory and compact speaker. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-63239cb0-1890-49d0-9809-9ccd81407f74.png",
+      "file": "src/assets/collection-artwork/trending-finds.jpg"
+    },
+    {
+      "handle": "best-sellers",
+      "title": "Best Sellers",
+      "prompt": "Use case: ads-marketing. One wide 1536x1024 text-free collection banner for VS Store best-sellers. Sleek futuristic gallery, cinematic photorealistic campaign art with Apple-like restraint, for ages 10–50. Subject: a sculptural silver wireless earbud case with two earbuds hovering, a minimal black smartwatch with blank face and a small faceted glass lamp, arranged on offset obsidian podiums. Lighting: a single violet halo and cool white spotlights. Background near-black charcoal, reflective floor, premium textures. Objects occupy RIGHT 55% with left 40% dark negative space for editable website copy. Tasteful surreal suspension and depth. No words, logos, watermark, busy HUD, neon clutter or website mockup. Objects large and distinct for mobile crop.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-80f57301-f0a7-4987-812c-a0daef8092d0.png",
+      "file": "src/assets/collection-artwork/best-sellers.jpg"
+    },
+    {
+      "handle": "robe",
+      "title": "Robes",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Robes\". Subject: a small carefully curated set of realistic products unmistakably belonging to the Robes category. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-d3bd6f45-4bfc-479a-9436-2a19ec6c2c47.png",
+      "file": "src/assets/collection-artwork/robe.jpg"
+    },
+    {
+      "handle": "gifts",
+      "title": "Gifts Collection",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Gifts Collection\". Subject: three elegant gift boxes partly open revealing a small lamp, wearable accessory and stationery. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, subtle violet with silver highlights. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-a258a45d-2c32-470d-97d1-4efdb51d36ed.png",
+      "file": "src/assets/collection-artwork/gifts.jpg"
+    },
+    {
+      "handle": "senior-living-solutions",
+      "title": "Senior Living Solutions",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Senior Living Solutions\". Subject: a warm reading lamp, soft throw, comfortable reading magnifier and ergonomic handled cup. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-bcc2dc5e-12bd-4523-85b7-a27463050638.png",
+      "file": "src/assets/collection-artwork/senior-living-solutions.jpg"
+    },
+    {
+      "handle": "under-35",
+      "title": "Under $35",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Under $35\". Subject: a minimal ceramic cup, compact desk organizer and pocket wallet. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-0f68b0c2-1b4a-4830-b593-4988d3658c87.png",
+      "file": "src/assets/collection-artwork/under-35.jpg"
+    },
+    {
+      "handle": "under-25",
+      "title": "Under $25",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Under $25\". Subject: a playful keyring, soft hair scrunchie and small stationery set. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-24fef9f6-5273-4e1c-a96e-f3c436ca9328.png",
+      "file": "src/assets/collection-artwork/under-25.jpg"
+    },
+    {
+      "handle": "under-50",
+      "title": "Under $50",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Under $50\". Subject: a modern coffee press, folded textile and sleek bottle. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-a0c165df-6eee-44d4-af28-e9a68db4b1e4.png",
+      "file": "src/assets/collection-artwork/under-50.jpg"
+    },
+    {
+      "handle": "under-44-99",
+      "title": "Under $44.99",
+      "prompt": "Use case: ads-marketing. Create one text-free 1536x1024 photographic campaign banner for VS Store collection \"Under $44.99\". Subject: a sculptural vase, portable speaker and compact zip pouch. Premium restrained sci-fi aesthetic: charcoal architectural studio, brushed silver surfaces, one subtle luminous cyan or violet arc, gentle reflections and tactile realistic materials. Objects grouped in center-right, large and recognizable, left 35 percent quiet near-black for live HTML headline. Sophisticated editorial product photography, energetic depth, broad family-friendly appeal. Distinct composition for this category. No text, letters, logos, trademark symbols, watermarks, price labels or interface elements. Do not show packaging claims or invented features.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-3e8a3d9b-2ad3-4e68-a650-2fb12d812cd6.png",
+      "file": "src/assets/collection-artwork/under-44-99.jpg"
+    },
+    {
+      "handle": "premium-picks",
+      "title": "Premium Picks",
+      "prompt": "Use case: ads-marketing. One wide 1536x1024 text-free collection banner for VS Store premium-picks. Sleek futuristic gallery, cinematic photorealistic campaign art with Apple-like restraint, for ages 10–50. Subject: a polished silver analog wristwatch with unmarked dial, folded ivory knit fabric and an elegant minimalist leather shoulder bag on pale travertine platforms. Lighting: warm pearl lighting with a subtle icy blue rim. Background near-black charcoal, reflective floor, premium textures. Objects occupy RIGHT 55% with left 40% dark negative space for editable website copy. Tasteful surreal suspension and depth. No words, logos, watermark, busy HUD, neon clutter or website mockup. Objects large and distinct for mobile crop.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-1f3f44e4-be96-447d-a57c-3fd9653803fb.png",
+      "file": "src/assets/collection-artwork/premium-picks.jpg"
+    },
+    {
+      "handle": "housewarming-gifts",
+      "title": "Housewarming Gifts",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic banner for VS Store's \"Housewarming Gifts\" collection. Main subject: 2 to 4 instantly recognizable realistic items from the Housewarming Gifts category. A refined futuristic miniature product world: charcoal architecture, silver plinths, tactile real materials, a subtle cyan or violet luminous arc, atmospheric depth and gentle reflections. Category objects arranged in center-right and large enough for mobile crops; left 35 percent quiet near-black negative space reserved for an HTML heading. Product forms and category-appropriate colors should remain authentic, never a jumble of random categories. Editorial, sleek, modern, intriguing, broad family-friendly appeal. No text, logos, letters, numbers, interface, watermark or price labels; no medical or performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-4dceb3ad-7916-4be2-8965-04acb24b1f33.png",
+      "file": "src/assets/collection-artwork/housewarming-gifts.jpg",
+      "provenanceNote": "Original recovered by exact SHA-256 comparison after identical JPEG conversion."
+    },
+    {
+      "handle": "holiday-gifts",
+      "title": "Holiday Gifts",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic banner for VS Store's \"Holiday Gifts\" collection. Main subject: elegant closed gift boxes with satin ribbon and sparse seasonal branches. A refined futuristic miniature product world: charcoal architecture, silver plinths, tactile real materials, a subtle cyan or violet luminous arc, atmospheric depth and gentle reflections. Category objects arranged in center-right and large enough for mobile crops; left 35 percent quiet near-black negative space reserved for an HTML heading. Product forms and category-appropriate colors should remain authentic, never a jumble of random categories. Editorial, sleek, modern, intriguing, broad family-friendly appeal. No text, logos, letters, numbers, interface, watermark or price labels; no medical or performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-c37b0bbb-a1f5-456b-9ec0-fcec589eefac.png",
+      "file": "src/assets/collection-artwork/holiday-gifts.jpg",
+      "provenanceNote": "Original recovered by exact SHA-256 comparison after identical JPEG conversion."
+    },
+    {
+      "handle": "kitchen-gadgets",
+      "title": "Kitchen Gadgets",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Kitchen Gadgets\". Subject: minimal stainless kitchen tools, a compact manual chopper and a glass oil dispenser. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, subtle violet with silver highlights. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-ad63dc28-4220-4882-8a7a-2144baf96c1c.png",
+      "file": "src/assets/collection-artwork/kitchen-gadgets.jpg"
+    },
+    {
+      "handle": "storage-organization",
+      "title": "Storage & Organization",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Storage & Organization\". Subject: 2 to 4 recognizable real items belonging specifically to Storage & Organization. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-503564c2-1bbb-44fc-aa1e-24490b5064c6.png",
+      "file": "src/assets/collection-artwork/storage-organization.jpg"
+    },
+    {
+      "handle": "coffee-tea-accessories",
+      "title": "Coffee & Tea Accessories",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Coffee & Tea Accessories\". Subject: 2 to 4 recognizable real items belonging specifically to Coffee & Tea Accessories. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-3a387a02-a97d-46c6-85a8-e1785401b42b.png",
+      "file": "src/assets/collection-artwork/coffee-tea-accessories.jpg"
+    },
+    {
+      "handle": "dining-essentials",
+      "title": "Dining Essentials",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic banner for VS Store's \"Dining Essentials\" collection. Main subject: 2 to 4 instantly recognizable realistic items from the Dining Essentials category. A refined futuristic miniature product world: charcoal architecture, silver plinths, tactile real materials, a subtle cyan or violet luminous arc, atmospheric depth and gentle reflections. Category objects arranged in center-right and large enough for mobile crops; left 35 percent quiet near-black negative space reserved for an HTML heading. Product forms and category-appropriate colors should remain authentic, never a jumble of random categories. Editorial, sleek, modern, intriguing, broad family-friendly appeal. No text, logos, letters, numbers, interface, watermark or price labels; no medical or performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-574fad70-c1e1-488f-97a1-c77d3afd0ff9.png",
+      "file": "src/assets/collection-artwork/dining-essentials.jpg",
+      "provenanceNote": "Original recovered by exact SHA-256 comparison after identical JPEG conversion."
+    },
+    {
+      "handle": "cleaning-tools",
+      "title": "Cleaning Tools",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Cleaning Tools\". Subject: 2 to 4 recognizable real items belonging specifically to Cleaning Tools. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-6e97ef52-31d1-4671-9513-0f3a01141301.png",
+      "file": "src/assets/collection-artwork/cleaning-tools.jpg"
+    },
+    {
+      "handle": "wall-lights",
+      "title": "Wall Lights",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Wall Lights\". Subject: 2 to 4 recognizable real items belonging specifically to Wall Lights. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-8a95f77d-5fee-41ef-9954-d9f79eef8797.png",
+      "file": "src/assets/collection-artwork/wall-lights.jpg"
+    },
+    {
+      "handle": "wall-art",
+      "title": "Wall Art",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Wall Art\". Subject: 2 to 4 recognizable real items belonging specifically to Wall Art. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-acb47e96-2cb3-41c7-a869-fedf70605e5d.png",
+      "file": "src/assets/collection-artwork/wall-art.jpg"
+    },
+    {
+      "handle": "seasonal-decor",
+      "title": "Seasonal Decor",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Seasonal Decor\". Subject: 2 to 4 recognizable real items belonging specifically to Seasonal Decor. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-f66f3512-fa4a-4952-95aa-f6ca285d9627.png",
+      "file": "src/assets/collection-artwork/seasonal-decor.jpg"
+    },
+    {
+      "handle": "smart-lighting",
+      "title": "Lighting & Decor",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Lighting & Decor\". Subject: 2 to 4 recognizable real items belonging specifically to Lighting & Decor. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-a4e648bc-915d-4551-ac8d-3040e01abc2d.png",
+      "file": "src/assets/collection-artwork/smart-lighting.jpg"
+    },
+    {
+      "handle": "decorative-accessories",
+      "title": "Decorative Accessories",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Decorative Accessories\". Subject: 2 to 4 recognizable real items belonging specifically to Decorative Accessories. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-c39ca1b7-108a-4269-bbaa-e5383b93f512.png",
+      "file": "src/assets/collection-artwork/decorative-accessories.jpg"
+    },
+    {
+      "handle": "dog-supplies",
+      "title": "Dog Supplies",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Dog Supplies\". Subject: 2 to 4 recognizable real items belonging specifically to Dog Supplies. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-64c3310d-efe7-437f-acdf-f60af7963dab.png",
+      "file": "src/assets/collection-artwork/dog-supplies.jpg"
+    },
+    {
+      "handle": "cat-supplies",
+      "title": "Cat Supplies",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Cat Supplies\". Subject: 2 to 4 recognizable real items belonging specifically to Cat Supplies. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-af4b7e36-1107-4464-96be-e517a52001a4.png",
+      "file": "src/assets/collection-artwork/cat-supplies.jpg"
+    },
+    {
+      "handle": "pet-travel",
+      "title": "Pet Travel",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Pet Travel\". Subject: 2 to 4 recognizable real items belonging specifically to Pet Travel. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-385a5df1-7a5c-496f-aa73-e5372a8cb2eb.png",
+      "file": "src/assets/collection-artwork/pet-travel.jpg"
+    },
+    {
+      "handle": "pet-feeding",
+      "title": "Pet Feeding",
+      "prompt": "Use case: ads-marketing. Generate one text-free 1536x1024 photographic banner for VS Store collection \"Pet Feeding\". Subject: 2 to 4 recognizable real items belonging specifically to Pet Feeding. Premium restrained sci-fi architecture with charcoal surfaces, silver plinths, a subtle luminous cyan or violet arc, soft reflections and tactile realistic materials. Category objects large in center-right for mobile crops. Left 35 percent near-black quiet negative space for live HTML heading. Sophisticated editorial lighting, atmospheric depth, family-friendly. Category-appropriate colors. No logos, text, lettering, numbers, watermark, price labels, UI or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-c8233edb-ff69-44b6-95ad-26c43f487067.png",
+      "file": "src/assets/collection-artwork/pet-feeding.jpg"
+    },
+    {
+      "handle": "pet-grooming",
+      "title": "Pet Grooming",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Pet Grooming\". Subject: 2 to 4 real instantly recognizable items specifically from Pet Grooming. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-2808139d-d522-4fd8-9c74-c3c09b192d44.png",
+      "file": "src/assets/collection-artwork/pet-grooming.jpg"
+    },
+    {
+      "handle": "pet-toys",
+      "title": "Pet Toys",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Pet Toys\". Subject: 2 to 4 real instantly recognizable items specifically from Pet Toys. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-eb96ade4-c61f-4d0e-8be3-4b3814cd30a6.png",
+      "file": "src/assets/collection-artwork/pet-toys.jpg"
+    },
+    {
+      "handle": "sleep-essentials",
+      "title": "Sleep Essentials",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Sleep Essentials\". Subject: 2 to 4 real instantly recognizable items specifically from Sleep Essentials. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-f9160b01-e3e7-4733-b155-a7f8a29f1f6a.png",
+      "file": "src/assets/collection-artwork/sleep-essentials.jpg"
+    },
+    {
+      "handle": "relaxation-products",
+      "title": "Relaxation Products",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Relaxation Products\". Subject: 2 to 4 real instantly recognizable items specifically from Relaxation Products. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-ab774c4b-5b2c-4c78-a915-efa099068136.png",
+      "file": "src/assets/collection-artwork/relaxation-products.jpg"
+    },
+    {
+      "handle": "massage-tools",
+      "title": "Massage Tools",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Massage Tools\". Subject: 2 to 4 real instantly recognizable items specifically from Massage Tools. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-e16ba6e4-5002-4eab-abf5-4e93be349e78.png",
+      "file": "src/assets/collection-artwork/massage-tools.jpg"
+    },
+    {
+      "handle": "car-accessories",
+      "title": "Home & Car Accessories",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Home & Car Accessories\". Subject: 2 to 4 real instantly recognizable items specifically from Home & Car Accessories. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-dc158b72-b1e7-4ac9-987e-5687af8c36fb.png",
+      "file": "src/assets/collection-artwork/car-accessories.jpg"
+    },
+    {
+      "handle": "portable-gadgets",
+      "title": "Electronic Accessories",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Electronic Accessories\". Subject: a compact charging dock, braided cable, headphones and slim phone stand. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, subtle violet with silver highlights. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-e15e536d-1b4a-4afe-bf6d-8124ec37a6a6.png",
+      "file": "src/assets/collection-artwork/portable-gadgets.jpg"
+    },
+    {
+      "handle": "daily-living-aids",
+      "title": "Daily Living Aids",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Daily Living Aids\". Subject: an easy-grip handled cup, reacher grabber and reading magnifier, no medical claims. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-4184eebe-0cb0-418b-9b6c-8b56a0199cc2.png",
+      "file": "src/assets/collection-artwork/daily-living-aids.jpg"
+    },
+    {
+      "handle": "home-safety",
+      "title": "Home Safety",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Home Safety\". Subject: a non-slip mat, simple door stopper and compact torch. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-08dc83cb-6dab-4f0c-8288-498e835c2a30.png",
+      "file": "src/assets/collection-artwork/home-safety.jpg"
+    },
+    {
+      "handle": "memory-organization",
+      "title": "Memory & Organization",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Memory & Organization\". Subject: a blank planner, analog desk clock and organizer tray. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-b9677f92-a868-45ff-9a2d-a13643758052.png",
+      "file": "src/assets/collection-artwork/memory-organization.jpg"
+    },
+    {
+      "handle": "gifts-for-mom",
+      "title": "Gifts for Mom",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Gifts for Mom\". Subject: silk scarf, ceramic vase and soft pouch beside elegant gift box. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-c74a032d-10f9-4a3d-aece-d8396069e119.png",
+      "file": "src/assets/collection-artwork/gifts-for-mom.jpg"
+    },
+    {
+      "handle": "gifts-for-dad",
+      "title": "Gifts for Dad",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Gifts for Dad\". Subject: minimal wallet, steel bottle and desk accessory beside elegant gift box. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-41d4b744-6864-4736-bdfc-d0b2da9246ff.png",
+      "file": "src/assets/collection-artwork/gifts-for-dad.jpg"
+    },
+    {
+      "handle": "gifts-for-seniors",
+      "title": "Gifts for Seniors",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Gifts for Seniors\". Subject: a soft throw, reading lamp and large handled cup. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-5c3ff7ee-9bff-489a-934d-fd5f77f5ebd4.png",
+      "file": "src/assets/collection-artwork/gifts-for-seniors.jpg"
+    },
+    {
+      "handle": "viral-tiktok-products",
+      "title": "Viral TikTok Products",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Viral TikTok Products\". Subject: a playful pocket fan, phone stand and compact speaker; no platform logo. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-9acbd6bf-968e-4eff-b0e5-7b5a7e1a22b8.png",
+      "file": "src/assets/collection-artwork/viral-tiktok-products.jpg"
+    },
+    {
+      "handle": "staff-picks",
+      "title": "Staff Picks",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Staff Picks\". Subject: a sculptural lamp, headphones and zip bag. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-8cfe8018-fe1a-4509-b0cd-3e4bace0ebde.png",
+      "file": "src/assets/collection-artwork/staff-picks.jpg"
+    },
+    {
+      "handle": "womens-beauty-essentials",
+      "title": "Women's Beauty & Skincare",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Women's Beauty & Skincare\". Subject: 2 to 4 real instantly recognizable items specifically from Women's Beauty & Skincare. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-cde5ff95-de7f-45c7-86ef-2357de91ba63.png",
+      "file": "src/assets/collection-artwork/womens-beauty-essentials.jpg"
+    },
+    {
+      "handle": "women-bags-and-wallets",
+      "title": "Women's Bags & Wallets",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Women's Bags & Wallets\". Subject: 2 to 4 real instantly recognizable items specifically from Women's Bags & Wallets. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-a3a30b51-e222-4c54-ba34-22b4fb4de230.png",
+      "file": "src/assets/collection-artwork/women-bags-and-wallets.jpg"
+    },
+    {
+      "handle": "womens-accessories",
+      "title": "Women's Accessories",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Women's Accessories\". Subject: 2 to 4 real instantly recognizable items specifically from Women's Accessories. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-8c87e14d-3d53-4c18-b045-9b2a8f0857bb.png",
+      "file": "src/assets/collection-artwork/womens-accessories.jpg"
+    },
+    {
+      "handle": "lips-and-care",
+      "title": "Lip Care",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Lip Care\". Subject: 2 to 4 real instantly recognizable items specifically from Lip Care. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-8e61e2f3-1aed-41db-ba80-589eaeb939b4.png",
+      "file": "src/assets/collection-artwork/lips-and-care.jpg"
+    },
+    {
+      "handle": "watches",
+      "title": "Watches",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Watches\". Subject: two refined wristwatches in silver and black with unbranded unmarked faces. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, warm ivory with blue accents. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-69ba8d6c-4f76-493f-a6f1-2c6fdd4b09eb.png",
+      "file": "src/assets/collection-artwork/watches.jpg"
+    },
+    {
+      "handle": "hair-wash-essentials",
+      "title": "Hair Wash Essentials",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Hair Wash Essentials\". Subject: 2 to 4 real instantly recognizable items specifically from Hair Wash Essentials. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-8fa34f8a-fa98-471b-a58f-26f270db203b.png",
+      "file": "src/assets/collection-artwork/hair-wash-essentials.jpg"
+    },
+    {
+      "handle": "hair-nourishment",
+      "title": "Hair Nourishment",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Hair Nourishment\". Subject: 2 to 4 real instantly recognizable items specifically from Hair Nourishment. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-fb13a89b-0fdb-4386-bfa7-95f046261275.png",
+      "file": "src/assets/collection-artwork/hair-nourishment.jpg"
+    },
+    {
+      "handle": "repair-shine-serums",
+      "title": "Repair & Shine Serums",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Repair & Shine Serums\". Subject: 2 to 4 real instantly recognizable items specifically from Repair & Shine Serums. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-1fd2e4e1-b1fe-4551-9c1a-e158e56cb14d.png",
+      "file": "src/assets/collection-artwork/repair-shine-serums.jpg"
+    },
+    {
+      "handle": "luxury-fragrances",
+      "title": "Luxury Fragrances",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Luxury Fragrances\". Subject: 2 to 4 real instantly recognizable items specifically from Luxury Fragrances. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-123e4a50-7a14-4567-8f3d-023cdba69dde.png",
+      "file": "src/assets/collection-artwork/luxury-fragrances.jpg"
+    },
+    {
+      "handle": "blush-glow",
+      "title": "Blush & Glow",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Blush & Glow\". Subject: 2 to 4 real instantly recognizable items specifically from Blush & Glow. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-ad9c3b94-ac6b-4976-8cec-966a9c6242a3.png",
+      "file": "src/assets/collection-artwork/blush-glow.jpg"
+    },
+    {
+      "handle": "face-creams-moisturizers",
+      "title": "Face Creams & Moisturizers",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Face Creams & Moisturizers\". Subject: 2 to 4 real instantly recognizable items specifically from Face Creams & Moisturizers. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-1cf402c7-651f-4c5c-8ee7-c5b689fa8849.png",
+      "file": "src/assets/collection-artwork/face-creams-moisturizers.jpg"
+    },
+    {
+      "handle": "beauty-makeup-essentials",
+      "title": "Beauty Makeup Essentials",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Beauty Makeup Essentials\". Subject: unbranded elegant cosmetics, a makeup palette, powder brush and glass skincare bottle. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, pearl white light and faint cyan. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-f645cf1e-443b-4bda-b65a-2a300706ae64.png",
+      "file": "src/assets/collection-artwork/beauty-makeup-essentials.jpg"
+    },
+    {
+      "handle": "glam-eye-palettes",
+      "title": "Glam Eye Palettes",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Glam Eye Palettes\". Subject: 2 to 4 real instantly recognizable items specifically from Glam Eye Palettes. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-ef4d0304-8430-4a5c-9144-d7d212c9c21f.png",
+      "file": "src/assets/collection-artwork/glam-eye-palettes.jpg"
+    },
+    {
+      "handle": "eye-beauty-collection",
+      "title": "Eye Beauty Collection",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Eye Beauty Collection\". Subject: 2 to 4 real instantly recognizable items specifically from Eye Beauty Collection. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-b15dd3a2-1f51-4f98-85e3-d181e4d93575.png",
+      "file": "src/assets/collection-artwork/eye-beauty-collection.jpg"
+    },
+    {
+      "handle": "mascara-collection",
+      "title": "Mascara Collection",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Mascara Collection\". Subject: 2 to 4 real instantly recognizable items specifically from Mascara Collection. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-60ac5e56-844f-4f2f-9f44-fe079122b3b0.png",
+      "file": "src/assets/collection-artwork/mascara-collection.jpg"
+    },
+    {
+      "handle": "dramatic-lashes",
+      "title": "Dramatic Lashes",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Dramatic Lashes\". Subject: 2 to 4 real instantly recognizable items specifically from Dramatic Lashes. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-a511f055-efdb-473a-8d68-800ed457e625.png",
+      "file": "src/assets/collection-artwork/dramatic-lashes.jpg"
+    },
+    {
+      "handle": "back-to-school",
+      "title": "Back to School",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Back to School\". Subject: 2 to 4 real instantly recognizable items specifically from Back to School. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-abbb4654-7490-4377-b71a-ed55063b76cc.png",
+      "file": "src/assets/collection-artwork/back-to-school.jpg"
+    },
+    {
+      "handle": "iphone-cases",
+      "title": "iPhone Cases",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"iPhone Cases\". Subject: unbranded protective phone cases, no Apple logo. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-1d65b4e7-2ee1-46ba-a231-8e7bfc3b0237.png",
+      "file": "src/assets/collection-artwork/iphone-cases.jpg"
+    },
+    {
+      "handle": "earbuds-and-cases",
+      "title": "Earbuds & Cases",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Earbuds & Cases\". Subject: 2 to 4 real instantly recognizable items specifically from Earbuds & Cases. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-fd76b11a-23e5-44b3-ad8b-bf8b07c7fd2e.png",
+      "file": "src/assets/collection-artwork/earbuds-and-cases.jpg"
+    },
+    {
+      "handle": "stationery",
+      "title": "Stationery",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Stationery\". Subject: 2 to 4 real instantly recognizable items specifically from Stationery. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-2b9f2892-e12c-4190-a86f-9468fd944d18.png",
+      "file": "src/assets/collection-artwork/stationery.jpg"
+    },
+    {
+      "handle": "mens-fashion",
+      "title": "Men's Fashion",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Men's Fashion\". Subject: neatly folded modern casual garments, minimal sneakers and leather bag. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, warm ivory with blue accents. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-c01672f6-8907-4395-b88c-b18fd1d87679.png",
+      "file": "src/assets/collection-artwork/mens-fashion.jpg"
+    },
+    {
+      "handle": "men-t-shirt",
+      "title": "Men's T-Shirts",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Men's T-Shirts\". Subject: 2 to 4 real instantly recognizable items specifically from Men's T-Shirts. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-66b90e94-4e90-46fd-a472-84b9ca9ac9b5.png",
+      "file": "src/assets/collection-artwork/men-t-shirt.jpg"
+    },
+    {
+      "handle": "women",
+      "title": "Women",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Women\". Subject: 2 to 4 real instantly recognizable items specifically from Women. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-3adcaf71-c77f-47c8-b8fa-182147ea356e.png",
+      "file": "src/assets/collection-artwork/women.jpg"
+    },
+    {
+      "handle": "womens-fashion",
+      "title": "Women's Fashion",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Women's Fashion\". Subject: tailored ivory garments draped naturally, a refined shoulder bag and minimal shoes. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, pearl white light and faint cyan. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-1740088c-ece4-43e4-bc69-92ef0d13a16d.png",
+      "file": "src/assets/collection-artwork/womens-fashion.jpg"
+    },
+    {
+      "handle": "mens-bags-wallets",
+      "title": "Men's Bags & Wallets",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Men's Bags & Wallets\". Subject: 2 to 4 real instantly recognizable items specifically from Men's Bags & Wallets. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-f23e8951-573f-4c28-8d45-a887d588cf0d.png",
+      "file": "src/assets/collection-artwork/mens-bags-wallets.jpg"
+    },
+    {
+      "handle": "mens-accessories",
+      "title": "Men's Accessories",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Men's Accessories\". Subject: 2 to 4 real instantly recognizable items specifically from Men's Accessories. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-af2744ed-5736-4dad-bcd5-17bc54846874.png",
+      "file": "src/assets/collection-artwork/mens-accessories.jpg"
+    },
+    {
+      "handle": "mens-beauty-skincare",
+      "title": "Men's Beauty & Skincare",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Men's Beauty & Skincare\". Subject: 2 to 4 real instantly recognizable items specifically from Men's Beauty & Skincare. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-bd57fa5c-5489-4ce0-bc4f-7ee15f42c5ba.png",
+      "file": "src/assets/collection-artwork/mens-beauty-skincare.jpg"
+    },
+    {
+      "handle": "kids",
+      "title": "Kids",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Kids\". Subject: 2 to 4 real instantly recognizable items specifically from Kids. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-c94e2d1d-5d77-4eb6-b9f1-2b8f2ef72f6c.png",
+      "file": "src/assets/collection-artwork/kids.jpg"
+    },
+    {
+      "handle": "kids-wear",
+      "title": "Kids Wear",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Kids Wear\". Subject: 2 to 4 real instantly recognizable items specifically from Kids Wear. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-ec5e9867-db1f-4b4e-a356-3bdcd6715d56.png",
+      "file": "src/assets/collection-artwork/kids-wear.jpg"
+    },
+    {
+      "handle": "kids-toys-games",
+      "title": "Kids Toys & Games",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Kids Toys & Games\". Subject: colorful wooden construction toys and a small toy astronaut in a clean playful display. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, cool cyan edge light on charcoal. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-f8c3f849-3c88-4d38-8f78-6bb5d347a446.png",
+      "file": "src/assets/collection-artwork/kids-toys-games.jpg"
+    },
+    {
+      "handle": "bedsheets-handlooms-towels",
+      "title": "Bedsheets, Handlooms & Towels",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Bedsheets, Handlooms & Towels\". Subject: 2 to 4 real instantly recognizable items specifically from Bedsheets, Handlooms & Towels. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-07bdcd92-2b10-4e0b-8fe9-63a6138c5f21.png",
+      "file": "src/assets/collection-artwork/bedsheets-handlooms-towels.jpg"
+    },
+    {
+      "handle": "covers-cases",
+      "title": "Covers & Cases",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Covers & Cases\". Subject: 2 to 4 real instantly recognizable items specifically from Covers & Cases. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-dc037148-7138-420e-ab94-5f0a7a51c8db.png",
+      "file": "src/assets/collection-artwork/covers-cases.jpg"
+    },
+    {
+      "handle": "mouse-keyboard",
+      "title": "Mouse & Keyboard",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Mouse & Keyboard\". Subject: 2 to 4 real instantly recognizable items specifically from Mouse & Keyboard. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-be9c07f0-65b1-4823-8b49-4658bcc2343c.png",
+      "file": "src/assets/collection-artwork/mouse-keyboard.jpg"
+    },
+    {
+      "handle": "audio",
+      "title": "Audio & Earbuds",
+      "prompt": "Use case: ads-marketing. Create one text-free wide 1536x1024 photographic/3D campaign banner for the VS Store collection \"Audio & Earbuds\". Subject: matte silver headphones, compact speaker and wireless earbuds. Make a beautiful miniature futuristic world; premium sleek Apple-like visual restraint, physical realistic textures, atmospheric depth, pearl white light and faint cyan. A charcoal architectural gallery with a single subtle luminous arc. Group recognizable category objects in the center-right; leave left 35 percent uncluttered near-black space for live headline. Objects occupy most of the right half and work in mobile crops. Refined and exciting for ages 10–50, no childish gaming aesthetic. No logos, no written words, no watermark, no UI.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-b799c4bb-2ffc-4304-b916-d77c39e855a3.png",
+      "file": "src/assets/collection-artwork/audio.jpg"
+    },
+    {
+      "handle": "office-school-supplies",
+      "title": "Office & School Supplies",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Office & School Supplies\". Subject: 2 to 4 real instantly recognizable items specifically from Office & School Supplies. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-96c3c7cf-1e22-4621-9693-85daaadb7aac.png",
+      "file": "src/assets/collection-artwork/office-school-supplies.jpg"
+    },
+    {
+      "handle": "fitness-equipment",
+      "title": "Sports & Fitness",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Sports & Fitness\". Subject: 2 to 4 real instantly recognizable items specifically from Sports & Fitness. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-50dc5bd8-78a9-423b-92e2-e7af9aa136cb.png",
+      "file": "src/assets/collection-artwork/fitness-equipment.jpg"
+    },
+    {
+      "handle": "magsafe-gadgets",
+      "title": "MagSafe Gadgets",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"MagSafe Gadgets\". Subject: unbranded magnetic phone stands and compact magnetic charging pad. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-eab192a2-7f0d-4190-9580-01ce59246224.png",
+      "file": "src/assets/collection-artwork/magsafe-gadgets.jpg"
+    },
+    {
+      "handle": "anime-collectables",
+      "title": "Anime Collectables",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Anime Collectables\". Subject: an ORIGINAL small space-explorer collectible figure and plush, no franchise character. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-00fa3c24-805b-4832-8e53-6b015ef6d2ee.png",
+      "file": "src/assets/collection-artwork/anime-collectables.jpg"
+    },
+    {
+      "handle": "creator-essentials",
+      "title": "Creator Essentials",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Creator Essentials\". Subject: 2 to 4 real instantly recognizable items specifically from Creator Essentials. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-6251783a-c05d-4e1d-ade5-b1e90a10a2bd.png",
+      "file": "src/assets/collection-artwork/creator-essentials.jpg"
+    },
+    {
+      "handle": "general-merchandise",
+      "title": "General Merchandise",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"General Merchandise\". Subject: a ceramic cup, storage box and travel bottle. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-fbc62ff5-ecc6-47ee-92a6-dbdbde19e5f4.png",
+      "file": "src/assets/collection-artwork/general-merchandise.jpg"
+    },
+    {
+      "handle": "jewelry-accessories",
+      "title": "Jewelry & Accessories",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Jewelry & Accessories\". Subject: 2 to 4 real instantly recognizable items specifically from Jewelry & Accessories. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-2f39efe7-0701-4e94-89f7-1a9203a27c13.png",
+      "file": "src/assets/collection-artwork/jewelry-accessories.jpg"
+    },
+    {
+      "handle": "hats",
+      "title": "Hats",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Hats\". Subject: 2 to 4 real instantly recognizable items specifically from Hats. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-cfa5f25b-3706-448c-8f17-4f88c3e4b4c0.png",
+      "file": "src/assets/collection-artwork/hats.jpg"
+    },
+    {
+      "handle": "candles",
+      "title": "Candles",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Candles\". Subject: 2 to 4 real instantly recognizable items specifically from Candles. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-aa2490e4-1fe8-489b-91a6-3e1eafdf147e.png",
+      "file": "src/assets/collection-artwork/candles.jpg"
+    },
+    {
+      "handle": "bracelets",
+      "title": "Bracelets",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Bracelets\". Subject: 2 to 4 real instantly recognizable items specifically from Bracelets. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-c409ec8d-cbd1-4f5c-8948-261f53872d17.png",
+      "file": "src/assets/collection-artwork/bracelets.jpg"
+    },
+    {
+      "handle": "earrings",
+      "title": "Earrings",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Earrings\". Subject: 2 to 4 real instantly recognizable items specifically from Earrings. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-139c4d93-7b95-4e6b-925c-74967a1a5a85.png",
+      "file": "src/assets/collection-artwork/earrings.jpg"
+    },
+    {
+      "handle": "everyday-jewelry",
+      "title": "Everyday Jewelry",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Everyday Jewelry\". Subject: 2 to 4 real instantly recognizable items specifically from Everyday Jewelry. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-2899503a-830a-4a65-ae51-ffa722b3f00a.png",
+      "file": "src/assets/collection-artwork/everyday-jewelry.jpg"
+    },
+    {
+      "handle": "footwear",
+      "title": "Footwear",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Footwear\". Subject: 2 to 4 real instantly recognizable items specifically from Footwear. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-3dfd8109-4a33-4b9e-b7d2-6e023735a693.png",
+      "file": "src/assets/collection-artwork/footwear.jpg"
+    },
+    {
+      "handle": "formal-footwear",
+      "title": "Formal Footwear",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Formal Footwear\". Subject: 2 to 4 real instantly recognizable items specifically from Formal Footwear. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-0ef8f032-6584-4fa6-b517-e2e5a25eb588.png",
+      "file": "src/assets/collection-artwork/formal-footwear.jpg"
+    },
+    {
+      "handle": "kids-footwear",
+      "title": "Kids Footwear",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Kids Footwear\". Subject: 2 to 4 real instantly recognizable items specifically from Kids Footwear. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-85be702e-49fa-4b0f-8d08-4f653f4e134d.png",
+      "file": "src/assets/collection-artwork/kids-footwear.jpg"
+    },
+    {
+      "handle": "lunch-boxes",
+      "title": "Lunch Boxes",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Lunch Boxes\". Subject: 2 to 4 real instantly recognizable items specifically from Lunch Boxes. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-d01803c9-ed37-4ddf-9942-42170fd99966.png",
+      "file": "src/assets/collection-artwork/lunch-boxes.jpg"
+    },
+    {
+      "handle": "mens-footwear",
+      "title": "Men's Footwear",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Men's Footwear\". Subject: 2 to 4 real instantly recognizable items specifically from Men's Footwear. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-f3a57eca-0c6e-4a7f-ba72-f6a936383f95.png",
+      "file": "src/assets/collection-artwork/mens-footwear.jpg"
+    },
+    {
+      "handle": "necklaces",
+      "title": "Necklaces",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Necklaces\". Subject: 2 to 4 real instantly recognizable items specifically from Necklaces. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-c3978368-bd65-49fb-8808-1229812d49bf.png",
+      "file": "src/assets/collection-artwork/necklaces.jpg"
+    },
+    {
+      "handle": "rings",
+      "title": "Rings",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Rings\". Subject: 2 to 4 real instantly recognizable items specifically from Rings. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-3514cfc5-ebcc-4724-97af-45db99a84540.png",
+      "file": "src/assets/collection-artwork/rings.jpg"
+    },
+    {
+      "handle": "school-bags",
+      "title": "School Bags",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"School Bags\". Subject: 2 to 4 real instantly recognizable items specifically from School Bags. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-433477f1-3f18-4930-abff-72bac2e8d6c2.png",
+      "file": "src/assets/collection-artwork/school-bags.jpg"
+    },
+    {
+      "handle": "water-bottles",
+      "title": "Water Bottles",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Water Bottles\". Subject: 2 to 4 real instantly recognizable items specifically from Water Bottles. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-d314a932-eb50-413f-9ecf-4a9e17703619.png",
+      "file": "src/assets/collection-artwork/water-bottles.jpg"
+    },
+    {
+      "handle": "wigs",
+      "title": "Wigs",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Wigs\". Subject: 2 to 4 real instantly recognizable items specifically from Wigs. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-8bcc10e6-5576-4344-a9a8-c0883fb3c8f2.png",
+      "file": "src/assets/collection-artwork/wigs.jpg"
+    },
+    {
+      "handle": "womens-footwear",
+      "title": "Women's Footwear",
+      "prompt": "Use case: ads-marketing. Generate ONE text-free 1536x1024 photographic collection banner for VS Store \"Women's Footwear\". Subject: 2 to 4 real instantly recognizable items specifically from Women's Footwear. Sleek restrained sci-fi miniature world. Charcoal architecture, silver display plinths, one subtle luminous cyan/violet arc, realistic physical materials, gentle reflections and atmospheric depth. Distinct category-appropriate composition with large recognizable products grouped center-right for mobile crops, left 35 percent uncluttered near-black for an HTML heading. Sophisticated editorial product photography, refined futuristic appeal for a broad family-friendly audience. Preserve authentic category colors. No text, logos, brands, numbers, watermarks, labels, UI, or medical/performance claims.",
+      "source": "/Users/mac/.codex/generated_images/01a09c29-4e97-7751-828d-f0041ad2eee6/exec-f4edf5da-fe71-44f1-ab7a-b8d844501aec.png",
+      "file": "src/assets/collection-artwork/womens-footwear.jpg"
+    }
+  ]
+}

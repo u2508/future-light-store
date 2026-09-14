@@ -28,8 +28,21 @@ const COLUMNS = [
     links: [
       { label: "Shop all", to: "/shop" as const },
       { label: "Collections", to: "/collections" as const },
-      { label: "New arrivals", to: "/shop" as const, search: { sort: "newest" } },
-      { label: "Offers", to: "/offers" as const },
+      {
+        label: "New Arrivals",
+        to: "/collections/$handle" as const,
+        params: { handle: "new-arrivals" },
+      },
+      {
+        label: "Best Sellers",
+        to: "/collections/$handle" as const,
+        params: { handle: "best-sellers" },
+      },
+      {
+        label: "Premium Picks",
+        to: "/collections/$handle" as const,
+        params: { handle: "premium-picks" },
+      },
     ],
   },
   {
@@ -47,7 +60,7 @@ const COLUMNS = [
 export function Footer() {
   return (
     <footer className="mt-20 border-t border-foreground/10 bg-foreground text-background">
-      <div className="mx-auto grid max-w-7xl gap-12 px-4 py-14 sm:py-16 lg:grid-cols-[1.15fr_repeat(3,minmax(0,0.8fr))_1.55fr]">
+      <div className="vs-wide-shell grid gap-12 py-14 sm:py-16 lg:grid-cols-[1.15fr_repeat(3,minmax(0,0.8fr))_1.55fr]">
         <div className="space-y-6">
           <VsLogo inverse />
           <p className="max-w-xs text-sm leading-7 text-background/70">
@@ -133,7 +146,7 @@ export function Footer() {
         </div>
       </div>
       <div className="border-t border-background/10">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-7 md:flex-row md:items-center md:justify-between">
+        <div className="vs-wide-shell flex flex-col gap-5 py-7 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap gap-2">
             <TrustBadge icon={<ShieldCheck className="h-3.5 w-3.5" />} label="Secure checkout" />
             <TrustBadge icon={<PackageCheck className="h-3.5 w-3.5" />} label="Tracked shipping" />

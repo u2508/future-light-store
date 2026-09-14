@@ -153,7 +153,7 @@ function StoreLayout() {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
-      <main className="flex-1 pb-20 lg:pb-0">
+      <main className="vs-mobile-content flex-1">
         <Outlet />
       </main>
       <Footer />

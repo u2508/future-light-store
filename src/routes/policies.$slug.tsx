@@ -30,7 +30,7 @@ function PolicyPage() {
   const policy = POLICIES[slug];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:py-14">
+    <div className="vs-wide-shell py-10 sm:py-14">
       <div className="rounded-[2rem] vs-hero-gradient p-7 text-primary-foreground shadow-[var(--shadow-lift)] sm:p-10">
         <Link
           to="/policies"

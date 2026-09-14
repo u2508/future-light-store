@@ -31,7 +31,7 @@ function ProductDescription({
   descriptionHtml,
 }: {
   description: string;
-  descriptionHtml?: string;
+  descriptionHtml?: string | undefined;
 }) {
   const structuredDescription = sanitizeProductDescriptionHtml(descriptionHtml || "");
 
@@ -119,7 +119,7 @@ function ProductPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-2">
+      <div className="vs-wide-shell grid gap-8 py-10 md:grid-cols-2">
         <div className="aspect-square animate-pulse rounded-3xl bg-muted" />
         <div className="space-y-4">
           <div className="h-8 w-2/3 animate-pulse rounded bg-muted" />
@@ -237,7 +237,7 @@ function ProductPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 lg:px-6">
+    <div className="vs-wide-shell py-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}

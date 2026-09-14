@@ -47,7 +47,7 @@ function AboutPage() {
     <div className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[720px] bg-[radial-gradient(circle_at_top,rgba(60,110,255,0.13),transparent_42%),linear-gradient(to_bottom,rgba(255,255,255,0.85),transparent)]" />
 
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:py-14">
+      <section className="vs-wide-shell py-10 sm:py-14">
         <div className="grid gap-7 lg:grid-cols-[1.03fr_0.97fr] lg:items-stretch">
           <div className="rounded-[2rem] vs-hero-gradient p-7 text-primary-foreground shadow-[var(--shadow-lift)] sm:p-10">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] opacity-75">
@@ -97,7 +97,7 @@ function AboutPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12" aria-labelledby="our-point-of-view">
+      <section className="vs-wide-shell py-8 sm:py-12" aria-labelledby="our-point-of-view">
         <div className="grid gap-8 rounded-[2rem] border border-border/70 bg-card p-7 shadow-[var(--shadow-card)] sm:p-10 lg:grid-cols-[0.72fr_1.28fr] lg:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
@@ -122,7 +122,7 @@ function AboutPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12" aria-labelledby="vs-principles">
+      <section className="vs-wide-shell py-8 sm:py-12" aria-labelledby="vs-principles">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
@@ -157,7 +157,7 @@ function AboutPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:py-12" aria-labelledby="how-vs-works">
+      <section className="vs-wide-shell py-8 sm:py-12" aria-labelledby="how-vs-works">
         <div className="grid gap-7 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="vs-premium-panel rounded-[2rem] p-7 sm:p-10">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
@@ -218,7 +218,7 @@ function AboutPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:py-14">
+      <section className="vs-wide-shell py-10 sm:py-14">
         <div className="rounded-[2rem] vs-hero-gradient p-8 text-center text-primary-foreground shadow-[var(--shadow-lift)] sm:p-12">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] opacity-75">
             Ready when you are

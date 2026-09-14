@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-const AUTH_ERROR_MESSAGE = "Account sign-in is temporarily unavailable. You can continue as a guest or try again.";
+const AUTH_ERROR_MESSAGE =
+  "Account sign-in is temporarily unavailable. You can continue as a guest or try again.";
 
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
@@ -11,7 +12,7 @@ export function useAuth() {
 
   useEffect(() => {
     let active = true;
-    let unsubscribe = () => undefined;
+    let unsubscribe: () => void = () => undefined;
 
     try {
       const { data } = supabase.auth.onAuthStateChange((_event, next) => {

@@ -1,0 +1,1786 @@
+{
+  "version": 1,
+  "createdAt": "2026-09-14T07:35:25.253Z",
+  "shop": {
+    "id": "gid://shopify/Shop/106570088529",
+    "myshopifyDomain": "vs-future-store-0jl2t-jxu6tnr3.myshopify.com"
+  },
+  "excluded": [
+    {
+      "id": "gid://shopify/Collection/696313708625",
+      "handle": "classification-review",
+      "reason": "Internal classification queue; not customer-facing"
+    },
+    {
+      "id": "gid://shopify/Collection/698007158865",
+      "handle": "classification-fallback",
+      "reason": "Internal classification queue; not customer-facing"
+    }
+  ],
+  "targets": [
+    {
+      "id": "gid://shopify/Collection/696310366289",
+      "handle": "artificial-plants",
+      "title": "Artificial Plants",
+      "productCount": 1,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_12_16_37_PM.png?v=1786800253",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/artificial-plants.jpg",
+      "sha256": "de0cb2234eb033b3d4b05568343f3a4ffa880dc1f8ae50a03c4abd48e022db04",
+      "bytes": 417259,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Artificial Plants — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310399057",
+      "handle": "home-decor",
+      "title": "Home & Decor",
+      "productCount": 158,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_01_56_29_PM.png?v=1786800255",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/home-decor.jpg",
+      "sha256": "d082e45e39dfd55f1b4fad66f29d7a8e352dbac80b191e011751db978c9e8740",
+      "bytes": 318063,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Home & Decor — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310431825",
+      "handle": "cookware",
+      "title": "Kitchen & Cookware",
+      "productCount": 21,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_01_08_57_PM_307ed98e-0f41-4fff-857b-3547d66de159.png?v=1786800258",
+        "altText": "Cookware Set"
+      },
+      "file": "src/assets/collection-artwork/cookware.jpg",
+      "sha256": "e483fcd9e998b610c83fa05cafcd2c2ed737399ff725a88ef5fe00d716ca492d",
+      "bytes": 248875,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Kitchen & Cookware — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310464593",
+      "handle": "under-60",
+      "title": "Under $60",
+      "productCount": 1765,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_02_43_23_PM.png?v=1786800261",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/under-60.jpg",
+      "sha256": "0606eaf3baa42eaacdfb5605a239498187ef25938f02e0b931470de566028e27",
+      "bytes": 220320,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Under $60 — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310497361",
+      "handle": "garden-tools",
+      "title": "Garden & Tools",
+      "productCount": 2,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_02_10_40_PM.png?v=1786800264",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/garden-tools.jpg",
+      "sha256": "afddd993299cf378a2d7030c20d2f481d7da9b4472db0278c95b107a1e251833",
+      "bytes": 358232,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Garden & Tools — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310530129",
+      "handle": "new-arrivals",
+      "title": "New Arrivals",
+      "productCount": 2321,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/new-arrivals-products-banner-with-asurased-cash-back.png?v=1786800266",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/new-arrivals.jpg",
+      "sha256": "9dde2bd0995da55da0e6ca47023000c458c15953553e6cacaf89ce41c1b820fe",
+      "bytes": 228751,
+      "width": 1536,
+      "height": 1024,
+      "altText": "New Arrivals — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310562897",
+      "handle": "pet-essentials",
+      "title": "Pet Essentials",
+      "productCount": 74,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_02_51_29_PM.png?v=1786800269",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/pet-essentials.jpg",
+      "sha256": "7ac6de4b1e6a33fe3da01f24b5eda24edacdbc972d613dbc3b8aa4e9199c8300",
+      "bytes": 304999,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Pet Essentials — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310595665",
+      "handle": "all-products",
+      "title": "All Products",
+      "productCount": 2321,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/GCS_static_post_3a6d798b-2959-4be9-b251-8fee258c96d3.png?v=1786800272",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/all-products.jpg",
+      "sha256": "fe99d35fd96ad43bde1efea3404dd8748b8bb09c67996f78243019efa64f8ce0",
+      "bytes": 276256,
+      "width": 1536,
+      "height": 1024,
+      "altText": "All Products — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310628433",
+      "handle": "medical-accessories",
+      "title": "Medical Accessories",
+      "productCount": 4,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_01_55_35_PM.png?v=1786800275",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/medical-accessories.jpg",
+      "sha256": "369c6e09b9d04eac1929cc9e31ef356c82a9bee01b594a3cb489cd0061b9cf0e",
+      "bytes": 250138,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Medical Accessories — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310661201",
+      "handle": "t-shirt",
+      "title": "T-Shirts",
+      "productCount": 256,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_03_02_47_PM.png?v=1786800277",
+        "altText": "T-shirt"
+      },
+      "file": "src/assets/collection-artwork/t-shirt.jpg",
+      "sha256": "73eedee3426a3e09da344e3ba68668d6142f1b81de8c5c5c693ddfaf33f78fa2",
+      "bytes": 272044,
+      "width": 1536,
+      "height": 1024,
+      "altText": "T-Shirts — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310693969",
+      "handle": "trousers",
+      "title": "Trousers",
+      "productCount": 12,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_03_07_36_PM.png?v=1786800280",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/trousers.jpg",
+      "sha256": "c3125fbf8c081fc7c770b9a7a54debbaec0c306dfc7b627aee27ff3464563c3e",
+      "bytes": 299708,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Trousers — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310726737",
+      "handle": "jeans",
+      "title": "Jeans",
+      "productCount": 17,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_03_19_38_PM.png?v=1786800282",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/jeans.jpg",
+      "sha256": "3fa487926ff7f0999c1dc8af091ca9c142a1dbf144a2b5a144c852405f4d0a86",
+      "bytes": 346866,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Jeans — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310759505",
+      "handle": "men-collection",
+      "title": "Men",
+      "productCount": 440,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_01_55_32_PM.png?v=1786800285",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/men-collection.jpg",
+      "sha256": "65fd132958fb338db954629d1fa68a6fda0f7dd3d8b54d0576b490cbaa42ca76",
+      "bytes": 265037,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Men — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310792273",
+      "handle": "health-wellness",
+      "title": "Health & Wellness",
+      "productCount": 22,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_01_26_32_PM.png?v=1786800288",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/health-wellness.jpg",
+      "sha256": "b68834c71d6b844ca7bed69f577ae489b5697875d7791fd83147ced2ace23583",
+      "bytes": 262019,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Health & Wellness — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310825041",
+      "handle": "travel-outdoor",
+      "title": "Camping & Travel Essentials",
+      "productCount": 34,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_3_2026_02_58_38_PM.png?v=1786800290",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/travel-outdoor.jpg",
+      "sha256": "804ae804e57f6c550676f60482f0ffe4bf657b13bbbd7e6a9f6423f6b5cd9e4d",
+      "bytes": 300006,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Camping & Travel Essentials — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310857809",
+      "handle": "trending-finds",
+      "title": "Trending Finds",
+      "productCount": 331,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/S9d4308f6d71545af8ca32c12da039c65m.webp?v=1786800293",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/trending-finds.jpg",
+      "sha256": "3bdbe168b0b2f88472fa40e01243e27c50295bc4ce016f6f4d3bad7d1bed5462",
+      "bytes": 237089,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Trending Finds — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310923345",
+      "handle": "best-sellers",
+      "title": "Best Sellers",
+      "productCount": 99,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/bestseller-collection-premium-picks.png?v=1786800298",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/best-sellers.jpg",
+      "sha256": "f9cb4427a0cdd7889e99f973b5eefee4b7d715d6141ebe6b08a0ef8f50ba1da6",
+      "bytes": 266120,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Best Sellers — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310956113",
+      "handle": "robe",
+      "title": "Robes",
+      "productCount": 13,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-premium-shopify-collection-image-for-robes-featuring-soft-luxurious-robes-neatly-styled-in-a-calm-indoor-setting-with-slippers-folded-towels-and-cozy-home-accents-use-cream-w.png?v=1786800300",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/robe.jpg",
+      "sha256": "6041e8acb2214efb0b6f8cfb803eeabed8bfcdd8214a0c4de5eb9e3417f51afe",
+      "bytes": 358561,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Robes — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696310988881",
+      "handle": "gifts",
+      "title": "Gifts Collection",
+      "productCount": 46,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Apr_24_2026_12_18_26_PM.png?v=1786800303",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/gifts.jpg",
+      "sha256": "72d0b73e066625577fc2a06e0bf9d6c7103a22f00765e4db66f5d2b37b9ad244",
+      "bytes": 250207,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Gifts Collection — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311021649",
+      "handle": "senior-living-solutions",
+      "title": "Senior Living Solutions",
+      "productCount": 17,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-banner-for-senior-product-whch-inclde-massager-bib-and-gloves-and-planners.png?v=1786800305",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/senior-living-solutions.jpg",
+      "sha256": "f67521304f51c6c0efb3dd5f80e0268a52b997ca63c04c7bae28b2d37f06e773",
+      "bytes": 263981,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Senior Living Solutions — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311054417",
+      "handle": "under-35",
+      "title": "Under $35",
+      "productCount": 1048,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/S3f48a898f57f4dbc860a015f46e3c1c1y.webp?v=1786800308",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/under-35.jpg",
+      "sha256": "4062baa2b1432b70bf9118244711802381e42081816e448017e9c880e06dfbf1",
+      "bytes": 242583,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Under $35 — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311087185",
+      "handle": "under-25",
+      "title": "Under $25",
+      "productCount": 290,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/make-for-the-under-25-for-our-store.png?v=1786800311",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/under-25.jpg",
+      "sha256": "edbebb9d9a2dd54ba2ee4b3c882f33939b985130c2fa8800114ac2658af5d45f",
+      "bytes": 307510,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Under $25 — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311119953",
+      "handle": "under-50",
+      "title": "Under $50",
+      "productCount": 1580,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/with-store-theme.png?v=1786800314",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/under-50.jpg",
+      "sha256": "6f171ba3cf17bc5e63dbca8bf1b5742c3dbfde1ea3841e7e217083f43baaeb22",
+      "bytes": 258740,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Under $50 — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311152721",
+      "handle": "under-44-99",
+      "title": "Under $44.99",
+      "productCount": 1439,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/i-want-craete-image-for-under-100-prodct-with-stotre-theme-and-alo-use-very-good-prodcuts-from-the-store-expensive-like-shoose-ect-and-mix-of-produtsc-only-from-teh-store.png?v=1786800316",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/under-44-99.jpg",
+      "sha256": "f1f9aca56e53dc0369c443b8e8f84ed34e76ed484699a9c640f167a0a59da0bc",
+      "bytes": 298819,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Under $44.99 — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311185489",
+      "handle": "premium-picks",
+      "title": "Premium Picks",
+      "productCount": 291,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/the-premium-picks-collection-text-is-not-entered.png?v=1786800319",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/premium-picks.jpg",
+      "sha256": "05360f34598cfa5155989727cb2c4c42f5223df9c76b0c252e453fc1bd458f33",
+      "bytes": 315432,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Premium Picks — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311218257",
+      "handle": "housewarming-gifts",
+      "title": "Housewarming Gifts",
+      "productCount": 2,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-banner-for-the-housewarming-gifts.png?v=1786800322",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/housewarming-gifts.jpg",
+      "sha256": "a2f34cfe4e302174273851e8cb6c0e5995fe336b92f471de96fca44eebe5b99f",
+      "bytes": 277140,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Housewarming Gifts — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311251025",
+      "handle": "holiday-gifts",
+      "title": "Holiday Gifts",
+      "productCount": 0,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/holiday-specials-collection-banner.png?v=1786800324",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/holiday-gifts.jpg",
+      "sha256": "f7a27cb6d393ebfa4785b52675a2a265bd5114a23816aaf257a8f2a3faea3b67",
+      "bytes": 273326,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Holiday Gifts — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311283793",
+      "handle": "kitchen-gadgets",
+      "title": "Kitchen Gadgets",
+      "productCount": 7,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/remove-the-text_98a83479-0fe9-4b68-892e-1bc18ed761cf.png?v=1786800326",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/kitchen-gadgets.jpg",
+      "sha256": "3d303a89a57db86fed9c6735600eb8f364fa4d9647b2e1380c5df3c891d07e8c",
+      "bytes": 277290,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Kitchen Gadgets — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311316561",
+      "handle": "storage-organization",
+      "title": "Storage & Organization",
+      "productCount": 19,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-banner-for-the-storage-and-organizer-like-lunch-boxes-and-organizers.png?v=1786800329",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/storage-organization.jpg",
+      "sha256": "f1840be5a3a92eb84c9dab6e30325c5e59f6dbf9e30a2c5631983becc8e96989",
+      "bytes": 336360,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Storage & Organization — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311349329",
+      "handle": "coffee-tea-accessories",
+      "title": "Coffee & Tea Accessories",
+      "productCount": 13,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-f814810a-cec2-4c26-b5f4-4695a4d82567.png?v=1786800332",
+        "altText": "Coffee & Tea Accessories collection banner"
+      },
+      "file": "src/assets/collection-artwork/coffee-tea-accessories.jpg",
+      "sha256": "a563474aa313c52e65bd5b720a6d276dfa6648f63a004f677cf0afe7ff4712e3",
+      "bytes": 290900,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Coffee & Tea Accessories — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311382097",
+      "handle": "dining-essentials",
+      "title": "Dining Essentials",
+      "productCount": 18,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-6c2fa483-f4eb-4f3d-ae87-b30120a4372e.png?v=1786800334",
+        "altText": "Dining Essentials collection banner"
+      },
+      "file": "src/assets/collection-artwork/dining-essentials.jpg",
+      "sha256": "2a02251eedef3704639900679def00b77757cca85e33d4d5c57941e939e44c22",
+      "bytes": 275581,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Dining Essentials — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311414865",
+      "handle": "cleaning-tools",
+      "title": "Cleaning Tools",
+      "productCount": 21,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/home-cleani-g-tolols-please-make-thsi-sagin-with-my-stopore-theme-mop-and-broom.png?v=1786800337",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/cleaning-tools.jpg",
+      "sha256": "962c5ddfec94a1a84a67701278e721569e5d94e389d8580c79ef07e1565800a6",
+      "bytes": 313110,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Cleaning Tools — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311447633",
+      "handle": "wall-lights",
+      "title": "Wall Lights",
+      "productCount": 13,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/add-some-wall-lights-also.png?v=1786800340",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/wall-lights.jpg",
+      "sha256": "da234510a1ec306ab0bb55dbf43fea19c5c9487dc042fdcf2274bdffda414e3a",
+      "bytes": 300735,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Wall Lights — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311480401",
+      "handle": "wall-art",
+      "title": "Wall Art",
+      "productCount": 32,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/enhance-this.png?v=1786800342",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/wall-art.jpg",
+      "sha256": "6ff4d93b104b66653185efc06c0860dad5cf5a23e21aeb532f269c4be04cd015",
+      "bytes": 338559,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Wall Art — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311513169",
+      "handle": "seasonal-decor",
+      "title": "Seasonal Decor",
+      "productCount": 47,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-b246193f-3e84-421e-9292-7a3e8005ccaf.png?v=1786800346",
+        "altText": "Seasonal Decor collection banner"
+      },
+      "file": "src/assets/collection-artwork/seasonal-decor.jpg",
+      "sha256": "cdd05feb4992598fc31ffec615141ee981af2f9f80b626a48dd0a78f312db5f7",
+      "bytes": 322954,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Seasonal Decor — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311545937",
+      "handle": "smart-lighting",
+      "title": "Lighting & Decor",
+      "productCount": 52,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/cahnge-its-about-decor-lighning-items.png?v=1786800348",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/smart-lighting.jpg",
+      "sha256": "35d3729bc8675cd63feea64c94370b607f507136bfb57c254c15674bb15fb089",
+      "bytes": 291073,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Lighting & Decor — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311578705",
+      "handle": "decorative-accessories",
+      "title": "Decorative Accessories",
+      "productCount": 37,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-0c68f11e-4ba5-4c20-8fcf-1375df74a377.png?v=1786800351",
+        "altText": "Decorative Accessories collection banner"
+      },
+      "file": "src/assets/collection-artwork/decorative-accessories.jpg",
+      "sha256": "c86619b511e547bfc5d19f95b0195b4c3b3ee96813f6e77a5114874f4a451893",
+      "bytes": 298591,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Decorative Accessories — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311611473",
+      "handle": "dog-supplies",
+      "title": "Dog Supplies",
+      "productCount": 46,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-c1b91440-8229-4bc9-912c-4a9034826427.png?v=1786800353",
+        "altText": "Dog Supplies collection banner"
+      },
+      "file": "src/assets/collection-artwork/dog-supplies.jpg",
+      "sha256": "51c4a27d0fb98140af85c546df7446b1a99389c684f6c578a938a7d1db441eae",
+      "bytes": 266921,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Dog Supplies — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311644241",
+      "handle": "cat-supplies",
+      "title": "Cat Supplies",
+      "productCount": 20,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-69ae9703-777b-42ef-b84a-9bb33f3382e8.png?v=1786800356",
+        "altText": "Cat Supplies collection banner"
+      },
+      "file": "src/assets/collection-artwork/cat-supplies.jpg",
+      "sha256": "52bc84b6dcb6aa6f67956155d5cd2fa083b1bf3ba4fe54907a18399f5565aa87",
+      "bytes": 311741,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Cat Supplies — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311709777",
+      "handle": "pet-travel",
+      "title": "Pet Travel",
+      "productCount": 9,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-18efd562-5a43-47e1-b947-2b03d9ef87dd.png?v=1786800358",
+        "altText": "Pet Travel collection banner"
+      },
+      "file": "src/assets/collection-artwork/pet-travel.jpg",
+      "sha256": "afc3b7988396734dc807dbb9d7af816877181e92233f17f72b2d269e4ae48d70",
+      "bytes": 259323,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Pet Travel — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311742545",
+      "handle": "pet-feeding",
+      "title": "Pet Feeding",
+      "productCount": 0,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-bf0c3517-158a-4278-9a87-8f516c221ef8.png?v=1786800361",
+        "altText": "Pet Feeding collection banner"
+      },
+      "file": "src/assets/collection-artwork/pet-feeding.jpg",
+      "sha256": "753afa110e1545cb687e57fe4482540e6373383aaeb57c772c62c4145edfb138",
+      "bytes": 276224,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Pet Feeding — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311775313",
+      "handle": "pet-grooming",
+      "title": "Pet Grooming",
+      "productCount": 17,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-28d3ee1f-f8ae-4b83-a039-d60488c4722e.png?v=1786800364",
+        "altText": "Pet Grooming collection banner"
+      },
+      "file": "src/assets/collection-artwork/pet-grooming.jpg",
+      "sha256": "da60c06ce69df421640f2d7926e56730d1607196d5836855604a31c587b17ba5",
+      "bytes": 295000,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Pet Grooming — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311808081",
+      "handle": "pet-toys",
+      "title": "Pet Toys",
+      "productCount": 19,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/remove-the-text_966c7095-f069-4743-84c6-132b36d81b2e.png?v=1786800367",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/pet-toys.jpg",
+      "sha256": "6293ef431bc6a6ff3a2ea9336ca04bd8adbc0f863fd796d047fec1ebab6aa166",
+      "bytes": 263887,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Pet Toys — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311840849",
+      "handle": "sleep-essentials",
+      "title": "Sleep Essentials",
+      "productCount": 4,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/sleep-essentials-banner.png?v=1786800370",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/sleep-essentials.jpg",
+      "sha256": "7638dec39ed327ed07ac869c6a465cd0669a19ff5758d82ff5b06087e71a8de8",
+      "bytes": 260993,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Sleep Essentials — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311906385",
+      "handle": "relaxation-products",
+      "title": "Relaxation Products",
+      "productCount": 5,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-5035ea37-82c8-488b-85f3-cce4c5776346.png?v=1786800372",
+        "altText": "Relaxation Products collection banner"
+      },
+      "file": "src/assets/collection-artwork/relaxation-products.jpg",
+      "sha256": "35dbecfb31838575bb56f70139caca9e486c6a366a6bb815de387585618fafca",
+      "bytes": 274436,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Relaxation Products — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311939153",
+      "handle": "massage-tools",
+      "title": "Massage Tools",
+      "productCount": 10,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/revert.png?v=1786800375",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/massage-tools.jpg",
+      "sha256": "35d87784eccce7aa962483e1786ff849b5df93fd9399baa7525b570e3c7e240b",
+      "bytes": 212311,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Massage Tools — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696311971921",
+      "handle": "car-accessories",
+      "title": "Home & Car Accessories",
+      "productCount": 39,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/make-different-pictire-all-car-accesiries-will-cobver-car-cleaning-item-too.png?v=1786800377",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/car-accessories.jpg",
+      "sha256": "f2306063e72dc01693cd9d8af92d7b8de76efb716215c69d2334acc83b03b87c",
+      "bytes": 256653,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Home & Car Accessories — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312004689",
+      "handle": "portable-gadgets",
+      "title": "Electronic Accessories",
+      "productCount": 833,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/need-to-create-banner-image-or-portable-item-and-gagdage-pick-items-form-this-collcetion-all-theis-item-will-here-and-get-good.png?v=1786800380",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/portable-gadgets.jpg",
+      "sha256": "4f5bf157f06254f571614076b22a3618a4b633a1b390d1cdf1342cafa90451e6",
+      "bytes": 249688,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Electronic Accessories — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312037457",
+      "handle": "daily-living-aids",
+      "title": "Daily Living Aids",
+      "productCount": 13,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/please-create-image-for-this-collection-its-daily-living-items.png?v=1786800382",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/daily-living-aids.jpg",
+      "sha256": "8cfde19e7d68d5733d4eaf6765d3edecc3c2c497e6034b3a642d2e6fb49cee9d",
+      "bytes": 273243,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Daily Living Aids — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312070225",
+      "handle": "home-safety",
+      "title": "Home Safety",
+      "productCount": 12,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-d07a1a58-37a7-42a4-87ef-cfd7903f0180.png?v=1786800385",
+        "altText": "Home Safety collection banner"
+      },
+      "file": "src/assets/collection-artwork/home-safety.jpg",
+      "sha256": "a2938a629012858de3c334cfd7cf49f13eaaa9f809b76ba9d664ef8db7c86308",
+      "bytes": 277603,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Home Safety — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312102993",
+      "handle": "memory-organization",
+      "title": "Memory & Organization",
+      "productCount": 24,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-bb388d6f-f5ea-4f8e-9386-9528e7736507.png?v=1786800387",
+        "altText": "Memory & Organization collection banner"
+      },
+      "file": "src/assets/collection-artwork/memory-organization.jpg",
+      "sha256": "1b405c35cac5bc7719bc377a723d2db68946d19d8b92eb3b1daa4319e2d69db1",
+      "bytes": 262200,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Memory & Organization — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312135761",
+      "handle": "gifts-for-mom",
+      "title": "Gifts for Mom",
+      "productCount": 25,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-banner-for-the-gifts-of-mom-like-show-the-rings.png?v=1786800390",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/gifts-for-mom.jpg",
+      "sha256": "3718e3d24b8ad60a005d05247b25c57d594d0ff6388504c409b77fbc36cb22c3",
+      "bytes": 293468,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Gifts for Mom — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312168529",
+      "handle": "gifts-for-dad",
+      "title": "Gifts for Dad",
+      "productCount": 28,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/gift-for-dad-collection.png?v=1786800393",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/gifts-for-dad.jpg",
+      "sha256": "68f9b7fca02741c9ebd5dac1ddb4a3b900cbfc753b211b09c010abc109dc7418",
+      "bytes": 294796,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Gifts for Dad — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312201297",
+      "handle": "gifts-for-seniors",
+      "title": "Gifts for Seniors",
+      "productCount": 0,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/gifts-for-seniors.png?v=1786800396",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/gifts-for-seniors.jpg",
+      "sha256": "e7b8ea4d0c6e0e8c23c91a605603aea61466e0d8a1e6aeec79f4b3eb3281b5b4",
+      "bytes": 276553,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Gifts for Seniors — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312234065",
+      "handle": "viral-tiktok-products",
+      "title": "Viral TikTok Products",
+      "productCount": 0,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/viral-tiktok-picks.png?v=1786800398",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/viral-tiktok-products.jpg",
+      "sha256": "6f7fe07629b81edb960695d79119e03f21f6c6d44ca8f35efd055d42ea5668e6",
+      "bytes": 232818,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Viral TikTok Products — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312266833",
+      "handle": "staff-picks",
+      "title": "Staff Picks",
+      "productCount": 4,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-c1840fc7-3192-43ce-bd43-413fd922ae98.png?v=1786800400",
+        "altText": "Staff Picks collection banner"
+      },
+      "file": "src/assets/collection-artwork/staff-picks.jpg",
+      "sha256": "fbcdc515fb55236642f237a982d895c20c034ee142b7a7cb27610bdb4fb66643",
+      "bytes": 275763,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Staff Picks — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312299601",
+      "handle": "womens-beauty-essentials",
+      "title": "Women's Beauty & Skincare",
+      "productCount": 11,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-image-for-womens-beauty-and-makeup-essential-collection.png?v=1786800403",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/womens-beauty-essentials.jpg",
+      "sha256": "bf7b2cd4c79fb63087032d6ff59b68e1390b2a0994c0b35b4d99a8eba924fdc8",
+      "bytes": 235743,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Women's Beauty & Skincare — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312332369",
+      "handle": "women-bags-and-wallets",
+      "title": "Women's Bags & Wallets",
+      "productCount": 18,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-banner-for-the-women-bags-and-walltes-clutches-hand-bags-tote-bags.png?v=1786800406",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/women-bags-and-wallets.jpg",
+      "sha256": "c9c6c4201464393ae7e0451c3bbee8128283f59f3de5b9837f79409639751c87",
+      "bytes": 267937,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Women's Bags & Wallets — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312365137",
+      "handle": "womens-accessories",
+      "title": "Women's Accessories",
+      "productCount": 24,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/only-sunglases-show.png?v=1786800408",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/womens-accessories.jpg",
+      "sha256": "7f044b7e1bac3a3915af957c789cbd428f47649682f692ce4b55fb983d72ea01",
+      "bytes": 272625,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Women's Accessories — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312397905",
+      "handle": "lips-and-care",
+      "title": "Lip Care",
+      "productCount": 19,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-banner-of-the-lipisticks-and-lip-glosse-lip-care.png?v=1786800411",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/lips-and-care.jpg",
+      "sha256": "0dc3a859a49f4e0947195a39658cec980f162e7d37098600fea65187ef448427",
+      "bytes": 213988,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Lip Care — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312430673",
+      "handle": "watches",
+      "title": "Watches",
+      "productCount": 91,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/remove-black-watch.png?v=1786800414",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/watches.jpg",
+      "sha256": "8ff1a439c5de533fea58678eaef95cb54748178b7a22ed3ebbaa5c6532c24272",
+      "bytes": 255396,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Watches — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312463441",
+      "handle": "hair-wash-essentials",
+      "title": "Hair Wash Essentials",
+      "productCount": 14,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/highlight-shampoo-nd-conditioner.png?v=1786800416",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/hair-wash-essentials.jpg",
+      "sha256": "43415663db49d649c4a484ab3f363ecc064f836f8120deb5383dfe3040387f32",
+      "bytes": 263971,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Hair Wash Essentials — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312496209",
+      "handle": "hair-nourishment",
+      "title": "Hair Nourishment",
+      "productCount": 26,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/generate-a-image-for-the-hair-oil-and-hair-mask-for-the-collectionof-hair-nourishment.png?v=1786800419",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/hair-nourishment.jpg",
+      "sha256": "7f3fceca2a135302cfc9f893af1463eab45d020bf308beddebb10867fb86841d",
+      "bytes": 273030,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Hair Nourishment — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312528977",
+      "handle": "repair-shine-serums",
+      "title": "Repair & Shine Serums",
+      "productCount": 20,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/remmove-text.png?v=1786800422",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/repair-shine-serums.jpg",
+      "sha256": "b6336548fbd3bfb6a1a2a0401657bf28697bede125b1841d353808e8315030f1",
+      "bytes": 236639,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Repair & Shine Serums — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312561745",
+      "handle": "luxury-fragrances",
+      "title": "Luxury Fragrances",
+      "productCount": 3,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-image-banner-for-the-luxury-perfumes-collections.png?v=1786800424",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/luxury-fragrances.jpg",
+      "sha256": "b81207afb0a2b52407fe75b35049fd0ae24acfba17182e7a14de3bac7db31206",
+      "bytes": 240524,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Luxury Fragrances — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312594513",
+      "handle": "blush-glow",
+      "title": "Blush & Glow",
+      "productCount": 34,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-an-image-for-the-blush-collection.png?v=1786800427",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/blush-glow.jpg",
+      "sha256": "2c58c73bdacecaabb4871e40e78a33a83d0ea5a7ff75df0cf583788ec5429560",
+      "bytes": 234515,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Blush & Glow — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312627281",
+      "handle": "face-creams-moisturizers",
+      "title": "Face Creams & Moisturizers",
+      "productCount": 4,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-image-banner-for-collection-of-face-cream-and-moisturizer.png?v=1786800429",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/face-creams-moisturizers.jpg",
+      "sha256": "1078a4bd951bcd714430041335662c4ab9aa214dd2ac9010fcdcac174eeab5bb",
+      "bytes": 228170,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Face Creams & Moisturizers — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312660049",
+      "handle": "beauty-makeup-essentials",
+      "title": "Beauty Makeup Essentials",
+      "productCount": 144,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/remove-the-text.png?v=1786800432",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/beauty-makeup-essentials.jpg",
+      "sha256": "810b85fa57b2b76ae66ae2a484dd2f6bd291c4159b8267446b82723c31c301e3",
+      "bytes": 321204,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Beauty Makeup Essentials — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312692817",
+      "handle": "glam-eye-palettes",
+      "title": "Glam Eye Palettes",
+      "productCount": 12,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/remove-the-text_b20afab2-951e-4201-a76e-8ad5f0193720.png?v=1786800435",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/glam-eye-palettes.jpg",
+      "sha256": "b2d50c0b7fd2b1f2dd223f4e3c8443ff07f69f7479a7c8db498bd0259357bf03",
+      "bytes": 311619,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Glam Eye Palettes — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312758353",
+      "handle": "eye-beauty-collection",
+      "title": "Eye Beauty Collection",
+      "productCount": 22,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-banner-for-the-all-eyemakeup-collection.png?v=1786800437",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/eye-beauty-collection.jpg",
+      "sha256": "9ac7e4955aa8a0a8bc4d634e0775d21e0fe23a320edd02883e0e16d9a53779ae",
+      "bytes": 261493,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Eye Beauty Collection — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312791121",
+      "handle": "mascara-collection",
+      "title": "Mascara Collection",
+      "productCount": 2,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/remove-the-text_a2695a32-e5ef-4b7a-a835-a9e377467da6.png?v=1786800440",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/mascara-collection.jpg",
+      "sha256": "4a6e6a54c0525f6b69202028f464c4926ef5f200eced3eeb3c2469c93126a993",
+      "bytes": 235214,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Mascara Collection — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312823889",
+      "handle": "dramatic-lashes",
+      "title": "Dramatic Lashes",
+      "productCount": 2,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-banner-for-the-false-eyelashes.png?v=1786800442",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/dramatic-lashes.jpg",
+      "sha256": "382f10907e39e6c8d739f3b8c781cfcc1e0e9fabd99245126ab2338aec0d1cb7",
+      "bytes": 264844,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Dramatic Lashes — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312856657",
+      "handle": "back-to-school",
+      "title": "Back to School",
+      "productCount": 18,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-banner-for-the-school-supplies-like-school-bags-and-waterbottles-and-lunch-boxes-pencil-boxes-and-pen-pencil.png?v=1786800446",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/back-to-school.jpg",
+      "sha256": "ea16da080ca254a66cde0b9b4967747cd2fa02d785e14d08799d6092708f976d",
+      "bytes": 232739,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Back to School — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312889425",
+      "handle": "iphone-cases",
+      "title": "iPhone Cases",
+      "productCount": 125,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-banner-for-the-i-phone-covers.png?v=1786800449",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/iphone-cases.jpg",
+      "sha256": "7e353b2c47f67d226418dc993389122fd3d084c9037ff9b2eccd1aa5c57851d1",
+      "bytes": 328958,
+      "width": 1536,
+      "height": 1024,
+      "altText": "iPhone Cases — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312922193",
+      "handle": "earbuds-and-cases",
+      "title": "Earbuds & Cases",
+      "productCount": 93,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/earbuds-collection.png?v=1786800451",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/earbuds-and-cases.jpg",
+      "sha256": "f9d9246f3cc29d7b49b9dad190cfdd45818f8a8cd332f810ed0af097fa7844a4",
+      "bytes": 200194,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Earbuds & Cases — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312954961",
+      "handle": "stationery",
+      "title": "Stationery",
+      "productCount": 38,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/enhance.png?v=1786800454",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/stationery.jpg",
+      "sha256": "935441084a8a8d2995dd2e6c95b7cfa83b5dd2152b282a3fb2908f891229bd19",
+      "bytes": 256000,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Stationery — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696312987729",
+      "handle": "mens-fashion",
+      "title": "Men's Fashion",
+      "productCount": 263,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/mens-collection.png?v=1786800457",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/mens-fashion.jpg",
+      "sha256": "84f105bd1d0f4a519197d09352965191ea48fdb28891442e95a247db61ecabae",
+      "bytes": 305087,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Men's Fashion — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313020497",
+      "handle": "men-t-shirt",
+      "title": "Men's T-Shirts",
+      "productCount": 236,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/ChatGPT_Image_Aug_3_2026_05_12_13_PM.png?v=1786800459",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/men-t-shirt.jpg",
+      "sha256": "44907d9ce08ab6b745a5acecbd42d3b770c5965345910a289e38eb89ee2f2efd",
+      "bytes": 279459,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Men's T-Shirts — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313053265",
+      "handle": "women",
+      "title": "Women",
+      "productCount": 305,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-c7bd9da6-c925-4e73-bc97-74c960a687dd.png?v=1786800462",
+        "altText": "Women collection banner"
+      },
+      "file": "src/assets/collection-artwork/women.jpg",
+      "sha256": "0bcc8b9916bba64f618c9b498c5237c8a1b09c9d89c2c87c3f831e256ca37562",
+      "bytes": 252188,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Women — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313086033",
+      "handle": "womens-fashion",
+      "title": "Women's Fashion",
+      "productCount": 178,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-0b83dea4-67bf-4444-b917-57a579ba32e7.png?v=1786800465",
+        "altText": "Women's Fashion collection banner"
+      },
+      "file": "src/assets/collection-artwork/womens-fashion.jpg",
+      "sha256": "81cb1085feca6cdfede7451af071d2ab57fd435d4997b3c084aa376e10c65c54",
+      "bytes": 325107,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Women's Fashion — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313118801",
+      "handle": "mens-bags-wallets",
+      "title": "Men's Bags & Wallets",
+      "productCount": 21,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-1b4c9cf6-007e-43bd-9052-33b2ad79c3c6.png?v=1786800467",
+        "altText": "Men's Bags & Wallets collection banner"
+      },
+      "file": "src/assets/collection-artwork/mens-bags-wallets.jpg",
+      "sha256": "90984880dded3c123906603d897fd5abd26fefd13be4670dd0755b728b7824bb",
+      "bytes": 280015,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Men's Bags & Wallets — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313151569",
+      "handle": "mens-accessories",
+      "title": "Men's Accessories",
+      "productCount": 23,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-f4ec3eef-9729-4bc4-aa6a-b0fd4f3ec961.png?v=1786800470",
+        "altText": "Men's Accessories collection banner"
+      },
+      "file": "src/assets/collection-artwork/mens-accessories.jpg",
+      "sha256": "c835c3bf7b7142bd329f203da70217c22cca182897c215159739091c5cc6ddb9",
+      "bytes": 307197,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Men's Accessories — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313184337",
+      "handle": "mens-beauty-skincare",
+      "title": "Men's Beauty & Skincare",
+      "productCount": 5,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-d053e3ed-e608-4276-ad15-e6f918030440.png?v=1786800473",
+        "altText": "Men's Beauty & Skincare collection banner"
+      },
+      "file": "src/assets/collection-artwork/mens-beauty-skincare.jpg",
+      "sha256": "eaff3021b449cabc6b14caff8f367152860c69e0b62451991da26971204c4b21",
+      "bytes": 231170,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Men's Beauty & Skincare — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313217105",
+      "handle": "kids",
+      "title": "Kids",
+      "productCount": 206,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-1e5989fa-a530-4161-9567-1992e2c52521.png?v=1786800475",
+        "altText": "Kids collection banner"
+      },
+      "file": "src/assets/collection-artwork/kids.jpg",
+      "sha256": "508b4c93b3436dc9eb784c61eab99e3d7a4c57bac0f3304bb9b9711b7386d158",
+      "bytes": 268448,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Kids — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313249873",
+      "handle": "kids-wear",
+      "title": "Kids Wear",
+      "productCount": 92,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-ad24cb55-04a2-406c-871f-15d8738e03f0.png?v=1786800477",
+        "altText": "Kids Wear collection banner"
+      },
+      "file": "src/assets/collection-artwork/kids-wear.jpg",
+      "sha256": "d884b99a6c98e640d8cdf9b4130e20e15f5260fcab017810b72d4ff99ae8bd9c",
+      "bytes": 275974,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Kids Wear — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313282641",
+      "handle": "kids-toys-games",
+      "title": "Kids Toys & Games",
+      "productCount": 48,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-205b9be0-7a49-4a96-99f4-ab5a899045b5.png?v=1786800480",
+        "altText": "Kids Toys & Games collection banner"
+      },
+      "file": "src/assets/collection-artwork/kids-toys-games.jpg",
+      "sha256": "f71a23ae17d5c60dca738d6ab6e13579dd15bc1fe8785e78ac2400e89b54a0a9",
+      "bytes": 240268,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Kids Toys & Games — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313315409",
+      "handle": "bedsheets-handlooms-towels",
+      "title": "Bedsheets, Handlooms & Towels",
+      "productCount": 37,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-3f8bb8d8-89f5-476a-847c-4a67d132b342.png?v=1786800482",
+        "altText": "Bedsheets, Handlooms & Towels collection banner"
+      },
+      "file": "src/assets/collection-artwork/bedsheets-handlooms-towels.jpg",
+      "sha256": "e7e4114dc390e279c5ddd2801d4d3f5428d217e877cb320e3a140288f5e6c8b5",
+      "bytes": 340514,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Bedsheets, Handlooms & Towels — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313348177",
+      "handle": "covers-cases",
+      "title": "Covers & Cases",
+      "productCount": 158,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-abeae8a1-5be7-4d3b-9f15-bee1b8e7f69a.png?v=1786800485",
+        "altText": "Covers & Cases collection banner"
+      },
+      "file": "src/assets/collection-artwork/covers-cases.jpg",
+      "sha256": "e451ba31692f07208eb9d7f9368b3083db6ba3da6264966700f883be7e50ab28",
+      "bytes": 281216,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Covers & Cases — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313380945",
+      "handle": "mouse-keyboard",
+      "title": "Mouse & Keyboard",
+      "productCount": 47,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-7f1a0019-f1dd-4353-8c8f-5472f77fad32.png?v=1786800487",
+        "altText": "Mouse & Keyboard collection banner"
+      },
+      "file": "src/assets/collection-artwork/mouse-keyboard.jpg",
+      "sha256": "d007c5444ad621e12a45acc317f7df9581a1c654998c3647b0486cc343e76d9b",
+      "bytes": 293707,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Mouse & Keyboard — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313413713",
+      "handle": "audio",
+      "title": "Audio & Earbuds",
+      "productCount": 226,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-a1d6797f-a8ec-40a6-81a9-74ddb0c6fcf5.png?v=1786800490",
+        "altText": "Audio & Earbuds collection banner"
+      },
+      "file": "src/assets/collection-artwork/audio.jpg",
+      "sha256": "ddf255f4f56a82429a69f4deb3eede6b8beffd033d2bcd63673d2ee9c0d5753b",
+      "bytes": 331312,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Audio & Earbuds — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313446481",
+      "handle": "office-school-supplies",
+      "title": "Office & School Supplies",
+      "productCount": 49,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-bcb740ea-362f-45e1-8d44-e2fa2551f871.png?v=1786800492",
+        "altText": "Office & School Supplies collection banner"
+      },
+      "file": "src/assets/collection-artwork/office-school-supplies.jpg",
+      "sha256": "c1af724fea398777d05fb974a0a5182a05c4cc7a12f1a9c75234cbf60f4b5b14",
+      "bytes": 214008,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Office & School Supplies — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313479249",
+      "handle": "fitness-equipment",
+      "title": "Sports & Fitness",
+      "productCount": 20,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/exec-d6d2d2ce-1d4b-4ebb-8aa3-c417797df472.png?v=1786800495",
+        "altText": "Sports & Fitness collection banner"
+      },
+      "file": "src/assets/collection-artwork/fitness-equipment.jpg",
+      "sha256": "6ef23db7fff8149367297c7c3fe22bbbc82a07beb6da4a3c6e5d3b0793145108",
+      "bytes": 281462,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Sports & Fitness — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313512017",
+      "handle": "magsafe-gadgets",
+      "title": "MagSafe Gadgets",
+      "productCount": 21,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/create-a-banner-for-the-magsafe-products.png?v=1786800497",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/magsafe-gadgets.jpg",
+      "sha256": "50a110b462c4074eb8dc47d1c294bce3f3f901da5ce08115d094bbead6f476f3",
+      "bytes": 231921,
+      "width": 1536,
+      "height": 1024,
+      "altText": "MagSafe Gadgets — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313544785",
+      "handle": "anime-collectables",
+      "title": "Anime Collectables",
+      "productCount": 0,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/anime-collectables-banner.png?v=1786800500",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/anime-collectables.jpg",
+      "sha256": "006b338541caa63c3ce5ed33b6df31b598cab0bdbce1099231bee6441659aa78",
+      "bytes": 275739,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Anime Collectables — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313577553",
+      "handle": "creator-essentials",
+      "title": "Creator Essentials",
+      "productCount": 2,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/creator-essentials-collection-banner.png?v=1786800503",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/creator-essentials.jpg",
+      "sha256": "6e85f8a7bd242589945e43425c9c14cf9526ec2dc5164eb4e0b5c9f5f37207ca",
+      "bytes": 260303,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Creator Essentials — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313610321",
+      "handle": "general-merchandise",
+      "title": "General Merchandise",
+      "productCount": 241,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/general-merchantdise.png?v=1786800505",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/general-merchandise.jpg",
+      "sha256": "19ff784e48b140bb4a4b203e2788c4308abd67e8710cf0736603508ba045bf77",
+      "bytes": 262028,
+      "width": 1536,
+      "height": 1024,
+      "altText": "General Merchandise — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313643089",
+      "handle": "jewelry-accessories",
+      "title": "Jewelry & Accessories",
+      "productCount": 65,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/jewelry-n-accessories-banner.png?v=1786800508",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/jewelry-accessories.jpg",
+      "sha256": "517babd829a798dd909a76b963c28ad308c10618c965305a0a6dbf967ba7214c",
+      "bytes": 264258,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Jewelry & Accessories — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/696313741393",
+      "handle": "hats",
+      "title": "Hats",
+      "productCount": 28,
+      "beforeImage": {
+        "url": "https://cdn.shopify.com/s/files/1/1065/7008/8529/collections/Codex_Image_17_Aug_2026_11_33_39.png?v=1786946672",
+        "altText": null
+      },
+      "file": "src/assets/collection-artwork/hats.jpg",
+      "sha256": "b23e72598f05d96065a67fe6f42d33d0e5f842ae3b145b1ad3ec1e3ec87a835b",
+      "bytes": 266483,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Hats — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/697758875729",
+      "handle": "candles",
+      "title": "Candles",
+      "productCount": 4,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/candles.jpg",
+      "sha256": "c67b0874f25fb750ea5ee5cdf9f02b3d7a735e1e0c83e772740611e3e56fcfef",
+      "bytes": 236526,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Candles — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007126097",
+      "handle": "bracelets",
+      "title": "Bracelets",
+      "productCount": 24,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/bracelets.jpg",
+      "sha256": "9a018f100ac3a5d0e20ccef4d593c5feaab6c55d82a0ae78699ba8dbdb64305f",
+      "bytes": 278825,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Bracelets — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007191633",
+      "handle": "earrings",
+      "title": "Earrings",
+      "productCount": 8,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/earrings.jpg",
+      "sha256": "0389a8247122aaa077d1fd450bc5b040bd1880b9098cb921afaa0e08957d8719",
+      "bytes": 256046,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Earrings — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007224401",
+      "handle": "everyday-jewelry",
+      "title": "Everyday Jewelry",
+      "productCount": 65,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/everyday-jewelry.jpg",
+      "sha256": "77c1a58f8d95d2b15548d395ec1b61348c6758b0bf3d2a77b9e85097bfcaf821",
+      "bytes": 230089,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Everyday Jewelry — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007257169",
+      "handle": "footwear",
+      "title": "Footwear",
+      "productCount": 8,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/footwear.jpg",
+      "sha256": "06c8d9664ef795ce00488bd52cad3bbef44d8683c02d64d30de90ef8159790ba",
+      "bytes": 279019,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Footwear — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007322705",
+      "handle": "formal-footwear",
+      "title": "Formal Footwear",
+      "productCount": 1,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/formal-footwear.jpg",
+      "sha256": "34d56354909fd862c0cc15c59432192357bc5796a66f7c0b979c5f6df68bf3dd",
+      "bytes": 282920,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Formal Footwear — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007355473",
+      "handle": "kids-footwear",
+      "title": "Kids Footwear",
+      "productCount": 4,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/kids-footwear.jpg",
+      "sha256": "962200eef996aadeff05fbc9aab3b4dd406bf4c9c0df0bb3a4ac04d7191e9e1f",
+      "bytes": 275636,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Kids Footwear — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007388241",
+      "handle": "lunch-boxes",
+      "title": "Lunch Boxes",
+      "productCount": 0,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/lunch-boxes.jpg",
+      "sha256": "d548cecd9555954fc15b57dc70c2804093b9e404c72934d5dfd36ec1476c6bc6",
+      "bytes": 282531,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Lunch Boxes — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007421009",
+      "handle": "mens-footwear",
+      "title": "Men's Footwear",
+      "productCount": 3,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/mens-footwear.jpg",
+      "sha256": "e39cfa076187da2946324fb8f0f71a295121e82b7850b8dcd80c337c1bdb761c",
+      "bytes": 229900,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Men's Footwear — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007453777",
+      "handle": "necklaces",
+      "title": "Necklaces",
+      "productCount": 3,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/necklaces.jpg",
+      "sha256": "b5567f8e7a89c185c8c06d9ff03ef1ec46df7eb876c8f367550c46dec0e1cb04",
+      "bytes": 267586,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Necklaces — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007486545",
+      "handle": "rings",
+      "title": "Rings",
+      "productCount": 6,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/rings.jpg",
+      "sha256": "c6b76dd18078f2487a7c36d11ea36877adeedf15644485b0baa4a155af1e9a32",
+      "bytes": 235498,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Rings — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007519313",
+      "handle": "school-bags",
+      "title": "School Bags",
+      "productCount": 5,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/school-bags.jpg",
+      "sha256": "3d210b1379e381ce86a07680ecaef0103bd89ad36d4db02b97e57c59a32e85dc",
+      "bytes": 288014,
+      "width": 1536,
+      "height": 1024,
+      "altText": "School Bags — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007552081",
+      "handle": "water-bottles",
+      "title": "Water Bottles",
+      "productCount": 3,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/water-bottles.jpg",
+      "sha256": "e11d20100fa1021fdcc2bb48569114c83bb72f1b8476134e5246281c09c6e87b",
+      "bytes": 226517,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Water Bottles — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007584849",
+      "handle": "wigs",
+      "title": "Wigs",
+      "productCount": 0,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/wigs.jpg",
+      "sha256": "8a10bb3543839c1490d75df1e3138113941272ed107af5f715f6f0f46db31bb0",
+      "bytes": 268064,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Wigs — VS Store collection artwork"
+    },
+    {
+      "id": "gid://shopify/Collection/698007617617",
+      "handle": "womens-footwear",
+      "title": "Women's Footwear",
+      "productCount": 0,
+      "beforeImage": null,
+      "file": "src/assets/collection-artwork/womens-footwear.jpg",
+      "sha256": "9dd3f78d79bc4b004f1f554256f5c681247653c086eaf17b5003b43b0afcfdf0",
+      "bytes": 306612,
+      "width": 1536,
+      "height": 1024,
+      "altText": "Women's Footwear — VS Store collection artwork"
+    }
+  ],
+  "fingerprint": "bab861f537dedc489ac0f7a94754e4e44e3d1c729e82ef7af18504653ea9f32d"
+}

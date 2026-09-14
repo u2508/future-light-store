@@ -25,7 +25,7 @@ export const Route = createFileRoute("/help")({
 
 function HelpPage() {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:py-12">
+    <div className="vs-wide-shell py-10 sm:py-12">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

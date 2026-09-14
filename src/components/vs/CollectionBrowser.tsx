@@ -70,7 +70,7 @@ export function CollectionBrowser({
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const setFilter = (patch: Partial<BrowserSearch>) => {
-    navigate({ to: routeTo, search: (prev) => ({ ...(prev as BrowserSearch), ...patch }) });
+    navigate({ to: routeTo, search: (prev: BrowserSearch) => ({ ...prev, ...patch }) });
   };
   const clearAll = () =>
     navigate({
@@ -308,7 +308,7 @@ export function CollectionBrowser({
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="vs-wide-shell py-8">
       <div className="vs-section-shell rounded-[2rem] p-6 sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">

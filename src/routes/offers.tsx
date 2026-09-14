@@ -40,7 +40,7 @@ function OffersPage() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10">
+    <div className="vs-wide-shell py-10">
       <section className="grid gap-6 rounded-[2rem] vs-hero-gradient p-7 text-primary-foreground shadow-[var(--shadow-lift)] sm:p-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] opacity-75">
