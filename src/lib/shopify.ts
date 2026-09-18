@@ -54,6 +54,22 @@ export interface ShopifyProduct {
   node: ShopifyProductNode;
 }
 
+/**
+ * Storefront responses can contain a representative variant whose availability
+ * differs from the product-level flag. A product is purchasable when Shopify
+ * explicitly reports either level as available; only an all-false response is
+ * treated as sold out.
+ */
+export function isProductAvailable(product: ShopifyProductNode) {
+  const variants = product.variants?.edges?.map((edge) => edge.node).filter(Boolean) ?? [];
+  if (product.availableForSale === true) return true;
+  if (variants.some((variant) => variant.availableForSale === true)) return true;
+  if (variants.length > 0 && variants.every((variant) => variant.availableForSale === false)) {
+    return false;
+  }
+  return product.availableForSale !== false;
+}
+
 interface SearchShardManifest {
   total?: number;
   shards?: Array<{ path?: string }>;
@@ -98,7 +114,21 @@ interface CatalogProductRecord extends SearchProductRecord {
   options?: Array<{ name?: string; values?: string[] }>;
 }
 
+interface ProductSeoRecord {
+  handle?: string;
+  title?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  descriptionHtml?: string;
+  productType?: string;
+}
+
+interface ProductSeoManifest {
+  products?: ProductSeoRecord[];
+}
+
 let renderedThemeAssetMap: ThemeAssetMap | undefined;
+let productSeoIndexPromise: Promise<Map<string, ProductSeoRecord>> | undefined;
 
 function getThemeAssetMap() {
   if (typeof window === "undefined") return undefined;
@@ -138,6 +168,53 @@ async function fetchThemeJson<T>(path: string): Promise<T> {
   const response = await fetch(url, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`Theme catalog request failed (${response.status})`);
   return (await response.json()) as T;
+}
+
+async function loadProductSeoIndex() {
+  try {
+    const manifest = await fetchThemeJson<ProductSeoManifest>("/data/product-seo.json");
+    const index = new Map<string, ProductSeoRecord>();
+    for (const record of manifest.products ?? []) {
+      const handle = String(record.handle ?? "").trim();
+      if (handle) index.set(handle, record);
+    }
+    return index;
+  } catch (error) {
+    console.warn("Product SEO artifact unavailable; using Shopify catalog copy", error);
+    return new Map<string, ProductSeoRecord>();
+  }
+}
+
+function getProductSeoIndex() {
+  productSeoIndexPromise ??= loadProductSeoIndex();
+  return productSeoIndexPromise;
+}
+
+function applyProductSeoToNode(
+  product: ShopifyProductNode,
+  index: Map<string, ProductSeoRecord>,
+): ShopifyProductNode {
+  const record = index.get(product.handle);
+  if (!record) return product;
+  const title = String(record.seoTitle || record.title || "").trim();
+  const description = String(record.seoDescription || "").trim();
+  const descriptionHtml = String(record.descriptionHtml || "").trim();
+  return {
+    ...product,
+    ...(title ? { title } : {}),
+    ...(description ? { description } : {}),
+    ...(descriptionHtml ? { descriptionHtml } : {}),
+    ...(record.productType ? { productType: record.productType } : {}),
+  };
+}
+
+async function applyProductSeoToProducts(products: ShopifyProduct[]) {
+  const index = await getProductSeoIndex();
+  if (!index.size) return products;
+  return products.map((product) => ({
+    ...product,
+    node: applyProductSeoToNode(product.node, index),
+  }));
 }
 
 function shopifyGid(type: "Product" | "ProductVariant", id: number | string | undefined) {
@@ -296,7 +373,7 @@ async function fetchStaticSearchProducts(): Promise<ShopifyProduct[]> {
   if (Number.isFinite(manifest.total) && products.length < Number(manifest.total)) {
     throw new Error("Theme search catalog is incomplete");
   }
-  return products;
+  return applyProductSeoToProducts(products);
 }
 
 async function fetchStaticCatalogProducts(): Promise<ShopifyProduct[]> {
@@ -313,7 +390,7 @@ async function fetchStaticCatalogProducts(): Promise<ShopifyProduct[]> {
   if (Number.isFinite(manifest.total) && products.length < Number(manifest.total)) {
     throw new Error("Theme product catalog is incomplete");
   }
-  return products;
+  return applyProductSeoToProducts(products);
 }
 
 export const PRODUCT_FRAGMENT = `
@@ -459,7 +536,7 @@ export async function fetchProducts(first = 50, query?: string): Promise<Shopify
     after: null,
     query: query ?? null,
   });
-  return data?.data?.products?.edges ?? [];
+  return applyProductSeoToProducts(data?.data?.products?.edges ?? []);
 }
 
 /**
@@ -508,12 +585,15 @@ export async function fetchAllProducts(query?: string): Promise<ShopifyProduct[]
     after = connection?.pageInfo?.endCursor ?? null;
   }
 
-  return products;
+  return applyProductSeoToProducts(products);
 }
 
 export async function fetchProduct(handle: string): Promise<ShopifyProductNode | null> {
   const data = await storefrontApiRequest(PRODUCT_BY_HANDLE_QUERY, { handle });
-  return data?.data?.product ?? null;
+  const product = data?.data?.product ?? null;
+  if (!product) return null;
+  const index = await getProductSeoIndex();
+  return applyProductSeoToNode(product, index);
 }
 
 export async function fetchCollections(first = 20): Promise<ShopifyCollection[]> {
@@ -525,9 +605,12 @@ export async function fetchCollection(handle: string) {
   const data = await storefrontApiRequest(COLLECTION_BY_HANDLE_QUERY, { handle, first: 100 });
   const collection = data?.data?.collection;
   if (!collection) return null;
+  const products = await applyProductSeoToProducts(
+    (collection.products?.edges ?? []) as ShopifyProduct[],
+  );
   return {
     ...collection,
-    products: (collection.products?.edges ?? []) as ShopifyProduct[],
+    products,
   } as ShopifyCollection & { products: ShopifyProduct[] };
 }
 

@@ -287,13 +287,24 @@ export function buildCollectionCaption(collection, config, { offer = null } = {}
 
 export function buildWelcomeCaption(config, { offer = null } = {}) {
   const offerSentence = offer?.code
-    ? ` This week’s welcome offer is ${offer.percent}% off selected VS Store finds with code ${offer.code}.`
+    ? ` As a thank-you to the VS Store family, use code ${offer.code} for ${offer.percent}% off storewide while the weekend sale is active.`
     : "";
   return validatePostCopy(
     [
-      "Welcome to VS Store ✨",
+      "A heartfelt thank-you to the VS Store family ✨",
       `We’re glad you’re here. Take a little time to explore useful finds, thoughtful details, and new ideas for everyday moments.${offerSentence}`,
       `Visit the store: ${config.siteUrl}/?utm_source=facebook&utm_medium=organic_social&utm_campaign=vs_store_daily_social&utm_content=welcome-banner`,
+    ].join("\n\n"),
+    {},
+  );
+}
+
+export function buildPromotionCaption(config) {
+  return validatePostCopy(
+    [
+      "A little something special is coming to VS Store this Friday ✨",
+      "Keep an eye on the weekly sale and discover useful finds, thoughtful details, and fresh ideas for everyday moments.",
+      `See the latest offers: ${config.siteUrl}/offers?utm_source=facebook&utm_medium=organic_social&utm_campaign=vs_store_daily_social&utm_content=friday-sale-teaser`,
     ].join("\n\n"),
     {},
   );
@@ -336,6 +347,7 @@ export function contentImageUrl(content) {
     return (
       content.product?.featuredImage?.url ||
       content.product?.image?.src ||
+      content.product?.images?.nodes?.[0]?.url ||
       content.product?.images?.[0]?.src ||
       ""
     );
@@ -344,6 +356,8 @@ export function contentImageUrl(content) {
       content.collection?.image?.url ||
       content.collection?.image?.src ||
       content.collection?.products?.nodes?.[0]?.featuredImage?.url ||
+      content.collection?.products?.nodes?.[0]?.images?.nodes?.[0]?.url ||
+      content.collection?.products?.nodes?.[0]?.images?.[0]?.src ||
       ""
     );
   return "";

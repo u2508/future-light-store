@@ -10,6 +10,7 @@ import {
   recommendedConcurrency,
   stableJson,
 } from "./lib/performance-runtime.mjs";
+import { FUTURE_LIGHT_SHOP_DOMAIN } from "./lib/product-image-health.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -52,28 +53,32 @@ function isRetryable(error) {
 }
 
 export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
-  const shopBase = process.env.SALT_SHOP_URL;
-  if (!shopBase) throw new Error("SALT_SHOP_URL is required for Future Light Store Shopify operations.");
+  const configuredShop = String(process.env.FUTURE_LIGHT_SHOP_URL || process.env.FUTURE_LIGHT_SHOP_DOMAIN || FUTURE_LIGHT_SHOP_DOMAIN).trim();
+  const shopBase = configuredShop.includes("://") ? configuredShop : `https://${configuredShop}`;
   const storeDomain = new URL(shopBase).hostname;
-  const apiVersion = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
-  const accessToken = (process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SALT_SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim();
+  if (storeDomain !== FUTURE_LIGHT_SHOP_DOMAIN) {
+    throw new Error(`Refused Shopify target ${storeDomain}; Future Light Store requires ${FUTURE_LIGHT_SHOP_DOMAIN}.`);
+  }
+  const apiVersion = process.env.FUTURE_LIGHT_SHOPIFY_API_VERSION || process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
+  const accessToken = (process.env.FUTURE_LIGHT_SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim();
   const graphqlUrl = `${new URL(shopBase).origin}/admin/api/${apiVersion}/graphql.json`;
   const cliBinary = process.env.SHOPIFY_CLI_BINARY || "shopify";
-  const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
+  const requestDelayMs = Math.max(0, Number(process.env.FUTURE_LIGHT_SHOPIFY_REQUEST_DELAY_MS || 125));
   const requestConcurrency = envInteger(
-    "SALT_SHOPIFY_REQUEST_CONCURRENCY",
+    "FUTURE_LIGHT_SHOPIFY_REQUEST_CONCURRENCY",
     recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
     { min: 1, max: 8 },
   );
-  const requestTimeoutMs = Math.max(10_000, Number(process.env.SALT_SHOPIFY_REQUEST_TIMEOUT_MS || 180_000));
-  const maxAttempts = Math.max(1, Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
-  const maxRetryDelayMs = Math.max(1000, Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));
-  const cliAgentInfo = process.env.SHOPIFY_CLI_AGENT_INFO || `n:future-light-store|v:1|p:${agentName}`;
+  const requestTimeoutMs = Math.max(10_000, Number(process.env.FUTURE_LIGHT_SHOPIFY_REQUEST_TIMEOUT_MS || 180_000));
+  const maxAttempts = Math.max(1, Number(process.env.FUTURE_LIGHT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
+  const maxRetryDelayMs = Math.max(1000, Number(process.env.FUTURE_LIGHT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));
+  const cliAgentInfo = process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_INFO || `n:future-light-store|v:1|p:${agentName}`;
   const cliAgentIds =
-    process.env.SHOPIFY_CLI_AGENT_IDS ||
+    process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_IDS ||
     `s:${process.env.CONVERSATION_ID || "local"}|r:${process.pid}|i:${agentName}`;
   const requestScheduler = createRequestScheduler({ concurrency: requestConcurrency, minIntervalMs: requestDelayMs });
   const inFlightReads = createInFlightCache();
+  const safeChildEnv = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^SALT_/i.test(key)));
 
   async function run(query, variables = {}, { allowMutations = false, operation = "Shopify request", retryInfo = [] } = {}) {
     const cacheKey = allowMutations ? "" : `${query}\n${stableJson(variables)}`;
@@ -127,7 +132,7 @@ export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
             const result = await execFileAsync(cliBinary, args, {
             cwd: rootDir,
             env: {
-              ...process.env,
+              ...safeChildEnv(),
               CI: "1",
               SHOPIFY_CLI_DISABLE_ANALYTICS: "1",
               SHOPIFY_CLI_AGENT_INFO: cliAgentInfo,
@@ -148,15 +153,19 @@ export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
             await rm(tempDir, { recursive: true, force: true });
           }
         } catch (error) {
-          if (!isRetryable(error) || attempt >= maxAttempts - 1) {
-            throw new Error(`${operation} failed: ${normalizeText(error?.message || error)}`);
+          const detail = [error?.message, error?.stderr, error?.stdout]
+            .filter(Boolean)
+            .map((value) => normalizeText(value))
+            .join(" | ");
+          if (!isRetryable(detail) || attempt >= maxAttempts - 1) {
+            throw new Error(`${operation} failed: ${detail || normalizeText(error)}`);
           }
           const delayMs = Math.min(maxRetryDelayMs, Math.max(requestDelayMs, 1000 * 2 ** attempt));
           retryInfo.push({
             operation,
             attempt: attempt + 1,
             delayMs,
-            message: normalizeText(error?.message || error).slice(0, 500),
+            message: detail.slice(0, 500),
             at: new Date().toISOString(),
           });
           await sleep(delayMs);

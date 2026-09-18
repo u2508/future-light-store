@@ -12,12 +12,12 @@ import { envInteger, recommendedConcurrency } from "./lib/performance-runtime.mj
 const rootDir = resolve(import.meta.dirname, "..");
 const defaultOutputPath = resolve(rootDir, "output", "shopify-variant-cost-price-alignment-manifest.json");
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "variant-cost-price-alignment" });
-const tolerance = Math.max(0, Number(process.env.SALT_VARIANT_COST_TOLERANCE || 2));
-const priceFloor = Math.max(0, Number(process.env.SALT_CATALOG_PRICE_FLOOR || PRICE_REWORK_RULES.minimumSellPrice));
-const pageSize = Math.max(1, Math.min(250, Number(process.env.SALT_VARIANT_COST_PAGE_SIZE || 100)));
-const readbackAttempts = Math.max(1, Number(process.env.SALT_VARIANT_COST_READBACK_ATTEMPTS || 5));
+const tolerance = Math.max(0, Number(process.env.FUTURE_LIGHT_VARIANT_COST_TOLERANCE || 2));
+const priceFloor = Math.max(0, Number(process.env.FUTURE_LIGHT_CATALOG_PRICE_FLOOR || PRICE_REWORK_RULES.minimumSellPrice));
+const pageSize = Math.max(1, Math.min(250, Number(process.env.FUTURE_LIGHT_VARIANT_COST_PAGE_SIZE || 100)));
+const readbackAttempts = Math.max(1, Number(process.env.FUTURE_LIGHT_VARIANT_COST_READBACK_ATTEMPTS || 5));
 const applyConcurrency = envInteger(
-  "SALT_VARIANT_COST_APPLY_CONCURRENCY",
+  "FUTURE_LIGHT_VARIANT_COST_APPLY_CONCURRENCY",
   recommendedConcurrency({ kind: "io", reserve: 2, max: 4 }),
   { min: 1, max: 4 },
 );
@@ -178,10 +178,10 @@ function manifestForPlan(plan, mode) {
       priceFloor,
       readbackAttempts,
       applyConcurrency,
-      targetPrice: "cost-based retail target calculated independently from each variant cost; same-product cost grouping is only a bounded safety scope",
+      targetPrice: "nominal market-band target calculated independently from each variant cost; same-product cost grouping is only a bounded safety scope",
       quantityTiers: "held outside automatic alignment",
       compareAt: "preserve absence; when present normalize to the cost-based target with psychological rounding",
-      sourceOfTruth: "live Shopify variant inventoryItem.unitCost and the approved cost-based retail strategy",
+      sourceOfTruth: "live Shopify variant inventoryItem.unitCost and the approved Future Light nominal-market retail strategy",
     },
     summary: plan.summary,
     products,

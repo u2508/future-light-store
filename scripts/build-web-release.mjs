@@ -182,6 +182,8 @@ async function main() {
   await ensure(resolve(rootDir, "output", "product-knowledge.json"), "validated product knowledge artifact");
   await ensure(resolve(rootDir, "public", "data", "products.json"), "full product catalog manifest");
   await ensure(resolve(rootDir, "public", "data", "product-search.json"), "product search manifest");
+  await ensure(resolve(rootDir, "public", "data", "product-browse.json"), "product browse manifest");
+  await ensure(resolve(rootDir, "public", "data", "product-seo.json"), "product SEO manifest");
   await ensure(resolve(rootDir, "public", "data", "home-collection-products.json"), "homepage collection artifact");
 
   const useWorkspaceNodeModules = process.env.SALT_BUILD_USE_WORKSPACE_NODE_MODULES === "1"

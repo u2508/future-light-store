@@ -1,9 +1,16 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import {
   retryDelayMs,
   parseRetryAfterMs,
   sleep,
   createRequestScheduler,
 } from "./performance-runtime.mjs";
+
+const execFileAsync = promisify(execFile);
 
 export const SOCIAL_PRODUCTS_QUERY = /* GraphQL */ `
   query VsStoreSocialProducts($first: Int!, $after: String) {
@@ -144,9 +151,57 @@ export const SOCIAL_COLLECTION_OFFER_QUERY = /* GraphQL */ `
   }
 `;
 
+export const SOCIAL_STOREWIDE_OFFER_QUERY = /* GraphQL */ `
+  query VsStoreSocialStorewideOffer($first: Int!, $after: String) {
+    products(first: $first, after: $after, query: "status:active", sortKey: UPDATED_AT) {
+      nodes {
+        id
+        status
+        publishedAt
+        totalInventory
+        variants(first: 250) {
+          nodes {
+            id
+            price
+            inventoryQuantity
+            inventoryItem {
+              unitCost {
+                amount
+                currencyCode
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
 export const SOCIAL_DISCOUNT_CREATE_MUTATION = /* GraphQL */ `
   mutation VsStoreSocialDiscountCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
     discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+      codeDiscountNode {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+export const SOCIAL_DISCOUNT_UPDATE_MUTATION = /* GraphQL */ `
+  mutation VsStoreSocialDiscountUpdate($id: ID!, $basicCodeDiscount: DiscountCodeBasicInput!) {
+    discountCodeBasicUpdate(id: $id, basicCodeDiscount: $basicCodeDiscount) {
       codeDiscountNode {
         id
       }
@@ -188,6 +243,9 @@ export const SOCIAL_DISCOUNT_READ_QUERY = /* GraphQL */ `
                 }
               }
               items {
+                ... on AllDiscountItems {
+                  allItems
+                }
                 ... on DiscountProducts {
                   products(first: 250) {
                     nodes {
@@ -252,9 +310,27 @@ function graphQlErrorMessage(errors) {
     .join(" | ");
 }
 
+function parseCliPayload(raw) {
+  const text = String(raw || "").trim();
+  const jsonStart = text.indexOf("{");
+  if (jsonStart < 0) throw new Error(text || "Shopify CLI returned no JSON payload.");
+  let payload;
+  try {
+    payload = JSON.parse(text.slice(jsonStart));
+  } catch {
+    throw new Error("Shopify CLI returned invalid JSON.");
+  }
+  if (asArray(payload?.errors).length) {
+    throw new Error(graphQlErrorMessage(payload.errors));
+  }
+  return payload?.data || payload || {};
+}
+
 function isRetryable(error) {
   return Boolean(
     error?.retryable ||
+    error?.killed ||
+    error?.signal === "SIGTERM" ||
     error?.code === "ETIMEDOUT" ||
     error?.code === "EAI_AGAIN" ||
     error?.code === "ENOTFOUND" ||
@@ -267,17 +343,85 @@ function isRetryable(error) {
 export function createVsStoreShopifyClient(config) {
   if (!config.storeDomain) throw new Error("FUTURE_LIGHT_SHOPIFY_STORE_DOMAIN is required.");
   const endpoint = `https://${config.storeDomain}/admin/api/${config.shopifyApiVersion}/graphql.json`;
+  const useCli = Boolean(config.shopifyUseCli);
+  const cliBinary = config.shopifyCliBinary || "shopify";
   const scheduler = createRequestScheduler({
-    concurrency: config.requestConcurrency,
+    // Shopify CLI's stored-auth session is shared by every invocation; keep
+    // CLI-backed reads/mutations serialized so parallel commands cannot race
+    // the session lock. Direct Admin API token mode remains concurrent.
+    concurrency: useCli ? 1 : config.requestConcurrency,
     minIntervalMs: 100,
   });
+
+  async function runViaCli(query, variables, { allowMutation = false, operation }) {
+    const tempDir = await mkdtemp(join(tmpdir(), "vs-store-social-shopify-cli-"));
+    const queryPath = join(tempDir, "operation.graphql");
+    const variablesPath = join(tempDir, "variables.json");
+    const outputPath = join(tempDir, "result.json");
+    try {
+      await Promise.all([
+        writeFile(queryPath, query, "utf8"),
+        writeFile(variablesPath, JSON.stringify(variables), "utf8"),
+      ]);
+      const args = [
+        "store",
+        "execute",
+        "--store",
+        config.storeDomain,
+        "--version",
+        config.shopifyApiVersion,
+        "--query-file",
+        queryPath,
+        "--variable-file",
+        variablesPath,
+        "--output-file",
+        outputPath,
+        "--json",
+      ];
+      if (allowMutation) args.push("--allow-mutations");
+      const result = await execFileAsync(cliBinary, args, {
+        cwd: config.rootDir,
+        env: {
+          ...process.env,
+          CI: "1",
+          SHOPIFY_CLI_DISABLE_ANALYTICS: "1",
+          SHOPIFY_CLI_AGENT_INFO: "n:vs-store-social|v:1|p:openai",
+          SHOPIFY_CLI_AGENT_IDS: `s:${process.env.CONVERSATION_ID || "future-light-store"}|r:${process.pid}|i:local`,
+        },
+        maxBuffer: 20 * 1024 * 1024,
+        timeout: Math.max(config.requestTimeoutMs, 120_000),
+        killSignal: "SIGTERM",
+      });
+      let raw = result.stdout || "";
+      try {
+        const output = await readFile(outputPath, "utf8");
+        if (String(output).trim()) raw = output;
+      } catch {
+        // Older CLI versions emit JSON on stdout only.
+      }
+      return parseCliPayload(raw);
+    } catch (error) {
+      const detail =
+        [error?.stderr, error?.stdout, error?.message, error]
+          .map((value) => normalizeText(value))
+          .find(Boolean) || "unknown Shopify CLI error";
+      const wrapped = new Error(`${operation} via Shopify CLI failed: ${detail.slice(0, 800)}`);
+      wrapped.code = error?.code;
+      wrapped.killed = error?.killed;
+      wrapped.signal = error?.signal;
+      wrapped.retryable = isRetryable(error) || isRetryable(wrapped);
+      throw wrapped;
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  }
 
   async function run(
     query,
     variables = {},
     { operation = "Shopify social request", retryInfo = [], allowMutation = false } = {},
   ) {
-    if (!config.shopifyAdminAccessToken) {
+    if (!config.shopifyAdminAccessToken && !useCli) {
       const error = new Error("FUTURE_LIGHT_SHOPIFY_ADMIN_ACCESS_TOKEN is not configured.");
       error.code = "MISSING_CREDENTIAL";
       throw error;
@@ -285,6 +429,9 @@ export function createVsStoreShopifyClient(config) {
     return scheduler.run(async () => {
       for (let attempt = 0; attempt < config.maxAttempts; attempt += 1) {
         try {
+          if (useCli) {
+            return await runViaCli(query, variables, { allowMutation, operation });
+          }
           const response = await fetch(endpoint, {
             method: "POST",
             headers: {
@@ -352,7 +499,13 @@ export function createVsStoreShopifyClient(config) {
     });
   }
 
-  return { run, endpoint, storeDomain: config.storeDomain, apiVersion: config.shopifyApiVersion };
+  return {
+    run,
+    endpoint,
+    storeDomain: config.storeDomain,
+    apiVersion: config.shopifyApiVersion,
+    authMode: useCli ? "shopify-cli" : "admin-token",
+  };
 }
 
 async function fetchConnection(
@@ -426,6 +579,19 @@ export async function fetchCollectionForOffer(client, collectionId, { retryInfo 
   return data?.node || null;
 }
 
+export async function fetchStorewideProductsForOffer(client, { retryInfo = [] } = {}) {
+  const products = await fetchConnection(client, SOCIAL_STOREWIDE_OFFER_QUERY, "products", {
+    pageSize: 50,
+    retryInfo,
+  });
+  return products.filter(
+    (product) =>
+      normalizeText(product?.status).toUpperCase() === "ACTIVE" &&
+      Boolean(product?.publishedAt) &&
+      (product?.totalInventory === null || Number(product?.totalInventory) > 0),
+  );
+}
+
 export function assessDiscountMargin(products, config) {
   const items = asArray(products);
   if (!items.length) return { eligible: false, reason: "no-target-products" };
@@ -489,9 +655,11 @@ export function assessDiscountMargin(products, config) {
 
 export function buildDiscountInput({ code, title, percent, startsAt, endsAt, target }) {
   const items =
-    target?.type === "collection"
-      ? { collections: { add: [target.id] } }
-      : { products: { productsToAdd: [target.id] } };
+    target?.type === "all"
+      ? { all: true }
+      : target?.type === "collection"
+        ? { collections: { add: [target.id] } }
+        : { products: { productsToAdd: [target.id] } };
   return {
     title,
     code,
@@ -532,6 +700,28 @@ export async function createDiscount(client, input, { retryInfo = [] } = {}) {
   const id = normalizeText(payload?.codeDiscountNode?.id);
   if (!id) throw new Error("Shopify discount creation returned no discount ID.");
   return { id };
+}
+
+export async function updateDiscount(client, id, input, { retryInfo = [] } = {}) {
+  const data = await client.run(
+    SOCIAL_DISCOUNT_UPDATE_MUTATION,
+    { id, basicCodeDiscount: input },
+    {
+      operation: `social discount update ${input.code}`,
+      retryInfo,
+      allowMutation: true,
+    },
+  );
+  const payload = data?.discountCodeBasicUpdate;
+  const userErrors = asArray(payload?.userErrors);
+  if (userErrors.length) {
+    throw new Error(
+      `Shopify discount update failed: ${userErrors.map((error) => normalizeText(error?.message)).join(" | ")}`,
+    );
+  }
+  const updatedId = normalizeText(payload?.codeDiscountNode?.id);
+  if (!updatedId) throw new Error("Shopify discount update returned no discount ID.");
+  return { id: updatedId };
 }
 
 export async function readDiscount(client, id, { retryInfo = [] } = {}) {
@@ -608,7 +798,19 @@ export function verifyDiscountReadback(discount, { input, target, percent }) {
   const collectionIds = asArray(discount?.customerGets?.items?.collections?.nodes)
     .map((entry) => entry?.id)
     .filter(Boolean);
+  if (target?.type === "all" && discount?.customerGets?.items?.allItems !== true) {
+    throw new Error("Shopify discount readback is not storewide.");
+  }
   const targetIds = target?.type === "collection" ? collectionIds : productIds;
+  if (target?.type === "all") {
+    return {
+      code: input.code,
+      status: discount.status,
+      percent,
+      targetId: "all",
+      targetType: "all",
+    };
+  }
   if (!targetIds.includes(target.id))
     throw new Error("Shopify discount readback target does not match the promoted item.");
   return {

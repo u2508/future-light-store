@@ -105,6 +105,48 @@ export function nextScheduledDate(now, timeZone, hour, minimumLeadMinutes = 25) 
   return target;
 }
 
+export function nextScheduledDateForWeekday(
+  now,
+  timeZone,
+  hour,
+  targetWeekday,
+  minimumLeadMinutes = 25,
+) {
+  const local = getZonedParts(now, timeZone);
+  const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const currentWeekday = weekdayNames.indexOf(local.weekday);
+  const normalizedTarget =
+    typeof targetWeekday === "string" ? weekdayNames.indexOf(targetWeekday) : Number(targetWeekday);
+  if (currentWeekday < 0 || normalizedTarget < 0 || normalizedTarget > 6) {
+    return nextScheduledDate(now, timeZone, hour, minimumLeadMinutes);
+  }
+  let daysAhead = (normalizedTarget - currentWeekday + 7) % 7;
+  let target = zonedDateTimeToUtc(
+    {
+      year: local.year,
+      month: local.month,
+      day: local.day + daysAhead,
+      hour,
+      minute: 0,
+    },
+    timeZone,
+  );
+  if (target.getTime() <= now.getTime() + minimumLeadMinutes * 60 * 1000) {
+    daysAhead += 7;
+    target = zonedDateTimeToUtc(
+      {
+        year: local.year,
+        month: local.month,
+        day: local.day + daysAhead,
+        hour,
+        minute: 0,
+      },
+      timeZone,
+    );
+  }
+  return target;
+}
+
 export function createVsStoreMetaClient(config) {
   if (!config.metaPageId) throw new Error("FUTURE_LIGHT_META_PAGE_ID is required.");
   if (!config.metaPageAccessToken)
@@ -168,10 +210,20 @@ export function createVsStoreMetaClient(config) {
 
   async function pageReadback({ retryInfo = [] } = {}) {
     return request(`/${encodeURIComponent(config.metaPageId)}`, {
-      query: { fields: "id,name" },
+      query: { fields: "id,name,instagram_business_account{id,username}" },
       retryInfo,
       operation: "Meta VS Store Page readback",
     });
+  }
+
+  async function instagramAccountReadback({ retryInfo = [] } = {}) {
+    const page = await pageReadback({ retryInfo });
+    const linked = page?.instagram_business_account;
+    return {
+      id: normalizeText(config.metaInstagramAccountId || linked?.id),
+      username: normalizeText(linked?.username || config.metaInstagramUsername),
+      page,
+    };
   }
 
   async function audiencePeak({ retryInfo = [] } = {}) {
@@ -225,6 +277,33 @@ export function createVsStoreMetaClient(config) {
     });
   }
 
+  async function publishInstagramPhoto({ accountId, imageUrl, caption, retryInfo = [] }) {
+    if (!accountId) throw new Error("Linked Instagram Business account ID is required.");
+    if (!imageUrl) throw new Error("A public Instagram image URL is required for API publishing.");
+    const container = await request(`/${encodeURIComponent(accountId)}/media`, {
+      method: "POST",
+      body: new URLSearchParams({ image_url: imageUrl, caption }),
+      retryInfo,
+      operation: "Instagram media container create",
+    });
+    const creationId = normalizeText(container?.id || container?.creation_id);
+    if (!creationId) throw new Error("Instagram media container response did not include an ID.");
+    return request(`/${encodeURIComponent(accountId)}/media_publish`, {
+      method: "POST",
+      body: new URLSearchParams({ creation_id: creationId }),
+      retryInfo,
+      operation: "Instagram media publish",
+    });
+  }
+
+  async function instagramPostReadback(postId, { retryInfo = [] } = {}) {
+    return request(`/${encodeURIComponent(postId)}`, {
+      query: { fields: "id,caption,media_type,media_url,permalink,timestamp" },
+      retryInfo,
+      operation: `Instagram post readback ${postId}`,
+    });
+  }
+
   async function postReadback(postId, { retryInfo = [] } = {}) {
     return request(`/${encodeURIComponent(postId)}`, {
       query: {
@@ -235,5 +314,14 @@ export function createVsStoreMetaClient(config) {
     });
   }
 
-  return { request, pageReadback, audiencePeak, schedulePhoto, postReadback };
+  return {
+    request,
+    pageReadback,
+    instagramAccountReadback,
+    audiencePeak,
+    schedulePhoto,
+    publishInstagramPhoto,
+    postReadback,
+    instagramPostReadback,
+  };
 }

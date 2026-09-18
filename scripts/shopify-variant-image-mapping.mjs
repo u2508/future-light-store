@@ -17,12 +17,22 @@ const defaultOutputPath = resolve(rootDir, "output", "shopify-variant-image-mapp
 const defaultHandlesPath = resolve(rootDir, "output", "shopify-seo-scope-handles.json");
 const defaultMediaCachePath = resolve(rootDir, "output", "shopify-variant-image-live-media-cache.json");
 const defaultCheckpointPath = resolve(rootDir, "output", "shopify-variant-image-mapping-checkpoint.json");
-const shopBase = process.env.SALT_SHOP_URL;
-if (!shopBase) throw new Error("SALT_SHOP_URL is required for Future Light Store variant-image mapping.");
-const storeDomain = new URL(shopBase).hostname;
+function normalizeStoreUrl(rawValue) {
+  const value = String(rawValue || "").trim();
+  if (!value) return "";
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+}
+
+// This Future Light workflow must not read SALT credentials or store config.
+// Keep the module importable for pure mapping tests; the executable path
+// validates the Future Light store configuration before making any request.
+const shopBase = normalizeStoreUrl(
+  process.env.FUTURE_LIGHT_SHOP_URL || process.env.FUTURE_LIGHT_SHOP_DOMAIN,
+);
+const storeDomain = shopBase ? new URL(shopBase).hostname : "";
 const apiVersion = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
-const adminAccessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SALT_SHOPIFY_ADMIN_ACCESS_TOKEN || "";
-const adminGraphqlUrl = `${new URL(shopBase).origin}/admin/api/${apiVersion}/graphql.json`;
+const adminAccessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "";
+const adminGraphqlUrl = shopBase ? `${new URL(shopBase).origin}/admin/api/${apiVersion}/graphql.json` : "";
 const cliBinary = process.env.SHOPIFY_CLI_BINARY || "shopify";
 const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
 const requestConcurrency = envInteger(
@@ -46,7 +56,12 @@ const verifyConcurrency = envInteger(
   { min: 1, max: 4 },
 );
 const interBatchDelayMs = Math.max(0, Number(process.env.SALT_VARIANT_IMAGE_INTER_BATCH_DELAY_MS || 500));
-const forceGuesses = process.env.SALT_VARIANT_IMAGE_FORCE_GUESSES !== "0";
+// A variant with no deterministic or supervised visual evidence must remain
+// unresolved.  The old default silently assigned a "best available" image,
+// which can show a different colour, model, or even a different product to a
+// customer.  Future Light uses explicit visual-review approvals for those
+// cases; guesses are never enabled implicitly.
+const forceGuesses = process.env.FUTURE_LIGHT_VARIANT_IMAGE_FORCE_GUESSES === "1";
 const visionEnabled = process.env.SALT_VARIANT_IMAGE_VISION !== "0";
 const visionConcurrency = envInteger("SALT_VARIANT_IMAGE_VISION_CONCURRENCY", 1, { min: 1, max: 8 });
 const planConcurrency = envInteger(
@@ -1808,6 +1823,9 @@ async function verifyProducts(plannedProducts) {
 }
 
 async function main() {
+  if (!shopBase) {
+    throw new Error("FUTURE_LIGHT_SHOP_URL or FUTURE_LIGHT_SHOP_DOMAIN is required for Future Light variant-image mapping.");
+  }
   const args = parseArgs(process.argv);
   const [snapshot, scopeHandles] = await Promise.all([
     loadSnapshot(args.inputPath),
@@ -1862,6 +1880,13 @@ async function main() {
     products: plannedProducts,
     failures: [],
   };
+
+  if (args.mode === "apply" && summary.forcedGuessVariants > 0) {
+    throw new Error(
+      `Refusing live variant-image mutation: ${summary.forcedGuessVariants} forced-guess association(s) remain. ` +
+      "Complete the ChatGPT visual-review mapping contract first.",
+    );
+  }
 
   if (args.mode === "dry-run") {
     await writeJsonAtomic(args.outputPath, manifest);

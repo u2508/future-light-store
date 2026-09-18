@@ -3,6 +3,26 @@ import { createHash } from "node:crypto";
 import { contentImageUrl } from "./vs-store-social-copy.mjs";
 import { isOfferStillActive } from "./vs-store-social-state.mjs";
 
+export const WEEKDAY_INDEX = Object.freeze({
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+});
+
+export const WEEKLY_SOCIAL_SCHEDULE = Object.freeze({
+  Sun: Object.freeze({ slot: "sunday-collection", kind: "collection", variant: "showcase" }),
+  Mon: Object.freeze({ slot: "monday-product", kind: "product", variant: "showcase" }),
+  Tue: Object.freeze({ slot: "tuesday-promotion", kind: "banner", variant: "promotion-teaser" }),
+  Wed: Object.freeze({ slot: "wednesday-product", kind: "product", variant: "showcase" }),
+  Thu: Object.freeze({ slot: "thursday-collection", kind: "collection", variant: "showcase" }),
+  Fri: Object.freeze({ slot: "friday-heartfelt", kind: "banner", variant: "heartfelt" }),
+  Sat: Object.freeze({ slot: "saturday-collection", kind: "collection", variant: "showcase" }),
+});
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -19,10 +39,8 @@ function hashScore(value) {
 }
 
 function isPublishedProduct(product) {
-  return (
-    normalizeText(product?.status).toUpperCase() === "ACTIVE" &&
-    Boolean(product?.publishedAt || product?.published_at)
-  );
+  const status = normalizeText(product?.status || product?.state).toUpperCase();
+  return (!status || status === "ACTIVE") && Boolean(product?.publishedAt || product?.published_at);
 }
 
 function inventoryTotal(product) {
@@ -39,6 +57,13 @@ function inventoryTotal(product) {
 }
 
 function hasAvailableInventory(product) {
+  const variants = asArray(product?.variants?.nodes).length
+    ? asArray(product?.variants?.nodes)
+    : asArray(product?.variants);
+  const availability = variants
+    .map((variant) => variant?.available)
+    .filter((value) => typeof value === "boolean");
+  if (availability.length) return availability.some(Boolean);
   const total = inventoryTotal(product);
   return total === null || total > 0;
 }
@@ -59,19 +84,26 @@ function collectionImage(collection) {
     collection?.image?.src ||
     asArray(collection?.products?.nodes)[0]?.featuredImage?.url ||
     asArray(collection?.products?.nodes)[0]?.image?.src ||
+    asArray(collection?.products?.nodes)[0]?.images?.[0]?.src ||
     ""
   );
 }
 
-function historyHandles(state, kind, maxAgeDays = 45) {
-  const threshold = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+function usageLedgerFor(state, kind) {
+  const ledger = state?.usageLedger?.[kind];
+  return ledger && typeof ledger === "object" ? ledger : {};
+}
+
+function localWeekKeyForEntry(entry, timeZone) {
+  if (entry?.weekKey) return normalizeText(entry.weekKey);
+  const timestamp = Date.parse(String(entry?.publishedAt || entry?.selectedAt || ""));
+  return Number.isFinite(timestamp) ? getWeekKey(new Date(timestamp), timeZone) : null;
+}
+
+function usedThisWeek(state, kind, weekKey, timeZone) {
   return new Set(
     asArray(state?.history)
-      .filter(
-        (entry) =>
-          entry?.kind === kind &&
-          Date.parse(String(entry?.publishedAt || entry?.selectedAt || "")) >= threshold,
-      )
+      .filter((entry) => entry?.kind === kind && localWeekKeyForEntry(entry, timeZone) === weekKey)
       .map((entry) => normalizeText(entry?.handle).toLowerCase())
       .filter(Boolean),
   );
@@ -107,13 +139,25 @@ function candidateScore(entry, runKey, index) {
   );
 }
 
-function chooseCandidate(entries, { kind, runKey, state }) {
-  const recent = historyHandles(state, kind);
-  const available = entries.filter((entry) => {
-    const handle = normalizeText(entry?.handle).toLowerCase();
-    return handle && !recent.has(handle);
-  });
-  const pool = available.length ? available : entries;
+function chooseCandidate(entries, { kind, runKey, state, weekKey, timeZone }) {
+  const ledger = usageLedgerFor(state, kind);
+  const usedWeek = usedThisWeek(state, kind, weekKey, timeZone);
+  const candidates = entries.filter((entry) => normalizeText(entry?.handle));
+  const neverUsed = candidates.filter(
+    (entry) => !Object.hasOwn(ledger, normalizeText(entry.handle).toLowerCase()),
+  );
+  const neverUsedThisWeek = neverUsed.filter(
+    (entry) => !usedWeek.has(normalizeText(entry.handle).toLowerCase()),
+  );
+  const unusedPool = neverUsedThisWeek.length ? neverUsedThisWeek : neverUsed;
+  const distinctThisWeek = candidates.filter(
+    (entry) => !usedWeek.has(normalizeText(entry.handle).toLowerCase()),
+  );
+  const pool = unusedPool.length
+    ? unusedPool
+    : distinctThisWeek.length
+      ? distinctThisWeek
+      : candidates;
   return (
     [...pool]
       .map((entry, index) => ({ entry, score: candidateScore({ ...entry, kind }, runKey, index) }))
@@ -170,8 +214,62 @@ export function buildRunKey(now, timeZone) {
   return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
 }
 
+export function getWeekKey(now, timeZone) {
+  const parts = getZonedParts(now, timeZone);
+  const weekday = WEEKDAY_INDEX[parts.weekday];
+  const monday = new Date(
+    Date.UTC(parts.year, parts.month - 1, parts.day - ((weekday + 6) % 7), 12, 0, 0),
+  );
+  return `${monday.getUTCFullYear()}-${String(monday.getUTCMonth() + 1).padStart(2, "0")}-${String(monday.getUTCDate()).padStart(2, "0")}`;
+}
+
+export function getDailySchedule(now, timeZone) {
+  const parts = getZonedParts(now, timeZone);
+  const schedule = WEEKLY_SOCIAL_SCHEDULE[parts.weekday] || WEEKLY_SOCIAL_SCHEDULE.Mon;
+  return {
+    ...schedule,
+    weekday: WEEKDAY_INDEX[parts.weekday],
+    weekdayName: parts.weekday,
+    weekKey: getWeekKey(now, timeZone),
+  };
+}
+
+export function getFridayOfferWindow(now, timeZone) {
+  const parts = getZonedParts(now, timeZone);
+  const weekday = WEEKDAY_INDEX[parts.weekday];
+  const monday = new Date(
+    Date.UTC(parts.year, parts.month - 1, parts.day - ((weekday + 6) % 7), 12, 0, 0),
+  );
+  const friday = new Date(monday);
+  friday.setUTCDate(friday.getUTCDate() + 4);
+  const nextMonday = new Date(monday);
+  nextMonday.setUTCDate(nextMonday.getUTCDate() + 7);
+  return {
+    weekKey: getWeekKey(now, timeZone),
+    startsAt: zonedDateTimeToUtc(
+      {
+        year: friday.getUTCFullYear(),
+        month: friday.getUTCMonth() + 1,
+        day: friday.getUTCDate(),
+        hour: 0,
+      },
+      timeZone,
+    ),
+    endsAt: zonedDateTimeToUtc(
+      {
+        year: nextMonday.getUTCFullYear(),
+        month: nextMonday.getUTCMonth() + 1,
+        day: nextMonday.getUTCDate(),
+        hour: 0,
+      },
+      timeZone,
+    ),
+  };
+}
+
 export function selectDailyContent({ catalog, state, now = new Date(), timeZone }) {
   const runKey = buildRunKey(now, timeZone);
+  const schedule = getDailySchedule(now, timeZone);
   const products = asArray(catalog?.products).filter(
     (product) =>
       isPublishedProduct(product) && hasAvailableInventory(product) && productImage(product),
@@ -179,34 +277,41 @@ export function selectDailyContent({ catalog, state, now = new Date(), timeZone 
   const collections = asArray(catalog?.collections).filter(
     (collection) => collection?.handle && collectionImage(collection),
   );
-  const lane = Number(state?.nextRotation || 0) % 3;
-  const lanes = [
-    { kind: "product", entry: chooseCandidate(products, { kind: "product", runKey, state }) },
-    {
-      kind: "collection",
-      entry: chooseCandidate(collections, { kind: "collection", runKey, state }),
-    },
-    { kind: "banner", entry: null },
-  ];
-  const selected = lanes
-    .slice(lane)
-    .concat(lanes.slice(0, lane))
-    .find((candidate) => candidate.kind === "banner" || candidate.entry);
-  if (!selected) return { kind: "banner", runKey, selectedAt: now.toISOString(), rotation: lane };
+  const entry =
+    schedule.kind === "product"
+      ? chooseCandidate(products, {
+          kind: "product",
+          runKey,
+          state,
+          weekKey: schedule.weekKey,
+          timeZone,
+        })
+      : schedule.kind === "collection"
+        ? chooseCandidate(collections, {
+            kind: "collection",
+            runKey,
+            state,
+            weekKey: schedule.weekKey,
+            timeZone,
+          })
+        : null;
   return {
-    kind: selected.kind,
+    kind: schedule.kind,
+    variant: schedule.variant,
+    slot: schedule.slot,
+    weekday: schedule.weekdayName,
+    weekKey: schedule.weekKey,
     runKey,
-    rotation: lane,
     selectedAt: now.toISOString(),
-    handle: selected.entry?.handle || null,
-    id: selected.entry?.id || null,
-    product: selected.kind === "product" ? selected.entry : null,
-    collection: selected.kind === "collection" ? selected.entry : null,
+    handle: entry?.handle || null,
+    id: entry?.id || null,
+    product: schedule.kind === "product" ? entry : null,
+    collection: schedule.kind === "collection" ? entry : null,
     imageUrl:
-      selected.kind === "product"
-        ? productImage(selected.entry)
-        : selected.kind === "collection"
-          ? collectionImage(selected.entry)
+      schedule.kind === "product"
+        ? productImage(entry)
+        : schedule.kind === "collection"
+          ? collectionImage(entry)
           : null,
   };
 }
@@ -219,11 +324,10 @@ export function shouldAttemptOffer({
   offerWeekday,
   offerWindowDays = 7,
 }) {
-  if (!content || content.kind === "banner") return false;
+  if (!content || content.variant !== "heartfelt") return false;
   if (isOfferStillActive(state?.lastOffer, now.getTime(), offerWindowDays)) return false;
   const parts = getZonedParts(now, timeZone);
-  const weekdayMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  return weekdayMap[parts.weekday] === offerWeekday;
+  return WEEKDAY_INDEX[parts.weekday] === offerWeekday;
 }
 
 export function buildOfferCode(runKey, targetId) {

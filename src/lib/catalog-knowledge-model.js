@@ -85,14 +85,6 @@ function phraseTokens(value) {
   return tokenizeCatalogText(value);
 }
 
-function includesPhrase(tokens, expected) {
-  if (!expected.length || expected.length > tokens.length) return false;
-  for (let offset = 0; offset <= tokens.length - expected.length; offset += 1) {
-    if (expected.every((token, index) => tokens[offset + index] === token)) return true;
-  }
-  return false;
-}
-
 function modelFields(product) {
   return {
     title: trainingTokens(product?.title),
@@ -110,14 +102,31 @@ export function buildCatalogKnowledgeModelFields(product) {
   return modelFields(product);
 }
 
-function phraseHits(fields, phrases) {
+function phraseIndexKey(tokens) {
+  return `${tokens.length}:${tokens.join("\u001f")}`;
+}
+
+function buildFieldPhraseIndex(fields, maxPhraseLength) {
+  return Object.fromEntries(Object.entries(fields).map(([field, tokens]) => {
+    const index = new Set();
+    const limit = Math.min(maxPhraseLength, tokens.length);
+    for (let offset = 0; offset < tokens.length; offset += 1) {
+      for (let length = 1; length <= limit && offset + length <= tokens.length; length += 1) {
+        index.add(phraseIndexKey(tokens.slice(offset, offset + length)));
+      }
+    }
+    return [field, index];
+  }));
+}
+
+function indexedPhraseHits(fields, fieldPhraseIndex, phrases) {
   return asArray(phrases).flatMap((phrase) => {
-    const expected = typeof phrase === "string" ? phraseTokens(phrase) : asArray(phrase?.tokens);
-    const value = typeof phrase === "string" ? phrase : phrase?.value || "";
-    const fieldsMatched = Object.entries(fields)
-      .filter(([, tokens]) => includesPhrase(tokens, expected))
-      .map(([field]) => field);
-    return fieldsMatched.length ? [{ phrase: value, fields: fieldsMatched, tokenLength: expected.length }] : [];
+    const expected = asArray(phrase?.tokens);
+    const key = phraseIndexKey(expected);
+    const fieldsMatched = Object.keys(fields).filter((field) => fieldPhraseIndex[field]?.has(key));
+    return fieldsMatched.length
+      ? [{ phrase: phrase.value || "", fields: fieldsMatched, tokenLength: expected.length }]
+      : [];
   });
 }
 
@@ -144,8 +153,18 @@ function preparedScoringProfiles(model) {
     requiredGroups: asArray(profile.requiredGroups).map(preparePhraseList),
     negativePhrases: preparePhraseList(profile.negativePhrases),
   }));
-  MODEL_SCORING_CACHE.set(model, prepared);
-  return prepared;
+  const maxPhraseLength = Math.max(
+    1,
+    ...prepared.flatMap((entry) => [
+      ...entry.positivePhrases,
+      ...entry.primaryPhrases,
+      ...entry.requiredGroups.flat(),
+      ...entry.negativePhrases,
+    ].map((phrase) => phrase.tokens.length)),
+  );
+  const result = { profiles: prepared, maxPhraseLength };
+  MODEL_SCORING_CACHE.set(model, result);
+  return result;
 }
 
 export function taxonomyTrainingFingerprint(definitions = getCatalogTaxonomyDefinitions()) {
@@ -404,7 +423,9 @@ export function scoreCatalogKnowledgeModel(model, product, { modelEvidence = und
   const tokens = unique(Object.values(fields).flat());
   if (!tokens.length) return null;
 
-  const preparedProfiles = preparedScoringProfiles(model);
+  const preparedScoring = preparedScoringProfiles(model);
+  const preparedProfiles = preparedScoring.profiles;
+  const fieldPhraseIndex = buildFieldPhraseIndex(fields, preparedScoring.maxPhraseLength);
   const labelCount = preparedProfiles.length;
   const totalRecords = Number(model.trainingRecords || 0);
   const scores = preparedProfiles.map(({
@@ -426,11 +447,11 @@ export function scoreCatalogKnowledgeModel(model, product, { modelEvidence = und
       }
     }
 
-    const positiveMatches = phraseHits(fields, positivePhrases);
-    const primaryMatches = phraseHits(fields, primaryPhrases);
+    const positiveMatches = indexedPhraseHits(fields, fieldPhraseIndex, positivePhrases);
+    const primaryMatches = indexedPhraseHits(fields, fieldPhraseIndex, primaryPhrases);
     const requiredGroupHits = requiredGroups
-      .filter((group) => phraseHits(fields, group).length).length;
-    const exclusionMatches = phraseHits(fields, negativePhrases);
+      .filter((group) => indexedPhraseHits(fields, fieldPhraseIndex, group).length).length;
+    const exclusionMatches = indexedPhraseHits(fields, fieldPhraseIndex, negativePhrases);
     const directFieldCount = ["title", "handle", "productType"].filter((field) => fields[field].length).length;
     const listingPhraseHits = positiveMatches.filter((match) => profile.phraseCounts?.[match.phrase]?.source === "listing").length;
     for (const match of positiveMatches) {

@@ -14,12 +14,16 @@ import {
 import {
   buildOfferCode,
   buildRunKey,
+  getDailySchedule,
+  getFridayOfferWindow,
+  getWeekKey,
   selectDailyContent,
   shouldAttemptOffer,
 } from "./lib/vs-store-social-content.mjs";
-import { nextScheduledDate } from "./lib/vs-store-social-meta.mjs";
+import { nextScheduledDate, nextScheduledDateForWeekday } from "./lib/vs-store-social-meta.mjs";
 import {
   buildProductCaption,
+  buildPromotionCaption,
   extractProductFacts,
   validatePostCopy,
 } from "./lib/vs-store-social-copy.mjs";
@@ -27,6 +31,7 @@ import { isSocialNetworkError } from "./lib/vs-store-social-network.mjs";
 import {
   readImageGenRequest,
   readImageGenResult,
+  recordUsage,
   socialPaths,
   writeBrowserFallbackRequest,
   writeImageGenRequest,
@@ -40,6 +45,10 @@ const config = {
   maxDiscountPercent: 15,
   offerWindowDays: 7,
   offerWeekday: 5,
+  primaryDiscountCode: "VSSTORE15",
+  fallbackDiscountCode: "VSSTORE10",
+  primaryDiscountPercent: 15,
+  fallbackDiscountPercent: 10,
   overheadUsd: 16,
   minimumContributionUsd: 10,
 };
@@ -98,7 +107,7 @@ test("apparel gender remains available when the product itself supports it", () 
   assert.match(buildProductCaption(item, config), /Women's Linen Beach Shirt/i);
 });
 
-test("rotation selects product, collection, then banner", () => {
+test("US weekday schedule selects the approved content lane", () => {
   const catalog = {
     products: [product()],
     collections: [
@@ -111,21 +120,20 @@ test("rotation selects product, collection, then banner", () => {
       },
     ],
   };
-  const now = new Date("2026-09-13T12:00:00Z");
   assert.equal(
     selectDailyContent({
       catalog,
-      state: { nextRotation: 0, history: [] },
-      now,
+      state: { usageLedger: {}, history: [] },
+      now: new Date("2026-09-18T16:00:00Z"),
       timeZone: config.timezone,
     }).kind,
-    "product",
+    "banner",
   );
   assert.equal(
     selectDailyContent({
       catalog,
-      state: { nextRotation: 1, history: [] },
-      now,
+      state: { usageLedger: {}, history: [] },
+      now: new Date("2026-09-19T16:00:00Z"),
       timeZone: config.timezone,
     }).kind,
     "collection",
@@ -133,17 +141,32 @@ test("rotation selects product, collection, then banner", () => {
   assert.equal(
     selectDailyContent({
       catalog,
-      state: { nextRotation: 2, history: [] },
-      now,
+      state: { usageLedger: {}, history: [] },
+      now: new Date("2026-09-21T16:00:00Z"),
       timeZone: config.timezone,
     }).kind,
-    "banner",
+    "product",
+  );
+  assert.equal(
+    getDailySchedule(new Date("2026-09-18T16:00:00Z"), config.timezone).slot,
+    "friday-heartfelt",
+  );
+  assert.equal(
+    getDailySchedule(new Date("2026-09-22T16:00:00Z"), config.timezone).variant,
+    "promotion-teaser",
   );
 });
 
-test("offer runs only on the configured weekday and rolling window", () => {
+test("Friday offer window is Friday midnight through Monday midnight in US time", () => {
+  const window = getFridayOfferWindow(new Date("2026-09-18T16:00:00Z"), config.timezone);
+  assert.equal(window.startsAt.toISOString(), "2026-09-18T04:00:00.000Z");
+  assert.equal(window.endsAt.toISOString(), "2026-09-21T04:00:00.000Z");
+  assert.equal(getWeekKey(new Date("2026-09-20T16:00:00Z"), config.timezone), "2026-09-14");
+});
+
+test("offer runs only in the Friday heartfelt slot and respects the rolling window", () => {
   const friday = new Date("2026-09-18T16:00:00Z");
-  const content = { kind: "product", id: "gid://shopify/Product/1", handle: "item" };
+  const content = { kind: "banner", variant: "heartfelt" };
   assert.equal(
     shouldAttemptOffer({
       content,
@@ -158,7 +181,7 @@ test("offer runs only on the configured weekday and rolling window", () => {
   assert.equal(
     shouldAttemptOffer({
       content,
-      state: { lastOffer: { createdAt: "2026-09-14T00:00:00Z" } },
+      state: { lastOffer: { endsAt: "2026-09-21T04:00:00Z" } },
       now: friday,
       timeZone: config.timezone,
       offerWeekday: 5,
@@ -166,6 +189,55 @@ test("offer runs only on the configured weekday and rolling window", () => {
     }),
     false,
   );
+  assert.equal(buildPromotionCaption(config).includes("Friday"), true);
+});
+
+test("product and collection candidates are not reused within a week when alternatives exist", () => {
+  const firstProduct = product({ handle: "first-product" });
+  const secondProduct = product({ handle: "second-product", id: "gid://shopify/Product/2" });
+  const firstCollection = {
+    id: "gid://shopify/Collection/1",
+    handle: "first-collection",
+    title: "First Collection",
+    image: { url: "https://cdn.example.test/collection-1.jpg" },
+    products: { nodes: [firstProduct] },
+  };
+  const secondCollection = {
+    id: "gid://shopify/Collection/2",
+    handle: "second-collection",
+    title: "Second Collection",
+    image: { url: "https://cdn.example.test/collection-2.jpg" },
+    products: { nodes: [secondProduct] },
+  };
+  const catalog = {
+    products: [firstProduct, secondProduct],
+    collections: [firstCollection, secondCollection],
+  };
+  const weekKey = "2026-09-14";
+  const used = recordUsage(
+    { usageLedger: { product: {}, collection: {} }, history: [] },
+    { kind: "product", handle: "first-product", usedAt: "2026-09-14T12:00:00Z", weekKey },
+  );
+  const selected = selectDailyContent({
+    catalog,
+    state: {
+      ...used,
+      history: [{ kind: "product", handle: "first-product", weekKey }],
+    },
+    now: new Date("2026-09-16T16:00:00Z"),
+    timeZone: config.timezone,
+  });
+  assert.equal(selected.handle, "second-product");
+  const collectionSelected = selectDailyContent({
+    catalog,
+    state: {
+      usageLedger: { collection: { "first-collection": { uses: 1 } } },
+      history: [{ kind: "collection", handle: "first-collection", weekKey }],
+    },
+    now: new Date("2026-09-19T16:00:00Z"),
+    timeZone: config.timezone,
+  });
+  assert.equal(collectionSelected.handle, "second-collection");
 });
 
 test("margin gate chooses the highest safe discount", () => {
@@ -223,6 +295,19 @@ test("discount input scopes a code to the promoted product", () => {
   assert.equal(input.appliesOncePerCustomer, true);
 });
 
+test("discount input can target the whole store", () => {
+  const input = buildDiscountInput({
+    code: "VSSTORE15",
+    title: "VS Store weekly Friday sale",
+    percent: 15,
+    startsAt: "2026-09-18T04:00:00Z",
+    endsAt: "2026-09-21T04:00:00Z",
+    target: { type: "all", id: "all" },
+  });
+  assert.deepEqual(input.customerGets.items, { all: true });
+  assert.equal(input.code, "VSSTORE15");
+});
+
 test("discount readback requires the approved dates and no stacking", () => {
   const input = buildDiscountInput({
     code: "VSWELCOME",
@@ -266,6 +351,38 @@ test("discount readback requires the approved dates and no stacking", () => {
         },
       ),
     /stacking/i,
+  );
+});
+
+test("storewide discount readback verifies all-items scope", () => {
+  const input = buildDiscountInput({
+    code: "VSSTORE15",
+    title: "VS Store weekly Friday sale",
+    percent: 15,
+    startsAt: "2026-09-18T04:00:00.000Z",
+    endsAt: "2026-09-21T04:00:00.000Z",
+    target: { type: "all", id: "all" },
+  });
+  assert.doesNotThrow(() =>
+    verifyDiscountReadback(
+      {
+        status: "SCHEDULED",
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        appliesOncePerCustomer: true,
+        combinesWith: {
+          orderDiscounts: false,
+          productDiscounts: false,
+          shippingDiscounts: false,
+        },
+        codes: { nodes: [{ code: input.code }] },
+        customerGets: {
+          value: { percentage: 0.15 },
+          items: { allItems: true },
+        },
+      },
+      { input, target: { type: "all", id: "all" }, percent: 15 },
+    ),
   );
 });
 
@@ -350,6 +467,13 @@ test("scheduled time uses the configured US timezone and fallback hour", () => {
   const scheduled = nextScheduledDate(now, config.timezone, 12);
   assert.equal(buildRunKey(now, config.timezone), "2026-09-13");
   assert.equal(scheduled.toISOString(), "2026-09-14T16:00:00.000Z");
+  const weekdayScheduled = nextScheduledDateForWeekday(
+    new Date("2026-09-17T12:00:00Z"),
+    config.timezone,
+    12,
+    5,
+  );
+  assert.equal(weekdayScheduled.toISOString(), "2026-09-18T16:00:00.000Z");
 });
 
 test("caption validator rejects raw catalog labels and offer codes stay deterministic", () => {

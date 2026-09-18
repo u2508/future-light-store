@@ -1,6 +1,6 @@
 import { formatMoneyValue, normalizePlainText, parseMoneyValue } from "./shopify-seo-batch.js";
 import { extractVariantQuantity, variantLabel } from "./shopify-variant-pricing.js";
-import { compareAtPriceFor, costBasedPriceFor, PRICE_REWORK_STRATEGY_ID } from "./shopify-price-rework-policy.js";
+import { compareAtPriceFor, nominalMarketPriceFor, PRICE_REWORK_STRATEGY_ID } from "./shopify-price-rework-policy.js";
 
 const DEFAULT_COST_TOLERANCE = 2;
 
@@ -85,9 +85,18 @@ export function buildVariantCostPriceAlignmentPlan(products = [], { tolerance = 
     for (const group of groupByCost(candidates, tolerance)) {
       if (group.length < 2) continue;
       for (const entry of group) {
-        const costBasedTarget = costBasedPriceFor(entry.cost);
-        if (!costBasedTarget) continue;
-        const targetPrice = Math.max(priceFloor, Number(costBasedTarget));
+        const pricing = nominalMarketPriceFor({
+          cost: entry.cost,
+          currentPrice: entry.price,
+          handle: product?.handle,
+          productTitle: product?.title,
+          variantTitle: entry.variant?.title,
+          referenceCosts: variants.map((item) => item?.cost),
+          referencePrices: variants.map((item) => item?.price),
+          minimumSellPrice: priceFloor,
+        });
+        if (!pricing.price) continue;
+        const targetPrice = Math.max(priceFloor, Number(pricing.price));
         const compareAt = parseMoneyValue(entry.variant?.compare_at_price ?? entry.variant?.compareAtPrice);
         const targetCompareAt = Number.isFinite(compareAt) && compareAt > 0
           ? compareAtPriceFor(targetPrice, compareAt)
@@ -101,6 +110,12 @@ export function buildVariantCostPriceAlignmentPlan(products = [], { tolerance = 
           costPerItem: formatMoneyValue(entry.cost),
           currentPrice: formatMoneyValue(entry.price),
           price: normalizedTargetPrice,
+          marketBand: pricing.marketBand?.id || "",
+          effectiveCost: formatMoneyValue(pricing.effectiveCost),
+          costScaleFactor: pricing.scaleFactor,
+          marketBand: pricing.marketBand?.id || "",
+          effectiveCost: formatMoneyValue(pricing.effectiveCost),
+          costScaleFactor: pricing.scaleFactor,
           ...(Number.isFinite(compareAt) && compareAt > 0 ? { compareAtPrice: targetCompareAt } : {}),
           reason: "cost-based-price-repair-within-same-product-cost-group",
         });

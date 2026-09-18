@@ -117,6 +117,40 @@ function ProductPage() {
     }
   }, [product, pushRecent]);
 
+  useEffect(() => {
+    if (!product || typeof document === "undefined") return;
+    const pageTitle = `${product.title} | VS Store`;
+    const pageDescription = String(product.description || "")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 158)
+      .replace(/\s+\S*$/, "")
+      .trim();
+    document.title = pageTitle;
+    const upsertMeta = (
+      selector: string,
+      attribute: "name" | "property",
+      key: string,
+      content: string,
+    ) => {
+      if (!content) return;
+      let element = document.head.querySelector<HTMLMetaElement>(selector);
+      if (!element) {
+        element = document.createElement("meta");
+        element.setAttribute(attribute, key);
+        document.head.appendChild(element);
+      }
+      element.content = content;
+    };
+    upsertMeta('meta[name="description"]', "name", "description", pageDescription);
+    upsertMeta('meta[property="og:title"]', "property", "og:title", pageTitle);
+    upsertMeta('meta[property="og:description"]', "property", "og:description", pageDescription);
+  }, [product]);
+
   if (isLoading) {
     return (
       <div className="vs-wide-shell grid gap-8 py-10 md:grid-cols-2">

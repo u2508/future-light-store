@@ -19,11 +19,20 @@ function parseArgs(argv) {
     else if (token === "--post-url") args.postUrl = argv[++index];
     else if (token === "--post-caption") args.postCaption = argv[++index];
     else if (token === "--post-scheduled-at") args.postScheduledAt = argv[++index];
+    else if (token === "--instagram-post-id") args.instagramPostId = argv[++index];
+    else if (token === "--instagram-post-url") args.instagramPostUrl = argv[++index];
+    else if (token === "--instagram-post-caption") args.instagramPostCaption = argv[++index];
+    else if (token === "--instagram-post-scheduled-at")
+      args.instagramPostScheduledAt = argv[++index];
     else if (token === "--discount-id") args.discountId = argv[++index];
     else if (token === "--discount-code") args.discountCode = argv[++index];
     else if (token === "--discount-percent") args.discountPercent = Number(argv[++index]);
     else if (token === "--discount-starts-at") args.discountStartsAt = argv[++index];
     else if (token === "--discount-ends-at") args.discountEndsAt = argv[++index];
+    else if (token === "--discount-target-type") args.discountTargetType = argv[++index];
+    else if (token === "--discount-all-items") args.discountAllItems = true;
+    else if (token === "--discount-applies-once") args.discountAppliesOncePerCustomer = true;
+    else if (token === "--discount-no-stacking") args.discountNoStacking = true;
     else if (token === "--skip-offer") args.skipOffer = true;
     else throw new Error(`Unknown argument: ${token}`);
   }
@@ -37,8 +46,17 @@ async function showRequest() {
 }
 
 async function writeResult(args) {
-  if (!args.runKey || !args.fingerprint || !args.postId || !args.postUrl) {
-    throw new Error("--write-result requires --run-key, --fingerprint, --post-id, and --post-url.");
+  if (
+    !args.runKey ||
+    !args.fingerprint ||
+    !args.postId ||
+    !args.postUrl ||
+    !args.instagramPostId ||
+    !args.instagramPostUrl
+  ) {
+    throw new Error(
+      "--write-result requires Facebook and Instagram post IDs and URLs, plus --run-key and --fingerprint.",
+    );
   }
   if (
     !args.skipOffer &&
@@ -60,6 +78,13 @@ async function writeResult(args) {
       caption: args.postCaption || null,
       scheduledAt: args.postScheduledAt || null,
     },
+    instagramPost: {
+      verified: true,
+      id: args.instagramPostId,
+      url: args.instagramPostUrl,
+      caption: args.instagramPostCaption || args.postCaption || null,
+      scheduledAt: args.instagramPostScheduledAt || args.postScheduledAt || null,
+    },
     discount: args.skipOffer
       ? null
       : {
@@ -69,6 +94,12 @@ async function writeResult(args) {
           percent: args.discountPercent,
           startsAt: args.discountStartsAt || null,
           endsAt: args.discountEndsAt || null,
+          targetType: args.discountTargetType || null,
+          allItems: Boolean(args.discountAllItems),
+          appliesOncePerCustomer: Boolean(args.discountAppliesOncePerCustomer),
+          combinesWith: args.discountNoStacking
+            ? { orderDiscounts: false, productDiscounts: false, shippingDiscounts: false }
+            : null,
         },
     offerSkipped: Boolean(args.skipOffer),
   };

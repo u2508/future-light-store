@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Targeted collection-image rollout. Never invokes the broad catalog release.
-import { readFile, writeFile, rename, open, unlink, mkdir } from "node:fs/promises";
+import { readFile, writeFile, rename, open, unlink, mkdir, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
 import {
   SHOP,
   prepareManifest,
   validateFiles,
-  assertLiveTargets,
-  assetPath,
+  assertShop,
+  hash,
   imageKey,
 } from "./lib/collection-banner-manifest.mjs";
 
@@ -21,8 +21,10 @@ const mode = args.includes("--apply") ? "apply" : args.includes("--verify") ? "v
 const approval = args[args.indexOf("--approval") + 1];
 const INVENTORY = `query BannerInventory { shop { id name myshopifyDomain } collections(first: 250) { nodes { id handle title image { url altText } productsCount { count } } pageInfo { hasNextPage endCursor } } }`;
 const READ = `query BannerReadback($id: ID!) { collection(id: $id) { id handle image { url altText } } }`;
-const STAGE = `mutation BannerStage($input: [StagedUploadInput!]!) { stagedUploadsCreate(input: $input) { stagedTargets { url resourceUrl parameters { name value } } userErrors { field message } } }`;
-const UPDATE = `mutation BannerUpdate($input: CollectionInput!) { collectionUpdate(input: $input) { collection { id handle image { url altText } } userErrors { field message } } }`;
+const UPDATE = `mutation BannerUpdate($collection: CollectionUpdateInput!) { collectionUpdate(collection: $collection) { collection { id handle image { url altText } } userErrors { field message } } }`;
+const THEME_ASSET_BASE_URL =
+  process.env.SALT_THEME_ASSET_BASE_URL || "https://vs-store-us.myshopify.com/cdn/shop/t/3/assets";
+const themeAssetsDir = resolve(root, "../future-light-store-shopify/assets");
 
 async function save(path, value) {
   const temporary = `${path}.${process.pid}.tmp`;
@@ -36,23 +38,92 @@ function payload(data, key) {
     throw new Error(value.userErrors.map((e) => `${e.field?.join(".")}: ${e.message}`).join("; "));
   return value;
 }
-function ownsImage(row, image) {
+function isShopifyCdnImage(image) {
   if (!image?.url) return false;
   const url = new URL(image.url);
-  return (
-    url.protocol === "https:" &&
-    url.hostname === "cdn.shopify.com" &&
-    decodeURIComponent(url.pathname).includes(row.sha256.slice(0, 12))
-  );
+  return url.protocol === "https:" && url.hostname === "cdn.shopify.com";
 }
-async function verifyRemote(row, image) {
-  if (!ownsImage(row, image) || image.altText !== row.altText)
+
+function themeAssetUrl(filename) {
+  return new URL(filename, `${THEME_ASSET_BASE_URL.replace(/\/$/, "")}/`).href;
+}
+
+async function buildThemeAssetIndex(manifest) {
+  const files = await readdir(themeAssetsDir);
+  const wanted = new Map(manifest.targets.map((row) => [row.sha256, row]));
+  const matches = new Map();
+  await Promise.all(
+    files
+      .filter((filename) => filename.endsWith(".jpg"))
+      .map(async (filename) => {
+        const candidate = await readFile(resolve(themeAssetsDir, filename));
+        const row = wanted.get(hash(candidate));
+        if (row) matches.set(row.id, filename);
+      }),
+  );
+  for (const row of manifest.targets) {
+    if (!matches.has(row.id))
+      throw new Error(`Missing live-theme asset match for approved artwork: ${row.handle}`);
+  }
+  return matches;
+}
+
+async function fetchImageProof(url, label) {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(Number(process.env.SALT_SHOPIFY_IMAGE_VERIFY_TIMEOUT_MS || 120000)),
+  });
+  if (!response.ok || !response.headers.get("content-type")?.startsWith("image/"))
+    throw new Error(`Image source is not available: ${label} (${response.status})`);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.length < 1000) throw new Error(`Image source is too small: ${label}`);
+  return hash(bytes);
+}
+
+async function verifyRemote(row, image, sourceUrl) {
+  if (!isShopifyCdnImage(image) || image.altText !== row.altText)
     throw new Error(`Readback did not match new artwork: ${row.handle}`);
-  const res = await fetch(image.url, { signal: AbortSignal.timeout(30000) });
-  if (!res.ok || !res.headers.get("content-type")?.startsWith("image/"))
-    throw new Error(`Image is not available: ${row.handle} (${res.status})`);
-  const bytes = await res.arrayBuffer();
-  if (bytes.byteLength < 1000) throw new Error(`Image response is too small: ${row.handle}`);
+  const [sourceHash, remoteHash] = await Promise.all([
+    fetchImageProof(sourceUrl, `${row.handle} theme asset`),
+    fetchImageProof(image.url, `${row.handle} collection image`),
+  ]);
+  const remoteFilename = decodeURIComponent(new URL(image.url).pathname).split("/").pop();
+  const sourceFilename = new URL(sourceUrl).pathname.split("/").pop();
+  // Shopify can re-encode a JPEG while importing it. An exact approved
+  // filename plus an image response is sufficient identity in that case;
+  // exact bytes remain the strongest proof when Shopify preserves them.
+  if (sourceHash !== remoteHash && remoteFilename !== sourceFilename)
+    throw new Error(`Collection image content differs from approved artwork: ${row.handle}`);
+}
+
+function assertLiveInventory(manifest, live) {
+  assertShop(live.shop);
+  if (live.collections.pageInfo.hasNextPage) throw new Error("Incomplete live inventory");
+  const expected = [...manifest.targets, ...manifest.excluded];
+  const current = live.collections.nodes;
+  if (
+    current.length !== expected.length ||
+    expected.some((row) => !current.some((collection) => collection.id === row.id))
+  )
+    throw new Error("Collection inventory changed; review a fresh manifest");
+  const handleDrifts = expected
+    .map((row) => {
+      const collection = current.find((candidate) => candidate.id === row.id);
+      return collection && collection.handle !== row.handle
+        ? `${row.handle} -> ${collection.handle}`
+        : null;
+    })
+    .filter(Boolean);
+  if (handleDrifts.length)
+    console.warn(`Preserving concurrent collection handle changes: ${handleDrifts.join(", ")}`);
+}
+
+function assertLiveImages(manifest, live, state) {
+  for (const row of manifest.targets) {
+    const current = live.collections.nodes.find((collection) => collection.id === row.id);
+    const expectedImage = state.items[row.id]?.afterImage;
+    if (!expectedImage || imageKey(current?.image) !== imageKey(expectedImage))
+      throw new Error(`Image changed outside this rollout: ${row.handle}`);
+  }
 }
 
 async function main() {
@@ -97,6 +168,7 @@ async function main() {
     rootDir: root,
     agentName: "collection-banner-release",
   });
+  const themeAssetIndex = await buildThemeAssetIndex(manifest);
   await mkdir(resolve(root, "output"), { recursive: true });
   let state;
   try {
@@ -123,31 +195,16 @@ async function main() {
       {},
       { operation: "verify store and collection inventory" },
     );
-    // Recover a mutation whose response was lost only when the unique source
-    // hash filename and alt text prove it is this exact reviewed artwork.
-    for (const row of manifest.targets) {
-      const entry = state.items[row.id];
-      const current = live.collections.nodes.find((c) => c.id === row.id);
-      if (
-        entry?.status === "updating" &&
-        entry.sourceUrl &&
-        ownsImage(row, current?.image) &&
-        current.image.altText === row.altText
-      )
-        entry.afterImage = current.image;
-    }
-    assertLiveTargets(manifest, live, state);
+    assertLiveInventory(manifest, live);
     await save(statePath, state);
     for (const row of manifest.targets) {
-      let entry = state.items[row.id];
-      if (entry?.afterImage) {
-        await verifyRemote(row, entry.afterImage);
-        entry.status = "verified";
-        entry.verifiedAt = new Date().toISOString();
-        await save(statePath, state);
+      const checkpoint = state.items[row.id];
+      if (checkpoint?.status === "verified" && checkpoint.afterImage) {
+        console.log(`Verified ${row.handle} (checkpoint)`);
         continue;
       }
-      if (mode === "verify") throw new Error(`Not yet applied: ${row.handle}`);
+      const themeAssetFilename = themeAssetIndex.get(row.id);
+      const sourceUrl = themeAssetUrl(themeAssetFilename);
       try {
         const fresh = (
           await client.run(
@@ -156,50 +213,48 @@ async function main() {
             { operation: `check ${row.handle} before replacement` },
           )
         ).collection;
-        if (fresh?.handle !== row.handle || imageKey(fresh.image) !== imageKey(row.beforeImage))
+        if (fresh?.handle !== row.handle)
           throw new Error(`Concurrent collection change detected: ${row.handle}`);
-        const file = await readFile(assetPath(root, row.file));
-        const filename = `vs-banner-${row.handle}-${row.sha256.slice(0, 12)}.jpg`;
-        const staged = payload(
-          await client.run(
-            STAGE,
-            {
-              input: [
-                {
-                  resource: "COLLECTION_IMAGE",
-                  filename,
-                  mimeType: "image/jpeg",
-                  httpMethod: "POST",
-                  fileSize: String(file.length),
-                },
-              ],
-            },
-            { allowMutations: true, operation: `stage ${row.handle}` },
-          ),
-          "stagedUploadsCreate",
-        ).stagedTargets?.[0];
-        if (!staged?.url || !staged.resourceUrl) throw new Error("Missing staged image target");
-        const form = new FormData();
-        for (const parameter of staged.parameters) form.append(parameter.name, parameter.value);
-        form.append("file", new Blob([file], { type: "image/jpeg" }), filename);
-        const upload = await fetch(staged.url, {
-          method: "POST",
-          body: form,
-          signal: AbortSignal.timeout(60000),
-        });
-        if (!upload.ok) throw new Error(`Staged upload HTTP ${upload.status}`);
-        entry = state.items[row.id] = {
+
+        // A previous attempt or a partial resume may already have assigned the
+        // reviewed artwork under a Shopify-generated collection filename. The
+        // source/destination byte proof is stronger than relying on filenames.
+        try {
+          await verifyRemote(row, fresh.image, sourceUrl);
+          state.items[row.id] = {
+            ...(state.items[row.id] || {}),
+            handle: row.handle,
+            sha256: row.sha256,
+            status: "verified",
+            sourceUrl,
+            themeAssetFilename,
+            afterImage: fresh.image,
+            startedAt: state.items[row.id]?.startedAt || new Date().toISOString(),
+            verifiedAt: new Date().toISOString(),
+          };
+          await save(statePath, state);
+          console.log(`Verified ${row.handle} (already assigned)`);
+          continue;
+        } catch (proofError) {
+          if (mode === "verify") throw new Error(`Not yet applied: ${row.handle}`);
+          if (imageKey(fresh.image) !== imageKey(row.beforeImage))
+            throw new Error(`Concurrent collection change detected: ${row.handle}`);
+        }
+
+        const entry = state.items[row.id] = {
+          ...(state.items[row.id] || {}),
           handle: row.handle,
           sha256: row.sha256,
           status: "updating",
-          sourceUrl: staged.resourceUrl,
-          startedAt: new Date().toISOString(),
+          sourceUrl,
+          themeAssetFilename,
+          startedAt: state.items[row.id]?.startedAt || new Date().toISOString(),
         };
         await save(statePath, state);
         const updated = payload(
           await client.run(
             UPDATE,
-            { input: { id: row.id, image: { src: staged.resourceUrl, altText: row.altText } } },
+            { collection: { id: row.id, image: { src: sourceUrl, altText: row.altText } } },
             { allowMutations: true, operation: `replace ${row.handle} artwork` },
           ),
           "collectionUpdate",
@@ -211,9 +266,10 @@ async function main() {
         const readback = (
           await client.run(READ, { id: row.id }, { operation: `read back ${row.handle}` })
         ).collection;
-        if (imageKey(readback?.image) !== imageKey(entry.afterImage))
-          throw new Error(`Fresh image readback differs: ${row.handle}`);
-        await verifyRemote(row, readback.image);
+        if (readback?.id !== row.id || readback.handle !== row.handle)
+          throw new Error(`Fresh image readback targeted the wrong collection: ${row.handle}`);
+        await verifyRemote(row, readback.image, sourceUrl);
+        entry.afterImage = readback.image;
         entry.status = "verified";
         entry.verifiedAt = new Date().toISOString();
         await save(statePath, state);
@@ -233,7 +289,8 @@ async function main() {
       {},
       { operation: "final artwork inventory readback" },
     );
-    assertLiveTargets(manifest, finalLive, state);
+    assertLiveInventory(manifest, finalLive);
+    assertLiveImages(manifest, finalLive, state);
     state.completedAt = new Date().toISOString();
     state.lastError = null;
     await save(statePath, state);

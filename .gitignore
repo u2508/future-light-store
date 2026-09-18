@@ -21,6 +21,7 @@ dist-ssr
 output/*
 !output/.gitkeep
 public/data/*
+!public/data/product-seo.json
 
 # Wrangler / Cloudflare
 .wrangler/

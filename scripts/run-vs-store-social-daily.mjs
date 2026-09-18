@@ -21,23 +21,22 @@ import {
   readBrowserFallbackResult,
   readImageGenResult,
   readSocialState,
+  recordUsage,
   socialPaths,
   writeBrowserFallbackRequest,
   writeImageGenRequest,
   writeSocialState,
 } from "./lib/vs-store-social-state.mjs";
 import {
-  advanceRotation,
-  buildOfferCode,
   buildRunKey,
-  getZonedParts,
-  nextOfferEndsAt,
+  getDailySchedule,
+  getFridayOfferWindow,
   selectDailyContent,
-  shouldAttemptOffer,
 } from "./lib/vs-store-social-content.mjs";
 import {
   buildCollectionCaption,
   buildProductCaption,
+  buildPromotionCaption,
   buildWelcomeCaption,
   contentImageUrl,
   extractProductFacts,
@@ -48,17 +47,17 @@ import {
   buildDiscountInput,
   createDiscount,
   createVsStoreShopifyClient,
-  fetchCollectionForOffer,
-  fetchProductForOffer,
+  fetchStorewideProductsForOffer,
   fetchSocialCatalog,
   findDiscountByCode,
   readDiscount,
+  updateDiscount,
   verifyDiscountReadback,
 } from "./lib/vs-store-social-shopify.mjs";
 import {
   choosePeakHour,
   createVsStoreMetaClient,
-  nextScheduledDate,
+  nextScheduledDateForWeekday,
 } from "./lib/vs-store-social-meta.mjs";
 import { isSocialNetworkError as isNetworkError } from "./lib/vs-store-social-network.mjs";
 
@@ -123,7 +122,8 @@ async function loadLocalCatalog() {
     const nodes = featuredProducts
       .map((featured) => productsByHandle.get(featured?.handle) || featured)
       .filter(Boolean);
-    const firstImage = nodes[0]?.image?.src || nodes[0]?.featuredImage?.url || "";
+    const firstImage =
+      nodes[0]?.image?.src || nodes[0]?.featuredImage?.url || nodes[0]?.images?.[0]?.src || "";
     return {
       ...collection,
       image: collection?.image || (firstImage ? { src: firstImage } : null),
@@ -140,7 +140,7 @@ async function loadLocalCatalog() {
 
 async function loadCatalog(config, retryInfo) {
   const local = await loadLocalCatalog();
-  if (!config.shopifyAdminAccessToken) {
+  if (!config.shopifyAdminAccessToken && !config.shopifyUseCli) {
     process.stdout.write(
       `Shopify API credentials are not configured; using local catalog snapshot (${local.products.length} products, ${local.collections.length} collections).\n`,
     );
@@ -171,6 +171,7 @@ function buildContentCaption(content, config, offer = null) {
   if (content.kind === "product") return buildProductCaption(content.product, config, { offer });
   if (content.kind === "collection")
     return buildCollectionCaption(content.collection, config, { offer });
+  if (content.variant === "promotion-teaser") return buildPromotionCaption(config);
   return buildWelcomeCaption(config, { offer });
 }
 
@@ -187,63 +188,114 @@ function targetForContent(content) {
       id: content.collection?.id || content.id,
       handle: content.collection?.handle || content.handle,
     };
+  if (content.kind === "banner" && content.variant === "heartfelt") {
+    return { type: "all", id: "all", handle: null };
+  }
   return null;
 }
 
-async function prepareOffer({ config, content, runKey, now, retryInfo, skipOffer }) {
-  if (skipOffer || !content || content.kind === "banner")
-    return { status: "not-requested", reason: skipOffer ? "operator-skip" : "banner-lane" };
+function buildDeferredOfferPlan({ config, content, now, reason }) {
+  const window = getFridayOfferWindow(now, config.timezone);
+  return {
+    status: "browser-required",
+    target: targetForContent(content),
+    code: config.primaryDiscountCode,
+    fallbackCode: config.fallbackDiscountCode,
+    percent: null,
+    startsAt: window.startsAt.toISOString(),
+    endsAt: window.endsAt.toISOString(),
+    marginPolicy: {
+      primaryPercent: config.primaryDiscountPercent,
+      fallbackPercent: config.fallbackDiscountPercent,
+      overheadUsd: config.overheadUsd,
+      minimumContributionUsd: config.minimumContributionUsd,
+    },
+    reason,
+  };
+}
+
+function isManagedDiscount(discountId, discount, state, code) {
+  return Boolean(
+    state?.couponRegistry?.[code]?.discountId === discountId ||
+    /^VS Store weekly Friday sale$/i.test(normalizeText(discount?.title)),
+  );
+}
+
+async function prepareOffer({ config, content, now, retryInfo, skipOffer, state, dryRun = false }) {
+  if (skipOffer || !content || content.variant !== "heartfelt")
+    return {
+      status: "not-requested",
+      reason: skipOffer ? "operator-skip" : "not-friday-offer-slot",
+    };
+  if (state?.lastOffer && Date.parse(String(state.lastOffer.endsAt || "")) > now.getTime()) {
+    return { status: "not-requested", reason: "rolling-offer-window-active" };
+  }
   const target = targetForContent(content);
   if (!target?.id) return { status: "not-requested", reason: "target-id-missing" };
 
-  const client = config.shopifyAdminAccessToken ? createVsStoreShopifyClient(config) : null;
+  const client =
+    config.shopifyAdminAccessToken || config.shopifyUseCli
+      ? createVsStoreShopifyClient(config)
+      : null;
   if (!client) {
-    return {
-      status: "browser-required",
-      target,
-      code: buildOfferCode(runKey, target.id),
-      percent: null,
-      marginPolicy: {
-        defaultPercent: config.defaultDiscountPercent,
-        maximumPercent: config.maxDiscountPercent,
-        overheadUsd: config.overheadUsd,
-        minimumContributionUsd: config.minimumContributionUsd,
-      },
+    return buildDeferredOfferPlan({
+      config,
+      content,
+      now,
       reason: "shopify-api-credential-missing",
-    };
+    });
   }
 
-  const details =
-    target.type === "product"
-      ? await fetchProductForOffer(client, target.id, { retryInfo })
-      : await fetchCollectionForOffer(client, target.id, { retryInfo });
-  if (!details) return { status: "not-requested", reason: "target-not-found" };
-  if (target.type === "collection" && details?.products?.pageInfo?.hasNextPage) {
-    return { status: "not-requested", reason: "collection-too-large-for-safe-margin-audit" };
-  }
-  const products =
-    target.type === "product"
-      ? [details]
-      : Array.isArray(details?.products?.nodes)
-        ? details.products.nodes
-        : [];
-  const assessment = assessDiscountMargin(products, config);
-  if (!assessment.eligible) {
+  const products = await fetchStorewideProductsForOffer(client, { retryInfo });
+  const assessment = assessDiscountMargin(products, {
+    ...config,
+    maxDiscountPercent: config.primaryDiscountPercent,
+    defaultDiscountPercent: config.fallbackDiscountPercent,
+  });
+  if (!assessment.eligible)
     return { status: "not-requested", target, assessment, reason: assessment.reason };
-  }
-  const code = buildOfferCode(runKey, target.id);
-  const startsAt = now.toISOString();
-  const endsAt = nextOfferEndsAt(now, config.offerWindowDays).toISOString();
+
+  const window = getFridayOfferWindow(now, config.timezone);
+  const code =
+    assessment.percent === config.primaryDiscountPercent
+      ? config.primaryDiscountCode
+      : config.fallbackDiscountCode;
   const input = buildDiscountInput({
     code,
-    title: `VS Store ${assessment.percent}% welcome offer`,
+    title: "VS Store weekly Friday sale",
     percent: assessment.percent,
-    startsAt,
-    endsAt,
+    startsAt: window.startsAt.toISOString(),
+    endsAt: window.endsAt.toISOString(),
     target,
   });
+  if (dryRun) {
+    return {
+      status: "preview",
+      target,
+      code,
+      percent: assessment.percent,
+      startsAt: window.startsAt.toISOString(),
+      endsAt: window.endsAt.toISOString(),
+      assessment,
+      input,
+    };
+  }
   let discountId = await findDiscountByCode(client, code, { retryInfo });
-  if (!discountId) {
+  let discountAction = "created";
+  if (discountId) {
+    const existing = await readDiscount(client, discountId, { retryInfo });
+    if (!isManagedDiscount(discountId, existing, state, code)) {
+      return {
+        status: "not-requested",
+        target,
+        assessment,
+        reason: "discount-code-conflict",
+        conflictCode: code,
+      };
+    }
+    discountId = (await updateDiscount(client, discountId, input, { retryInfo })).id;
+    discountAction = "updated";
+  } else {
     try {
       discountId = (await createDiscount(client, input, { retryInfo })).id;
     } catch (error) {
@@ -252,6 +304,18 @@ async function prepareOffer({ config, content, runKey, now, retryInfo, skipOffer
       }
       discountId = await findDiscountByCode(client, code, { retryInfo });
       if (!discountId) throw error;
+      const existing = await readDiscount(client, discountId, { retryInfo });
+      if (!isManagedDiscount(discountId, existing, state, code)) {
+        return {
+          status: "not-requested",
+          target,
+          assessment,
+          reason: "discount-code-conflict",
+          conflictCode: code,
+        };
+      }
+      discountId = (await updateDiscount(client, discountId, input, { retryInfo })).id;
+      discountAction = "updated-after-create-race";
     }
   }
   const readback = await readDiscount(client, discountId, { retryInfo });
@@ -262,16 +326,23 @@ async function prepareOffer({ config, content, runKey, now, retryInfo, skipOffer
     code,
     percent: assessment.percent,
     discountId,
-    startsAt,
-    endsAt,
+    startsAt: window.startsAt.toISOString(),
+    endsAt: window.endsAt.toISOString(),
     assessment,
     verified,
     input,
+    discountAction,
   };
 }
 
 function browserOfferCaption(caption, offerPlan) {
   if (offerPlan?.status !== "browser-required") return caption;
+  if (offerPlan.target?.type === "all" && caption.includes("A heartfelt thank-you")) {
+    return caption.replace(
+      /\n\nVisit the store:/,
+      `\n\nAs a thank-you to the VS Store family, use code {{OFFER_CODE}} for the verified {{OFFER_PERCENT}}% weekend discount while the offer is active.\n\nVisit the store:`,
+    );
+  }
   return caption
     .replace(
       /\n\nSee the photos and available choices here:/,
@@ -288,11 +359,23 @@ function makeFingerprint(value) {
 }
 
 function contentSummary(content) {
+  const title =
+    content.product?.title ||
+    content.collection?.title ||
+    (content.variant === "promotion-teaser"
+      ? "VS Store Friday sale teaser"
+      : content.variant === "heartfelt"
+        ? "VS Store heartfelt Friday banner"
+        : "VS Store banner");
   return {
     kind: content.kind,
+    variant: content.variant || null,
+    slot: content.slot || null,
+    weekday: content.weekday || null,
+    weekKey: content.weekKey || null,
     id: content.id || content.product?.id || content.collection?.id || null,
     handle: content.handle || content.product?.handle || content.collection?.handle || null,
-    title: content.product?.title || content.collection?.title || "VS Store welcome banner",
+    title,
   };
 }
 
@@ -318,6 +401,8 @@ function targetUrlForContent(content, config) {
     return `${config.siteUrl}/products/${encodeURIComponent(content.product?.handle || content.handle)}?utm_source=facebook&utm_medium=organic_social&utm_campaign=vs_store_daily_social&utm_content=product`;
   if (content.kind === "collection")
     return `${config.siteUrl}/collections/${encodeURIComponent(content.collection?.handle || content.handle)}?utm_source=facebook&utm_medium=organic_social&utm_campaign=vs_store_daily_social&utm_content=collection`;
+  if (content.variant === "promotion-teaser")
+    return `${config.siteUrl}/offers?utm_source=facebook&utm_medium=organic_social&utm_campaign=vs_store_daily_social&utm_content=friday-sale-teaser`;
   return `${config.siteUrl}/?utm_source=facebook&utm_medium=organic_social&utm_campaign=vs_store_daily_social&utm_content=welcome-banner`;
 }
 
@@ -341,6 +426,13 @@ function buildImageGenPrompt(content) {
       "Use the supplied VS Store logo reference exactly as the brand mark. Use a refined navy, white, and warm-gold palette with clean retail lighting and generous safe margins.",
       "Do not invent text, claims, prices, discounts, specifications, gender, audience labels, packaging, badges, or brand names. Do not add people unless they already appear in the product reference. Do not render any text other than the supplied logo artwork.",
       "The post caption carries the product copy separately, so keep this image polished, legible, and text-free apart from the exact logo.",
+    ].join("\n");
+  }
+  if (content.variant === "promotion-teaser") {
+    return [
+      "Create a premium square 1080x1080 organic Facebook Page promotional teaser creative for VS Store.",
+      "Use the supplied VS Store logo reference exactly and create a refined navy, white, and warm-gold retail scene that feels anticipatory and polished.",
+      "The creative should tease a Friday weekend sale without showing a percentage, coupon code, price, product, discount claim, or other text. Do not render any text other than the supplied logo artwork.",
     ].join("\n");
   }
   if (content.kind === "collection") {
@@ -484,24 +576,33 @@ async function writeBrowserRequest({ config, pending, offerPlan }) {
   const actions = [];
   if (offerPlan?.status === "browser-required") {
     actions.push({
-      type: "shopify.create_discount_with_margin_audit",
+      type: "shopify.reconcile_weekly_storewide_discount",
       target: offerPlan.target,
       proposedCode: offerPlan.code,
+      fallbackCode: offerPlan.fallbackCode,
+      startsAt: offerPlan.startsAt,
+      endsAt: offerPlan.endsAt,
       marginPolicy: offerPlan.marginPolicy,
       instructions:
-        "In Shopify Admin, inspect every target variant's price and inventoryItem.unitCost. Create one code only if 10% or 15% passes the supplied contribution floor; verify the saved code, scope, dates, one-use-per-customer setting, and no-stacking setting before returning the result. If the margin gate fails or Shopify cannot verify the saved discount, skip the offer and remove the offer paragraph from the post before publishing.",
+        "In Shopify Admin, inspect every active, published, in-stock product variant's price and inventoryItem.unitCost. Try the 15% proposed code first, then the 10% fallback code only if 15% fails the contribution floor. Reconcile an existing VS Store-managed code instead of creating a duplicate. Verify the saved code, actual percentage, storewide scope, Friday 00:00 through Monday 00:00 America/New_York dates, one-use-per-customer setting, and no-stacking setting before returning the result. If the margin gate fails, a code conflicts with an unmanaged discount, or Shopify cannot verify the saved discount, skip the offer and remove the offer paragraph from the post before publishing.",
     });
   }
   actions.push({
     type: "meta.schedule_vs_store_page_post",
     pageName: "VS Store",
     pageId: config.metaPageId || null,
+    destinations: ["facebook", "instagram"],
+    instagramAccount: {
+      accountId:
+        pending.destinations?.instagram?.accountId || config.metaInstagramAccountId || null,
+      username: pending.destinations?.instagram?.username || config.metaInstagramUsername || null,
+    },
     imagePath: pending.imagePath,
     caption: pending.captionTemplate,
     scheduledAt: pending.scheduledAt,
     targetUrl: pending.targetUrl,
     instructions:
-      "Use the Codex internal browser only. Schedule/publish on the VS Store Facebook Page. Do not touch ads, spend, Instagram, Threads, SALT, or theme settings. If a verified discount was created, replace {{OFFER_CODE}} and {{OFFER_PERCENT}} in the caption before publishing. If the offer was skipped, remove the entire offer sentence/paragraph and never publish unresolved placeholders. Confirm the final post ID and URL, then record the exact final caption with the browser bridge when possible.",
+      "Use the Codex internal browser only. Schedule/publish the exact same image and final caption to the VS Store Facebook Page and its connected Instagram account @vs.store2608 in the same Meta Business Suite composer flow. If existingFacebookPost is present, do not create a duplicate Facebook post; verify/read back that post and publish only the missing Instagram destination. Do not touch ads, spend, campaigns, Threads, SALT, or theme settings. If a verified discount was created, replace {{OFFER_CODE}} and {{OFFER_PERCENT}} in the caption before publishing. If the offer was skipped, remove the entire offer sentence/paragraph and never publish unresolved placeholders. Confirm and read back both final post IDs and URLs, then record both through the browser bridge.",
   });
   await writeBrowserFallbackRequest(config.rootDir, {
     runKey: pending.runKey,
@@ -514,6 +615,11 @@ async function writeBrowserRequest({ config, pending, offerPlan }) {
       captionTemplate: pending.captionTemplate,
       scheduledAt: pending.scheduledAt,
       targetUrl: pending.targetUrl,
+      destinations: pending.destinations || {
+        facebook: { required: true, pageId: config.metaPageId || null },
+        instagram: { required: true, username: config.metaInstagramUsername || "vs.store2608" },
+      },
+      existingFacebookPost: pending.metaPost || null,
     },
   });
 }
@@ -587,6 +693,11 @@ async function consumeBrowserResult({ config, state, now }) {
       "Internal-browser fallback did not provide a verified Facebook post ID and URL.",
     );
   }
+  if (!result.instagramPost?.verified || !result.instagramPost?.id || !result.instagramPost?.url) {
+    throw new Error(
+      "Internal-browser fallback did not provide a verified Instagram post ID and URL.",
+    );
+  }
   if (result.post?.caption && /\{\{(?:OFFER_CODE|OFFER_PERCENT)\}\}/.test(result.post.caption)) {
     throw new Error(
       "Internal-browser fallback recorded a Facebook caption with unresolved offer placeholders.",
@@ -602,6 +713,14 @@ async function consumeBrowserResult({ config, state, now }) {
       "Internal-browser fallback recorded a Facebook caption containing raw catalog labels.",
     );
   }
+  if (
+    result.instagramPost?.caption &&
+    /\{\{(?:OFFER_CODE|OFFER_PERCENT)\}\}/.test(result.instagramPost.caption)
+  ) {
+    throw new Error(
+      "Internal-browser fallback recorded an Instagram caption with unresolved offer placeholders.",
+    );
+  }
   let offer = null;
   if (pending.offerPlan?.status === "browser-required") {
     if (result.offerSkipped === true) {
@@ -610,7 +729,17 @@ async function consumeBrowserResult({ config, state, now }) {
       !result.discount?.verified ||
       !result.discount?.id ||
       !result.discount?.code ||
-      ![10, 15].includes(Number(result.discount?.percent))
+      ![config.primaryDiscountCode, config.fallbackDiscountCode].includes(result.discount.code) ||
+      Number(result.discount?.percent) !==
+        (result.discount.code === config.primaryDiscountCode
+          ? config.primaryDiscountPercent
+          : config.fallbackDiscountPercent) ||
+      result.discount?.targetType !== "all" ||
+      result.discount?.allItems !== true ||
+      result.discount?.appliesOncePerCustomer !== true ||
+      result.discount?.combinesWith?.orderDiscounts !== false ||
+      result.discount?.combinesWith?.productDiscounts !== false ||
+      result.discount?.combinesWith?.shippingDiscounts !== false
     ) {
       throw new Error(
         "Internal-browser fallback did not provide a verified eligible Shopify discount.",
@@ -624,6 +753,13 @@ async function consumeBrowserResult({ config, state, now }) {
         target: pending.offerPlan.target,
         startsAt: result.discount.startsAt || now.toISOString(),
         endsAt: result.discount.endsAt || null,
+        allItems: true,
+        appliesOncePerCustomer: true,
+        combinesWith: {
+          orderDiscounts: false,
+          productDiscounts: false,
+          shippingDiscounts: false,
+        },
       };
     }
   } else if (pending.offerPlan?.status === "verified") {
@@ -632,12 +768,23 @@ async function consumeBrowserResult({ config, state, now }) {
   const historyEntry = {
     runKey: pending.runKey,
     kind: pending.content.kind,
+    variant: pending.content.variant || null,
+    slot: pending.content.slot || null,
+    weekday: pending.content.weekday || null,
+    weekKey: pending.content.weekKey || null,
     handle: pending.content.handle,
     title: pending.content.title,
     selectedAt: pending.selectedAt,
     publishedAt: result.post.publishedAt || result.post.scheduledAt || now.toISOString(),
     postId: result.post.id,
     postUrl: result.post.url,
+    instagramPostId: result.instagramPost.id,
+    instagramPostUrl: result.instagramPost.url,
+    instagramPost: {
+      id: result.instagramPost.id,
+      url: result.instagramPost.url,
+      publishedAt: result.instagramPost.publishedAt || result.instagramPost.scheduledAt || null,
+    },
     image: pending.imagePath
       ? { path: pending.imagePath, mode: pending.imageMode || "imagegen" }
       : null,
@@ -646,36 +793,100 @@ async function consumeBrowserResult({ config, state, now }) {
       : null,
     executionPath: "internal-browser",
   };
-  const nextState = await writeSocialState(config.rootDir, {
-    ...state,
+  let nextState = {
+    ...recordUsage(state, {
+      kind: pending.content.kind,
+      handle: pending.content.handle,
+      usedAt: historyEntry.publishedAt,
+      weekKey: pending.content.weekKey,
+    }),
     status: "completed",
     lastRunKey: pending.runKey,
     lastOffer: offer
       ? {
           createdAt: offer.startsAt,
+          startsAt: offer.startsAt,
+          endsAt: offer.endsAt,
           code: offer.code,
           percent: offer.percent,
           discountId: offer.discountId,
           target: offer.target,
         }
       : state.lastOffer,
-    nextRotation: advanceRotation(state),
+    couponRegistry: offer
+      ? {
+          ...(state.couponRegistry || {}),
+          [offer.code]: {
+            discountId: offer.discountId,
+            code: offer.code,
+            percent: offer.percent,
+            targetType: offer.target?.type || null,
+            startsAt: offer.startsAt,
+            endsAt: offer.endsAt,
+          },
+        }
+      : state.couponRegistry || {},
     pending: null,
+    destinations: {
+      facebook: {
+        ...(state.destinations?.facebook || { required: true }),
+        lastPostId: result.post.id,
+        lastPostUrl: result.post.url,
+      },
+      instagram: {
+        ...(state.destinations?.instagram || { required: true }),
+        required: true,
+        lastPostId: result.instagramPost.id,
+        lastPostUrl: result.instagramPost.url,
+      },
+    },
     history: [historyEntry, ...(Array.isArray(state.history) ? state.history : [])].slice(0, 90),
-  });
+  };
+  nextState = await writeSocialState(config.rootDir, nextState);
   await appendSocialEvent(config.rootDir, {
     type: "completed",
     runKey: pending.runKey,
     executionPath: "internal-browser",
     postId: result.post.id,
+    instagramPostId: result.instagramPost.id,
     discountId: offer?.discountId || null,
   });
   await clearBrowserFallbackFiles(config.rootDir);
   await clearImageGenFiles(config.rootDir);
   process.stdout.write(
-    `VS Store social run completed through internal browser: ${result.post.url}\n`,
+    `VS Store social run completed through internal browser: Facebook ${result.post.url}; Instagram ${result.instagramPost.url}\n`,
   );
   return Boolean(nextState);
+}
+
+async function migrateStalePendingState({ state, runKey, now }) {
+  const pendingRunKey = state?.pending?.runKey;
+  const legacyPending =
+    Number(state?.schemaVersion || 1) < 3 ||
+    !state?.pending?.content?.variant ||
+    !state?.pending?.content?.slot;
+  if (!pendingRunKey || (pendingRunKey === runKey && !legacyPending)) return state;
+  const scheduledAt = Date.parse(String(state.pending?.scheduledAt || ""));
+  if (!legacyPending && Number.isFinite(scheduledAt) && scheduledAt > now.getTime()) return state;
+  await clearBrowserFallbackFiles(rootDir);
+  await clearImageGenFiles(rootDir);
+  const migrated = await writeSocialState(rootDir, {
+    ...state,
+    status: "idle",
+    pending: null,
+    lastStalePending: {
+      runKey: pendingRunKey,
+      fingerprint: state.pending?.fingerprint || null,
+      discardedAt: now.toISOString(),
+      reason: "weekday-schedule-migration",
+    },
+  });
+  await appendSocialEvent(rootDir, {
+    type: "stale_pending_discarded",
+    runKey: pendingRunKey,
+    reason: "weekday-schedule-migration",
+  });
+  return migrated;
 }
 
 async function runDaily(args, config) {
@@ -684,6 +895,7 @@ async function runDaily(args, config) {
     let state = await readSocialState(rootDir);
     const now = new Date();
     const runKey = buildRunKey(now, config.timezone);
+    state = await migrateStalePendingState({ state, runKey, now });
     const pendingForRun =
       state.pending?.runKey === runKey && state.pending?.content?.kind ? state.pending : null;
 
@@ -710,6 +922,10 @@ async function runDaily(args, config) {
     const content = pendingForRun
       ? {
           kind: pendingForRun.content.kind,
+          variant: pendingForRun.content.variant || "showcase",
+          slot: pendingForRun.content.slot || null,
+          weekday: pendingForRun.content.weekday || null,
+          weekKey: pendingForRun.content.weekKey || null,
           id: pendingForRun.content.id,
           handle: pendingForRun.content.handle,
           product:
@@ -724,11 +940,23 @@ async function runDaily(args, config) {
               : null,
         }
       : selectDailyContent({ catalog, state, now, timeZone: config.timezone });
+    if (content.kind === "product" && !content.product) {
+      throw new Error(`No eligible in-stock product is available for the ${content.slot} slot.`);
+    }
+    if (content.kind === "collection" && !content.collection) {
+      throw new Error(
+        `No eligible image-backed collection is available for the ${content.slot} slot.`,
+      );
+    }
 
     let peak = pendingForRun?.peak
       ? pendingForRun.peak
       : choosePeakHour(new Map(), config.fallbackHour);
     let metaClient = null;
+    let instagramAccount = {
+      id: config.metaInstagramAccountId || null,
+      username: config.metaInstagramUsername || "vs.store2608",
+    };
     if (config.metaPageAccessToken) {
       metaClient = createVsStoreMetaClient(config);
       try {
@@ -748,32 +976,43 @@ async function runDaily(args, config) {
           peak = await metaClient.audiencePeak({ retryInfo });
         }
       }
+      try {
+        const linkedInstagram = await metaClient.instagramAccountReadback({ retryInfo });
+        instagramAccount = {
+          id: linkedInstagram.id || instagramAccount.id,
+          username: linkedInstagram.username || instagramAccount.username,
+        };
+      } catch (error) {
+        if (isNetworkError(error)) throw error;
+        process.stdout.write(
+          `Linked Instagram account readback unavailable; using browser fallback if needed: ${normalizeText(error.message)}\n`,
+        );
+      }
     }
     const scheduledAt = pendingForRun?.scheduledAt
       ? new Date(pendingForRun.scheduledAt)
-      : nextScheduledDate(now, config.timezone, peak.hour);
-    const offerDue = shouldAttemptOffer({
-      content,
-      state,
-      now,
-      timeZone: config.timezone,
-      offerWeekday: config.offerWeekday,
-      offerWindowDays: config.offerWindowDays,
-    });
+      : nextScheduledDateForWeekday(
+          now,
+          config.timezone,
+          peak.hour,
+          content.weekday ?? getDailySchedule(now, config.timezone).weekday,
+        );
+    const offerDue = content.variant === "heartfelt";
     let offerPlan = pendingForRun?.offerPlan
       ? pendingForRun.offerPlan
       : offerDue
         ? null
-        : { status: "not-requested", reason: "not-weekly-offer-day" };
+        : { status: "not-requested", reason: "not-friday-offer-slot" };
     if (!offerPlan) {
       try {
         offerPlan = await prepareOffer({
           config,
           content,
-          runKey,
           now,
           retryInfo,
           skipOffer: args.skipOffer,
+          state,
+          dryRun: args.dryRun,
         });
       } catch (error) {
         if (isNetworkError(error)) {
@@ -785,26 +1024,19 @@ async function runDaily(args, config) {
           offerPlan = await prepareOffer({
             config,
             content,
-            runKey,
             now,
             retryInfo,
             skipOffer: args.skipOffer,
+            state,
+            dryRun: args.dryRun,
           });
         } else if (config.browserFallbackEnabled) {
-          const target = targetForContent(content);
-          offerPlan = {
-            status: "browser-required",
-            target,
-            code: target?.id ? buildOfferCode(runKey, target.id) : null,
-            percent: null,
-            marginPolicy: {
-              defaultPercent: config.defaultDiscountPercent,
-              maximumPercent: config.maxDiscountPercent,
-              overheadUsd: config.overheadUsd,
-              minimumContributionUsd: config.minimumContributionUsd,
-            },
+          offerPlan = buildDeferredOfferPlan({
+            config,
+            content,
+            now,
             reason: normalizeText(error.message),
-          };
+          });
           process.stdout.write(
             `Shopify offer API path unavailable; deferring the guarded offer to internal browser: ${offerPlan.reason}\n`,
           );
@@ -880,6 +1112,14 @@ async function runDaily(args, config) {
       targetUrl,
       offerPlan,
       retryInfo,
+      destinations: {
+        facebook: { required: true, pageId: config.metaPageId || null },
+        instagram: {
+          required: true,
+          accountId: instagramAccount.id,
+          username: instagramAccount.username,
+        },
+      },
     };
 
     if (args.dryRun) {
@@ -958,6 +1198,40 @@ async function runDaily(args, config) {
       return;
     }
 
+    // Facebook can schedule a local upload, while Instagram Graph publishing
+    // needs a public image URL and cannot schedule this local creative for the
+    // future peak slot. Route those runs to the authenticated Meta composer so
+    // both destinations receive the exact same upload and scheduled time.
+    const needsInstagramBrowser =
+      !instagramAccount.id ||
+      !config.metaInstagramPublicImageUrl ||
+      scheduledAt.getTime() > Date.now() + 2 * 60 * 1000;
+    if (needsInstagramBrowser) {
+      if (!config.browserFallbackEnabled) {
+        throw new Error(
+          "Instagram same-post scheduling requires the authenticated Meta browser fallback for this local creative.",
+        );
+      }
+      const pending = {
+        ...pendingBase,
+        captionTemplate: offer ? caption : captionTemplate,
+        offerPlan: offer || offerPlan,
+      };
+      state = await writeSocialState(rootDir, { ...state, status: "waiting_for_browser", pending });
+      await writeBrowserRequest({ config, pending, offerPlan: offer || offerPlan });
+      await appendSocialEvent(rootDir, {
+        type: "waiting_for_browser",
+        runKey,
+        reason: "instagram-same-post-browser-fallback-required",
+      });
+      process.stdout.write(
+        `Instagram same-post scheduling requires the authenticated Meta browser; request saved at ${socialPaths(rootDir).browserRequest}.\n`,
+      );
+      process.exitCode = 75;
+      return;
+    }
+
+    let instagramResponse;
     try {
       postResponse = await metaClient.schedulePhoto({
         imagePath: image.path,
@@ -1021,50 +1295,137 @@ async function runDaily(args, config) {
       throw new Error("Meta post readback returned an unexpected post ID.");
     if (!postReadback?.permalink_url && !postReadback?.scheduled_publish_time)
       throw new Error("Meta post readback has neither a permalink nor a scheduled publish time.");
+    try {
+      instagramResponse = await metaClient.publishInstagramPhoto({
+        accountId: instagramAccount.id,
+        imageUrl: config.metaInstagramPublicImageUrl,
+        caption,
+        retryInfo,
+      });
+      const instagramPostId = normalizeText(instagramResponse?.id || instagramResponse?.post_id);
+      if (!instagramPostId)
+        throw new Error("Instagram publish response did not include a post ID.");
+      const instagramReadback = await metaClient.instagramPostReadback(instagramPostId, {
+        retryInfo,
+      });
+      if (normalizeText(instagramReadback?.id) !== instagramPostId)
+        throw new Error("Instagram post readback returned an unexpected post ID.");
+      if (!instagramReadback?.permalink)
+        throw new Error("Instagram post readback did not include a permalink.");
+      instagramResponse = { ...instagramReadback, id: instagramPostId };
+    } catch (error) {
+      if (!config.browserFallbackEnabled) throw error;
+      const pending = {
+        ...pendingBase,
+        captionTemplate: caption,
+        offerPlan: offer,
+        metaPost: { id: postId, url: postReadback.permalink_url || null },
+      };
+      await writeSocialState(rootDir, { ...state, status: "waiting_for_browser", pending });
+      await writeBrowserRequest({ config, pending, offerPlan: offer });
+      await appendSocialEvent(rootDir, {
+        type: "waiting_for_browser",
+        runKey,
+        reason: `instagram-api-publish-failed:${normalizeText(error.message)}`,
+      });
+      process.stdout.write(
+        `Facebook is verified but Instagram API publish needs browser completion; request saved at ${socialPaths(rootDir).browserRequest}.\n`,
+      );
+      process.exitCode = 75;
+      return;
+    }
+    const instagramPostId = normalizeText(instagramResponse?.id);
     const historyEntry = {
       runKey,
       kind: content.kind,
+      variant: content.variant || null,
+      slot: content.slot || null,
+      weekday: content.weekday || null,
+      weekKey: content.weekKey || null,
       handle: content.handle || null,
-      title: content.product?.title || content.collection?.title || "VS Store welcome banner",
+      title: contentSummary(content).title,
       selectedAt: content.selectedAt || now.toISOString(),
       publishedAt:
         postReadback.created_time || postReadback.scheduled_publish_time || now.toISOString(),
       postId,
       postUrl: postReadback.permalink_url || null,
+      instagramPostId,
+      instagramPostUrl: instagramResponse.permalink || null,
+      instagramPost: {
+        id: instagramPostId,
+        url: instagramResponse.permalink,
+        publishedAt: instagramResponse.timestamp || now.toISOString(),
+      },
       image: { path: image.path, mode: image.mode },
       offer: offer
         ? { code: offer.code, percent: offer.percent, discountId: offer.discountId }
         : null,
       executionPath: "meta-api",
     };
-    await writeSocialState(rootDir, {
-      ...state,
+    const completedState = {
+      ...recordUsage(state, {
+        kind: content.kind,
+        handle: content.handle,
+        usedAt: historyEntry.publishedAt,
+        weekKey: content.weekKey,
+      }),
       status: "completed",
       lastRunKey: runKey,
       lastOffer: offer
         ? {
             createdAt: offer.startsAt,
+            startsAt: offer.startsAt,
+            endsAt: offer.endsAt,
             code: offer.code,
             percent: offer.percent,
             discountId: offer.discountId,
             target: offer.target,
           }
         : state.lastOffer,
-      nextRotation: advanceRotation(state),
+      couponRegistry: offer
+        ? {
+            ...(state.couponRegistry || {}),
+            [offer.code]: {
+              discountId: offer.discountId,
+              code: offer.code,
+              percent: offer.percent,
+              targetType: offer.target?.type || null,
+              startsAt: offer.startsAt,
+              endsAt: offer.endsAt,
+            },
+          }
+        : state.couponRegistry || {},
       pending: null,
+      destinations: {
+        facebook: {
+          ...(state.destinations?.facebook || { required: true }),
+          lastPostId: postId,
+          lastPostUrl: postReadback.permalink_url || null,
+        },
+        instagram: {
+          ...(state.destinations?.instagram || { required: true }),
+          required: true,
+          accountId: instagramAccount.id,
+          username: instagramAccount.username,
+          lastPostId: instagramPostId,
+          lastPostUrl: instagramResponse.permalink || null,
+        },
+      },
       history: [historyEntry, ...(Array.isArray(state.history) ? state.history : [])].slice(0, 90),
-    });
+    };
+    await writeSocialState(rootDir, completedState);
     await appendSocialEvent(rootDir, {
       type: "completed",
       runKey,
       executionPath: "meta-api",
       postId,
+      instagramPostId,
       discountId: offer?.discountId || null,
     });
     await clearBrowserFallbackFiles(rootDir);
     await clearImageGenFiles(rootDir);
     process.stdout.write(
-      `VS Store social run completed through Meta API: ${postReadback.permalink_url || `scheduled post ${postId}`}\n`,
+      `VS Store social run completed through Meta API: Facebook ${postReadback.permalink_url || `scheduled post ${postId}`}; Instagram ${instagramResponse.permalink || instagramPostId}\n`,
     );
   } finally {
     await releaseLock();

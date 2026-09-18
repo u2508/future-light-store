@@ -147,6 +147,11 @@ const themeDataAssets = [
     asset: "data-product-browse.json",
     themePath: "/data/product-browse.json",
   },
+  {
+    source: "product-seo.json",
+    asset: "data-product-seo.json",
+    themePath: "/data/product-seo.json",
+  },
 ];
 const PRODUCT_SHARD_SOURCE_PATTERN = /^products-\d{4}\.json$/;
 const PRODUCT_SEARCH_SHARD_SOURCE_PATTERN = /^product-search-\d{4}\.json$/;

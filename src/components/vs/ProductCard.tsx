@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Heart, Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
-import { discountPercent, formatMoney, type ShopifyProduct } from "@/lib/shopify";
+import {
+  discountPercent,
+  formatMoney,
+  isProductAvailable,
+  type ShopifyProduct,
+} from "@/lib/shopify";
 import { requestCartOpen, useCartStore } from "@/stores/cartStore";
 import { useWishlistStore } from "@/stores/wishlistStore";
 import { QuickActionsSheet } from "@/components/vs/QuickActionsSheet";
@@ -26,13 +31,13 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
   const image = n.images.edges[0]?.node;
   const imageDelivery = image ? getProductCardImageDelivery(image.url) : null;
   const variants = n.variants.edges.map((e) => e.node);
-  const firstVariant = variants[0];
+  const firstVariant = variants.find((variant) => variant.availableForSale) ?? variants[0];
   const price = firstVariant?.price ?? n.priceRange.minVariantPrice;
   const compareAt = firstVariant?.compareAtPrice?.amount ?? null;
   const off = discountPercent(price.amount, compareAt);
   const variantCount = n.variantsCount?.count ?? variants.length;
   const singleVariant = variantCount === 1;
-  const soldOut = !n.availableForSale || unavailable;
+  const soldOut = !isProductAvailable(n) || unavailable;
   const lowStock = variants.some(
     (v) => v.quantityAvailable != null && v.quantityAvailable > 0 && v.quantityAvailable <= 5,
   );

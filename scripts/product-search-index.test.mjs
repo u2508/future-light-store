@@ -50,4 +50,46 @@ describe("buildProductSearchPayload", () => {
     });
     expect(payload.products[0].knowledge.searchTerms).toContain("garden");
   });
+
+  it("uses an available variant when the cheapest variant is unavailable", () => {
+    const payload = buildProductSearchPayload({
+      products: [
+        {
+          id: 99,
+          title: "Wireless Camera Tripod",
+          handle: "wireless-camera-tripod",
+          variants: [
+            { id: 1, title: "Black", price: "19.99", available: false },
+            { id: 2, title: "Blue", price: "24.99", available: true },
+          ],
+        },
+      ],
+    });
+
+    expect(payload.products[0].variants).toEqual([
+      { id: 2, title: "Blue", price: "24.99", compare_at_price: null, available: true },
+    ]);
+  });
+
+  it("keeps the cheapest variant when every variant is unavailable", () => {
+    const payload = buildProductSearchPayload({
+      products: [
+        {
+          id: 100,
+          title: "Unavailable Cable",
+          handle: "unavailable-cable",
+          variants: [
+            { id: 1, title: "Short", price: "9.99", available: false },
+            { id: 2, title: "Long", price: "14.99", available: false },
+          ],
+        },
+      ],
+    });
+
+    expect(payload.products[0].variants[0]).toMatchObject({
+      id: 1,
+      price: "9.99",
+      available: false,
+    });
+  });
 });

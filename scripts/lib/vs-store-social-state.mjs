@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-export const SOCIAL_STATE_VERSION = 1;
+export const SOCIAL_STATE_VERSION = 3;
 
 export function socialPaths(rootDir) {
   const directory = resolve(rootDir, "output", "social");
@@ -25,6 +25,16 @@ function defaultState() {
     nextRotation: 0,
     lastRunKey: null,
     lastOffer: null,
+    couponRegistry: {},
+    lastStalePending: null,
+    usageLedger: {
+      product: {},
+      collection: {},
+    },
+    destinations: {
+      facebook: { required: true },
+      instagram: { required: true, username: "vs.store2608" },
+    },
     pending: null,
     history: [],
     updatedAt: null,
@@ -45,6 +55,20 @@ export async function readSocialState(rootDir) {
     return {
       ...defaultState(),
       ...parsed,
+      usageLedger: {
+        product: parsed?.usageLedger?.product || {},
+        collection: parsed?.usageLedger?.collection || {},
+      },
+      destinations: {
+        ...defaultState().destinations,
+        ...(parsed?.destinations || {}),
+        facebook: { required: true, ...(parsed?.destinations?.facebook || {}) },
+        instagram: {
+          required: true,
+          username: "vs.store2608",
+          ...(parsed?.destinations?.instagram || {}),
+        },
+      },
       history: Array.isArray(parsed?.history) ? parsed.history : [],
     };
   } catch (error) {
@@ -75,6 +99,27 @@ export async function appendSocialEvent(rootDir, event) {
       flag: "a",
     },
   );
+}
+
+export function recordUsage(state, { kind, handle, usedAt, weekKey }) {
+  if (!["product", "collection"].includes(kind) || !handle) return state;
+  const currentLedger = state?.usageLedger?.[kind] || {};
+  const normalizedHandle = String(handle).trim().toLowerCase();
+  return {
+    ...state,
+    usageLedger: {
+      ...(state?.usageLedger || {}),
+      [kind]: {
+        ...currentLedger,
+        [normalizedHandle]: {
+          uses: Number(currentLedger[normalizedHandle]?.uses || 0) + 1,
+          firstUsedAt: currentLedger[normalizedHandle]?.firstUsedAt || usedAt,
+          lastUsedAt: usedAt,
+          lastUsedWeekKey: weekKey || currentLedger[normalizedHandle]?.lastUsedWeekKey || null,
+        },
+      },
+    },
+  };
 }
 
 function pidIsAlive(pid) {
@@ -208,6 +253,10 @@ export async function clearBrowserFallbackFiles(rootDir) {
 }
 
 export function isOfferStillActive(lastOffer, nowMs, windowDays = 7) {
-  const createdAt = Date.parse(String(lastOffer?.createdAt || ""));
-  return Number.isFinite(createdAt) && nowMs - createdAt < windowDays * 24 * 60 * 60 * 1000;
+  const startsAt = Date.parse(String(lastOffer?.startsAt || lastOffer?.createdAt || ""));
+  const endsAt = Date.parse(String(lastOffer?.endsAt || ""));
+  if (Number.isFinite(endsAt)) {
+    return nowMs < endsAt && (!Number.isFinite(startsAt) || nowMs >= startsAt);
+  }
+  return Number.isFinite(startsAt) && nowMs - startsAt < windowDays * 24 * 60 * 60 * 1000;
 }

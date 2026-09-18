@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "2026-09-18.future-light-source-review-image-fixes.1",
+  "targetStoreDomain": "vs-future-store-0jl2t-jxu6tnr3.myshopify.com",
+  "policy": "manual-chatgpt-reviewed-exact-source-only",
+  "goodImagesRemainUntouched": true,
+  "sourceReviewOnly": true,
+  "fixes": [
+    {
+      "productId": "gid://shopify/Product/16022121021521",
+      "handle": "8bitdo-ultimate-2-wireless-gaming-controller-for-pc-android-with-tmr-joysticks-switchable-triggers-motion-control-8speed",
+      "sourceMediaId": "gid://shopify/MediaImage/72059321155665",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S420a096866dd43619a1acb32fb46bf4ch.webp?v=1788688475",
+      "expectedVariantIds": ["gid://shopify/ProductVariant/60383602245713"],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/8bitdo-ultimate-2-white-vs-store.png",
+      "visualFinding": "The held source showed the exact white controller but carried supplier presentation; the replacement preserves the white shell, black controls, TMR-style sticks, and controller proportions on a clean studio background.",
+      "identityReviewNote": "Approved only for the White / China Mainland variant after visual comparison with the live source media. No alternate color, console, packaging, or unrelated controller is introduced.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    },
+    {
+      "productId": "gid://shopify/Product/16021843771473",
+      "handle": "fader-variable-nd-filter-dimmer-adjustable-nd2-to-nd400-neutral-density-for-photography-camera-lens",
+      "sourceMediaId": "gid://shopify/MediaImage/72057377587281",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/Seab18f63a1cf4bef9b325bd3210fc629A.webp?v=1788676016",
+      "expectedVariantIds": ["gid://shopify/ProductVariant/60382634836049"],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/fader-variable-nd-filter-82mm-vs-store.png",
+      "visualFinding": "The replacement shows the exact black circular variable ND filter form for the 82mm variant, with the conflicting supplier size artwork removed and no unsupported readable size text.",
+      "identityReviewNote": "Approved only for the 82mm filter variant. The asset is a neutral product photograph of a camera lens filter and does not claim a different diameter or add a camera lens.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    },
+    {
+      "productId": "gid://shopify/Product/16021855502417",
+      "handle": "gamesir-g7-pro-xbox-licensed-game-controller-wired-controller-for-xbox-wireless-gamepad-for-pc-android-mobile",
+      "sourceMediaId": "gid://shopify/MediaImage/72057437126737",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S956bc942faac43c6957c9433d9658dbdt.webp?v=1788676298",
+      "expectedVariantIds": ["gid://shopify/ProductVariant/60382663966801"],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/gamesir-g7-pro-amber-flame-vs-store.png",
+      "visualFinding": "The replacement preserves the Amber Flame GameSir G7 Pro controller's translucent orange-brown shell, wired layout, controls, and proportions while removing special-edition artwork and supplier overlays.",
+      "identityReviewNote": "Approved only for the Amber Flame variant. The image does not relabel the controller as a different edition and does not add a console, game artwork, or wireless accessory.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    },
+    {
+      "productId": "gid://shopify/Product/16022117089361",
+      "handle": "gamesir-wireless-switch-controller-nova-lite-bluetooth-gamepad-with-hall-effect-for-nintendo-switch-iphone-android-phone-pc",
+      "sourceMediaId": "gid://shopify/MediaImage/72059264172113",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/Sab0c5c80c855425aa2c2c86281aefed4V.webp?v=1788687964",
+      "expectedVariantIds": ["gid://shopify/ProductVariant/60383558631505"],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/gamesir-nova-lite-pink-vs-store.png",
+      "visualFinding": "The replacement preserves the pink GameSir Nova Lite controller shell, button layout, sticks, and silhouette while removing the logo-only supplier asset and unrelated presentation.",
+      "identityReviewNote": "Approved only for the Pink variant after comparison with the live pink controller media. No black, white, dongle-only, packaging, or other controller is mapped to this variant.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    },
+    {
+      "productId": "gid://shopify/Product/16022009741393",
+      "handle": "magcubic-projector-hy300-pro-8k-android-14-dual-wifi6-allwinner-h726-bt5-4-1080p-1280-720p-home-cinema-outdoor-projetor",
+      "sourceMediaId": "gid://shopify/MediaImage/72058511556689",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/Sbbf6e960735e4ed8b9394cae17a106a7H.webp?v=1788683028",
+      "expectedVariantIds": ["gid://shopify/ProductVariant/60383095881809"],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/magcubic-hy300-pro-grey-voice-us-plug-vs-store.png",
+      "visualFinding": "The replacement preserves the compact white HY300 Pro projector body, circular lens, vent grille, adjustable base, and overall geometry for the ProNewGrey-Voice RC / US Plug option while removing supplier feature cards.",
+      "identityReviewNote": "Approved only for the live ProNewGrey-Voice RC / US Plug variant. The image is a clean product view and does not introduce another plug, projector model, remote, or invented hardware.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    },
+    {
+      "productId": "gid://shopify/Product/16022121414737",
+      "handle": "mobile-phone-computer-type-c-docking-station-one-drag-four-expander-high-speed-transmission-usb-dock-multi-function-wire-divider",
+      "sourceMediaId": "gid://shopify/MediaImage/72059331149905",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/Sddd657f7c0bc440798b6a27e965437b16.webp?v=1788688485",
+      "expectedVariantIds": [],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/type-c-docking-station-vs-store.png",
+      "visualFinding": "The held source was a supplier feedback card; the replacement is an identity-preserving silver USB-C multi-port docking station image with the same compact aluminum hub form and visible ports.",
+      "identityReviewNote": "Approved at product level because the held media had no variant linkage. No other product, laptop, packaging, feedback request, supplier branding, or unsupported port claim is included.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    },
+    {
+      "productId": "gid://shopify/Product/16022061678673",
+      "handle": "sonoff-zb-dongle-p-zigbee-3-0-usb-dongle-plus-universal-zigbee-gateway-support-via-zha-or-zigbee2mqtt-sonoff-zigbee-series",
+      "sourceMediaId": "gid://shopify/MediaImage/72058896285777",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S6ced67c749b04e24909bb74ee8516d4ao.webp?v=1788684535",
+      "expectedVariantIds": ["gid://shopify/ProductVariant/60383340724305"],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/sonoff-usb-extension-cable-vs-store.png",
+      "visualFinding": "The replacement preserves the black USB-A male-to-female extension cable shown by the held source and removes the supplier heading; it does not turn this cable option into a Zigbee dongle image.",
+      "identityReviewNote": "Approved only for the USB Extension Cable / China Mainland variant. This exact mapping intentionally uses a cable image because the live variant is a cable, not the dongle body.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    },
+    {
+      "productId": "gid://shopify/Product/16022061678673",
+      "handle": "sonoff-zb-dongle-p-zigbee-3-0-usb-dongle-plus-universal-zigbee-gateway-support-via-zha-or-zigbee2mqtt-sonoff-zigbee-series",
+      "sourceMediaId": "gid://shopify/MediaImage/72058896318545",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S8830a7773a2c4eaaa5016a2f37bdf440E.webp?v=1788684535",
+      "expectedVariantIds": ["gid://shopify/ProductVariant/60383340757073"],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/sonoff-zb-dongle-p-vs-store.png",
+      "visualFinding": "The replacement preserves the black finned SONOFF ZB Dongle-P body, USB-A plug, detachable antenna, and proportions while removing the paid-plan cards and supplier copy.",
+      "identityReviewNote": "Approved only for the ZBDongleP with Cable / Germany variant. The physical dongle is preserved; the image does not show the unrelated USB extension-only option or a paid service card.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    },
+    {
+      "productId": "gid://shopify/Product/16022061678673",
+      "handle": "sonoff-zb-dongle-p-zigbee-3-0-usb-dongle-plus-universal-zigbee-gateway-support-via-zha-or-zigbee2mqtt-sonoff-zigbee-series",
+      "sourceMediaId": "gid://shopify/MediaImage/72058896351313",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S8f4cea173b294a7d9839d69b89f75a58g.webp?v=1788684535",
+      "expectedVariantIds": ["gid://shopify/ProductVariant/60383340789841"],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/sonoff-zb-dongle-p-vs-store.png",
+      "visualFinding": "The replacement preserves the black finned SONOFF ZB Dongle-P body, USB-A plug, detachable antenna, and proportions while removing the paid-plan cards and supplier copy.",
+      "identityReviewNote": "Approved only for the ZBDongleP with Cable / China Mainland variant. The physical dongle is preserved; the image does not show a paid service card or a different Zigbee gateway.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    },
+    {
+      "productId": "gid://shopify/Product/16022054633553",
+      "handle": "vention-usb-3-0-extension-cable-male-to-female-extender-cable-fast-speed-usb-3-0-cable-extended-for-laptop-pc-usb-2-0-extension",
+      "sourceMediaId": "gid://shopify/MediaImage/72058848903249",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/Sbe92360560a54faa9d33526513b8b576T.webp?v=1788684147",
+      "expectedVariantIds": ["gid://shopify/ProductVariant/60383280431185"],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/vention-usb-extension-0-5m-vs-store.png",
+      "visualFinding": "The replacement preserves the black flat USB-A male-to-female extension cable and blue accent panels for the live USB 2.0 Black CBC / 0.5m variant while removing supplier branding and conflicting speed text.",
+      "identityReviewNote": "Approved only for the USB 2.0 Black CBC / 0.5m variant. The image deliberately contains no USB 3.0 claim and no other cable or connector type.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    },
+    {
+      "productId": "gid://shopify/Product/16022335258705",
+      "handle": "vintage-jacket-grunge-zipper-sweatshirt-autumn-and-winter-wings-print-slim-hoodie-gothic-fashion-trend-slim-street-outerwear-y2k",
+      "sourceMediaId": "gid://shopify/MediaImage/72060934881361",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/Sa60fbb53940c412ab5bbfa06ded4f968A.webp?v=1788698971",
+      "expectedVariantIds": ["gid://shopify/ProductVariant/60384347160657"],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/vintage-wing-hoodie-black-vs-store.png",
+      "visualFinding": "The replacement preserves the black long-sleeve hooded garment and silver wing motif confirmed by the listing's matching source media, with the unrelated short-sleeve dress removed.",
+      "identityReviewNote": "Approved only for the Black / S variant. The clean back view keeps the wing-print hoodie identity and does not add another garment, model, logo, or supplier watermark.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    },
+    {
+      "productId": "gid://shopify/Product/16022121611345",
+      "handle": "wireless-controller-bluetooth-gamepad-for-nintendo-switch-oled-lite-control-game-pad-accessories-hall-command-gaming-mando-1",
+      "sourceMediaId": "gid://shopify/MediaImage/72059337506897",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/H43aab41d4f8a4031a6b41319fbe43cc9r_77445b9a-7e53-4f4a-9491-d4e7d9cc2157.webp?v=1788688493",
+      "expectedVariantIds": [],
+      "generatedAssetPath": "output/imagegen/future-light/source-review/nintendo-switch-wireless-controller-white-vs-store.png",
+      "visualFinding": "The held source was a feedback solicitation card; the replacement is an identity-preserving white split wireless controller matching the product's live controller reference media.",
+      "identityReviewNote": "Approved at product level because the held feedback card had no variant linkage. No console, packaging, unrelated controller, supplier message, or feedback request is included.",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "2026-09-18.future-light-explicit-image-fixes.1",
+  "targetStoreDomain": "vs-future-store-0jl2t-jxu6tnr3.myshopify.com",
+  "policy": "manual-chatgpt-reviewed-exact-source-only",
+  "fixes": [
+    {
+      "productId": "gid://shopify/Product/16022003613777",
+      "handle": "2026-new-650nm-laser-therapy-health-smartwatch-men-ecg-blood-pressure-lipid-uric-acid-bluetooth-call-smart-watch-for-android-ios",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/Sb687125022f046baa59811e5f5073179w.webp?v=1788682229",
+      "generatedAssetPath": "output/imagegen/future-light/explicit-2026-new-650nm-smart-watch-hero.png",
+      "role": "product-hero",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT",
+      "visualFinding": "The source and generated images show the same rectangular black and silver smart watch with the same linked steel bracelet, crown, side buttons, and yellow side detail; the generated asset removes supplier watermarking and unsupported medical overlay panels without changing the product identity.",
+      "identityReviewNote": "Use this asset only as the hero replacement for the exact Shopify product and exact source image URL above. Preserve all existing variant choices and remap only variants that currently reference that source media. Do not infer mappings for unrelated media or products."
+    },
+    {
+      "productId": "gid://shopify/Product/16022360686673",
+      "handle": "2026-new-650nm-laser-therapy-blood-fat-uric-acid-blood-pressure-smart-watch-ecg-precise-health-monitor-smartwatches-for-men",
+      "sourceImageUrl": "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/Seefd64b957c64bd4bdd85779cef626da0.webp?v=1788699710",
+      "generatedAssetPath": "output/imagegen/future-light/explicit-2026-new-650nm-smart-watch-clean-hero.png",
+      "role": "product-hero",
+      "decision": "approved",
+      "reviewedBy": "ChatGPT",
+      "visualFinding": "The generated image preserves the same rectangular black and silver smartwatch with black strap, side crown, yellow side detail, and overall proportions shown in the supplied product screenshot; it removes supplier watermarking and unsupported medical-claim panels without changing the product identity.",
+      "identityReviewNote": "Use this asset only as the hero replacement for the exact Shopify product and exact source image URL above. Preserve all existing strap and color choices, remap only variants that currently reference that source media, and do not infer mappings for unrelated media or products."
+    }
+  ]
+}

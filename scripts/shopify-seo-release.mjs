@@ -24,6 +24,7 @@ import {
   assessProductContentSpecificity,
   findCatalogContentCollisions,
 } from "../src/lib/product-content-specificity.js";
+import { auditProductSeoRecords } from "./lib/future-light-product-seo.mjs";
 import { PRICE_REWORK_RULES } from "../src/lib/shopify-price-rework-policy.js";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
@@ -35,6 +36,7 @@ const __dirname = dirname(__filename);
 const rootDir = resolve(__dirname, "..");
 const inputDir = resolve(rootDir, "public", "data");
 const outputPath = resolve(rootDir, "output", "shopify-seo-release-manifest.json");
+const productSeoArtifactPath = resolve(inputDir, "product-seo.json");
 const liveCatalogPath = process.env.SALT_SHOPIFY_SEO_LIVE_CATALOG || resolve(rootDir, "output", ".shopify-seo-live-catalog.json");
 const shopBase = process.env.SALT_SHOP_URL;
 if (!shopBase) throw new Error("SALT_SHOP_URL is required for Future Light Store SEO operations.");
@@ -694,6 +696,115 @@ async function readJson(relativePath, { required = false } = {}) {
   }
 }
 
+async function loadProductSeoArtifact({ required = false } = {}) {
+  let payload;
+  try {
+    payload = JSON.parse(await readFile(productSeoArtifactPath, "utf8"));
+  } catch (error) {
+    if (error?.code === "ENOENT" && !required) return null;
+    throw new Error(`Could not read ${productSeoArtifactPath}: ${error.message}`);
+  }
+  if (!Array.isArray(payload?.products) || !payload.products.length) {
+    throw new Error(`Product SEO artifact contains no products: ${productSeoArtifactPath}`);
+  }
+  const audit = auditProductSeoRecords(payload.products);
+  if (audit.issues.length || audit.duplicateTitles || audit.duplicateDescriptions || audit.duplicateDescriptionHtml) {
+    throw new Error(
+      `Product SEO artifact failed its audit: ${audit.issues.length} issue(s), ` +
+      `${audit.duplicateTitles} duplicate title group(s), ${audit.duplicateDescriptions} duplicate SEO description group(s), ` +
+      `${audit.duplicateDescriptionHtml} duplicate HTML description group(s).`,
+    );
+  }
+  return payload;
+}
+
+function explicitProductSeoTitle(title, requested, uniqueReference = "") {
+  const normalizedTitle = normalizePlainText(title);
+  let value = normalizePlainText(requested || title);
+  if (!value || !normalizedTitle || value.toLowerCase() !== normalizedTitle.toLowerCase()) return value;
+  const suffix = " | VS Store";
+  const maxBaseLength = 70 - suffix.length;
+  value = value.length <= maxBaseLength
+    ? value
+    : value;
+  if (value.length <= maxBaseLength) return `${value}${suffix}`;
+
+  // Preserve the deterministic catalog reference when a product title is too
+  // long for the explicit brand suffix. Truncating the reference to a bare
+  // "Ref" makes otherwise distinct products collide in the live SEO audit.
+  const referenceMatch = value.match(/\s+[·-]\s+Ref\s+([a-z0-9-]+)$/i);
+  const referenceValue = referenceMatch?.[1] ||
+    String(uniqueReference || "").match(/[a-z0-9]+$/i)?.[0] ||
+    "item";
+  const reference = ` - Ref ${referenceValue.slice(-6)}`;
+  const prefix = (referenceMatch ? value.slice(0, referenceMatch.index) : value).trim();
+  const prefixLimit = Math.max(8, maxBaseLength - reference.length);
+  const shortenedPrefix = prefix.length > prefixLimit
+    ? prefix.slice(0, prefixLimit).replace(/\s+\S*$/, "").trim()
+    : prefix;
+  value = `${shortenedPrefix || prefix.slice(0, prefixLimit).trim()}${reference}`.trim();
+  return `${value}${suffix}`;
+}
+
+function applyProductSeoArtifact(plan, artifact, { requireComplete = false } = {}) {
+  if (!artifact) return plan;
+  const recordsByHandle = new Map(
+    artifact.products
+      .map((record) => [normalizeHandleValue(record?.handle), record])
+      .filter(([handle]) => Boolean(handle)),
+  );
+  const missing = [];
+  let matched = 0;
+  const products = plan.products.map((productPlan) => {
+    const handle = normalizeHandleValue(productPlan?.handle);
+    const record = recordsByHandle.get(handle);
+    if (!record) {
+      missing.push(handle || productPlan?.handle || "unknown-product");
+      return productPlan;
+    }
+    matched += 1;
+    const title = normalizePlainText(record.title || record.seoTitle);
+    const descriptionHtml = String(record.descriptionHtml || "").trim();
+    const seoDescription = normalizePlainText(record.seoDescription);
+    const seoTitle = explicitProductSeoTitle(title, record.seoTitle || title, record.id || record.productId || record.handle);
+    const desired = productPlan.desiredProductInput || {};
+    return {
+      ...productPlan,
+      ...(title ? { title } : {}),
+      desiredProductInput: {
+        ...desired,
+        ...(title ? { title } : {}),
+        ...(descriptionHtml ? { descriptionHtml } : {}),
+        seo: {
+          ...(desired.seo || {}),
+          ...(seoTitle ? { title: seoTitle } : {}),
+          ...(seoDescription ? { description: seoDescription } : {}),
+        },
+      },
+      intelligence: {
+        ...(productPlan.intelligence || {}),
+        ...(title ? { canonicalTitle: title, canonicalSeoTitle: seoTitle } : {}),
+        ...(descriptionHtml ? { canonicalDescriptionHtml: descriptionHtml } : {}),
+        ...(seoDescription ? { canonicalSeoDescription: seoDescription } : {}),
+      },
+    };
+  });
+  if (requireComplete && missing.length) {
+    throw new Error(
+      `Product SEO artifact is missing ${missing.length} catalog handle(s): ${missing.slice(0, 12).join(", ")}`,
+    );
+  }
+  return {
+    ...plan,
+    products,
+    summary: {
+      ...plan.summary,
+      productSeoArtifactMatched: matched,
+      productSeoArtifactMissing: missing.length,
+    },
+  };
+}
+
 async function loadCatalogSnapshot() {
   const [products, collections, collectionProducts] = await Promise.all([
     readProductCatalogPayload(inputDir),
@@ -1248,6 +1359,7 @@ function createManifest({ mode, output, plan, priorManifest }) {
     mode,
     source: {
       catalog: resolve(inputDir, "products.json"),
+      productSeoArtifact: productSeoArtifactPath,
       collections: resolve(inputDir, "collections.json"),
       collectionProducts: resolve(inputDir, "collection-products.json"),
       liveCatalog: liveCatalogPath,
@@ -2026,15 +2138,19 @@ export async function runShopifySeoRelease({
 } = {}) {
   const priorManifest = await readPriorManifest(output);
   const localSnapshot = await loadCatalogSnapshot();
+  const productSeoArtifact = await loadProductSeoArtifact({ required: fullCatalog });
   const snapshot = await loadFrozenCatalogSnapshot(frozenCatalog, localSnapshot);
   const knowledgeModel = await readCatalogKnowledgeModel({
     required: process.env.SALT_REQUIRE_KNOWLEDGE_MODEL === "1",
   });
   const explicitNewProductHandles = newProductsOnly ? await readProductHandles(productHandlesFile) : null;
-  const localPlan = await buildShopifySeoReleasePlan(snapshot, {
+  const generatedLocalPlan = await buildShopifySeoReleasePlan(snapshot, {
     forceExplicitSeo: true,
     repairVariantPricing,
     knowledgeModel,
+  });
+  const localPlan = applyProductSeoArtifact(generatedLocalPlan, productSeoArtifact, {
+    requireComplete: Boolean(productSeoArtifact),
   });
   const selectedProducts = explicitNewProductHandles
     ? localPlan.products.filter((product) => explicitNewProductHandles.has(product.handle))
@@ -2049,6 +2165,14 @@ export async function runShopifySeoRelease({
     products: sample > 0 ? selectedProducts.slice(0, sample) : selectedProducts,
   };
   let manifest = createManifest({ mode, output, plan: localPlanSelection, priorManifest });
+  manifest.policy.productSeoArtifact = productSeoArtifact
+    ? {
+        path: productSeoArtifactPath,
+        schemaVersion: productSeoArtifact.schemaVersion || "",
+        generatedAt: productSeoArtifact.generatedAt || "",
+        total: Number(productSeoArtifact.total || productSeoArtifact.products.length),
+      }
+    : null;
   manifest.policy.sample = sample || null;
   manifest.policy.tagsOnly = tagsOnly;
   manifest.policy.forceFullCatalog = fullCatalog;
@@ -2090,11 +2214,12 @@ export async function runShopifySeoRelease({
     total: mergedSnapshot.products.length,
     products: mergedSnapshot.products,
   });
-  const mergedPlan = await buildShopifySeoReleasePlan(mergedSnapshot, {
+  const generatedMergedPlan = await buildShopifySeoReleasePlan(mergedSnapshot, {
     forceExplicitSeo: true,
     repairVariantPricing,
     knowledgeModel,
   });
+  const mergedPlan = applyProductSeoArtifact(generatedMergedPlan, productSeoArtifact);
   const selectedHandles = new Set(localPlanSelection.products.map((entry) => entry.handle));
   const selectedPlan =
     sample > 0
@@ -2111,6 +2236,14 @@ export async function runShopifySeoRelease({
     ? { ...selectedPlan, products: selectedPlan.products.filter((entry) => liveHandleSet.has(entry.handle)) }
     : selectedPlan;
   manifest = createManifest({ mode, output, plan, priorManifest });
+  manifest.policy.productSeoArtifact = productSeoArtifact
+    ? {
+        path: productSeoArtifactPath,
+        schemaVersion: productSeoArtifact.schemaVersion || "",
+        generatedAt: productSeoArtifact.generatedAt || "",
+        total: Number(productSeoArtifact.total || productSeoArtifact.products.length),
+      }
+    : null;
   manifest.policy.sample = sample || null;
   manifest.policy.tagsOnly = tagsOnly;
   manifest.policy.forceFullCatalog = fullCatalog;

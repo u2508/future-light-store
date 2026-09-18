@@ -12,16 +12,15 @@ import {
   PRICE_REWORK_RULES,
   PRICE_REWORK_STRATEGY_ID,
   compareAtPriceFor,
-  costBasedPriceFor,
-  multiplierForCost,
+  nominalMarketPriceFor,
 } from "../src/lib/shopify-price-rework-policy.js";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const defaultOutputPath = resolve(rootDir, "output", "shopify-price-rework-manifest.json");
 const defaultMinimumSellPrice = PRICE_REWORK_RULES.minimumSellPrice;
 const pageSize = 250;
-const batchProductSize = Math.max(1, Math.min(25, Number(process.env.SALT_PRICE_REWORK_BATCH_SIZE || 10)));
-const mutationRetryLimit = Math.max(1, Math.min(5, Number(process.env.SALT_PRICE_REWORK_MUTATION_RETRIES || 3)));
+const batchProductSize = Math.max(1, Math.min(25, Number(process.env.FUTURE_LIGHT_PRICING_BATCH_SIZE || 10)));
+const mutationRetryLimit = Math.max(1, Math.min(5, Number(process.env.FUTURE_LIGHT_PRICING_MUTATION_RETRIES || 3)));
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "price-rework" });
 
 const PRODUCTS_QUERY = /* GraphQL */ `
@@ -262,6 +261,10 @@ function buildPlan(products, args, priorLedger) {
     missingCostVariants: 0,
     priceChanges: 0,
     compareAtChanges: 0,
+    loweredPriceVariants: 0,
+    raisedPriceVariants: 0,
+    costNormalizationVariants: 0,
+    marketValueHoldVariants: 0,
   };
 
   for (const product of products) {
@@ -305,8 +308,36 @@ function buildPlan(products, args, priorLedger) {
         });
         continue;
       }
-      const multiplier = multiplierForCost(Number(cost));
-      const targetPrice = costBasedPriceFor(Number(cost));
+      const pricing = nominalMarketPriceFor({
+        cost: Number(cost),
+        currentPrice: Number(currentPrice),
+        handle: product?.handle,
+        productTitle: product?.title,
+        variantTitle: variant?.title,
+        referenceCosts: variants.map((entry) => entry?.inventoryItem?.unitCost?.amount),
+        referencePrices: variants.map((entry) => entry?.price),
+        minimumSellPrice: args.minimumSellPrice,
+      });
+      if (!pricing.price) {
+        summary.marketValueHoldVariants += 1;
+        auditVariants.push({
+          variantId: String(variant?.id || ""),
+          title: normalizeText(variant?.title),
+          sku: normalizeText(variant?.sku),
+          cost,
+          currentPrice,
+          currentCompareAtPrice: compareAtPrice || "",
+          plannedPrice: null,
+          plannedCompareAtPrice: null,
+          marketBand: pricing.marketBand?.id || "",
+          effectiveCost: pricing.effectiveCost == null ? null : normalizeMoney(pricing.effectiveCost),
+          costScaleFactor: pricing.scaleFactor,
+          status: "blocked-market-value",
+          failure: pricing.blockedReason || "nominal market pricing could not be safely derived",
+        });
+        continue;
+      }
+      const targetPrice = pricing.price;
       const targetCompareAtPrice = compareAtPrice
         ? compareAtPriceFor(Number(targetPrice), Number(compareAtPrice))
         : null;
@@ -323,9 +354,12 @@ function buildPlan(products, args, priorLedger) {
         cost,
         currentPrice,
         currentCompareAtPrice: compareAtPrice || "",
-        multiplier: Number(multiplier.toFixed(6)),
         plannedPrice: targetPrice,
         plannedCompareAtPrice: targetCompareAtPrice,
+        marketBand: pricing.marketBand?.id || "",
+        effectiveCost: normalizeMoney(pricing.effectiveCost),
+        costScaleFactor: pricing.scaleFactor,
+        pricingReason: pricing.reason,
         status: auditStatus,
         failure: "",
       });
@@ -339,11 +373,13 @@ function buildPlan(products, args, priorLedger) {
         sku: normalizeText(variant?.sku),
         cost,
         currentPrice,
-        multiplier: Number(multiplier.toFixed(6)),
         plannedPrice: targetPrice,
         currentCompareAtPrice: compareAtPrice,
         plannedCompareAtPrice: targetCompareAtPrice,
-        pricingAdjustment: "cost-based-normalization",
+        marketBand: pricing.marketBand?.id || "",
+        effectiveCost: normalizeMoney(pricing.effectiveCost),
+        costScaleFactor: pricing.scaleFactor,
+        pricingAdjustment: "nominal-market-cost-plus-normalization",
         priceChanged,
         compareAtChanged,
         priorPlanMatchedCurrent: priorMatchesCurrent,
@@ -355,6 +391,9 @@ function buildPlan(products, args, priorLedger) {
       summary.variantsToUpdate += 1;
       if (priceChanged) summary.priceChanges += 1;
       if (compareAtChanged) summary.compareAtChanges += 1;
+      if (Number(targetPrice) < Number(currentPrice)) summary.loweredPriceVariants += 1;
+      if (Number(targetPrice) > Number(currentPrice)) summary.raisedPriceVariants += 1;
+      if (pricing.scaleFactor > 1) summary.costNormalizationVariants += 1;
     }
 
     if (plannedVariants.length) {
@@ -760,7 +799,7 @@ async function verifyTargets(products, manifestPath, outputPath) {
           variantId,
           handle: normalizeText(product?.handle),
           actualPrice,
-          failure: auditVariant.failure || "variant has no valid cost-based pricing target",
+          failure: auditVariant.failure || "variant has no valid nominal market pricing target",
         });
         continue;
       }
@@ -775,7 +814,7 @@ async function verifyTargets(products, manifestPath, outputPath) {
           actualCompareAtPrice: actualCompareAtPrice || "",
           expectedPrice: auditVariant.plannedPrice,
           expectedCompareAtPrice: expectedCompareAtPrice || "",
-          failure: "live variant does not match its cost-based pricing audit target",
+          failure: "live variant does not match its nominal market pricing audit target",
         });
       }
       if (Number(actualPrice) < PRICE_REWORK_RULES.minimumSellPrice) {
@@ -821,7 +860,7 @@ async function verifyTargets(products, manifestPath, outputPath) {
       targetManifest: manifestPath,
     },
     policy: {
-      verification: "every planned variant and every full-catalog audit target must match its cost-based price and compare-at price; missing or invalid live costs block verification",
+      verification: "every planned variant and every full-catalog audit target must match its nominal market price and compare-at price; missing, invalid, or unsafe market-cost inputs block verification",
       strategy: PRICE_REWORK_STRATEGY_ID,
       minimumSellPrice: PRICE_REWORK_RULES.minimumSellPrice,
       salesChannelState: "not changed by verification",
@@ -852,9 +891,9 @@ async function main() {
       manifest.summary.catalogInvalidPriceVariants +
       manifest.summary.catalogUnderMinimumSellPriceVariants;
     if (manifest.summary.failedProducts || catalogFailures) {
-      throw new Error(`Cost-based pricing verification failed for ${manifest.summary.failedVariants} planned variant(s) and ${catalogFailures} full-catalog violation(s); see ${args.output}.`);
+      throw new Error(`Nominal market pricing verification failed for ${manifest.summary.failedVariants} planned variant(s) and ${catalogFailures} full-catalog violation(s); see ${args.output}.`);
     }
-    process.stdout.write(`Cost-based pricing verification complete: ${manifest.summary.catalogVariants} live variant(s) matched full-catalog targets.\n`);
+    process.stdout.write(`Nominal market pricing verification complete: ${manifest.summary.catalogVariants} live variant(s) matched full-catalog targets.\n`);
     return;
   }
 
@@ -873,18 +912,17 @@ async function main() {
     },
     policy: {
       scope: "all Shopify products and variants with a valid live inventory cost",
-      formula: "cost multiplied by the cost band multiplier plus $16 per-product overhead, then psychological rounding",
-      costBands: PRICE_REWORK_RULES.costBands.map(({ maxCostExclusive, multiplier }) => ({
-        maxCostExclusive: Number.isFinite(maxCostExclusive) ? maxCostExclusive : null,
-        multiplier,
-      })),
-      compareAtPrices: "preserve absence; when present normalize to at least 1.25x the cost-based sell price with psychological rounding",
+      formula: "nominal market-band price with live-cost floor, $16 overhead, $10 minimum net contribution target, and psychological rounding; every eligible variant meets the full cost-plus floor",
+      marketBands: PRICE_REWORK_RULES.marketBands.map(({ id, label, maxPrice }) => ({ id, label, maxPrice })),
+      sourceCostAnomalies: "known decimal-scale fingerprints are normalized only for the effective pricing calculation; Shopify unitCost is never mutated",
+      compareAtPrices: "preserve absence; when present normalize to at least 1.25x the nominal market sell price with psychological rounding",
       variantPricing: "calculate independently per variant; preserve quality, size, color, bundle, and quantity-tier differences",
       statusAndChannels: "product status and sales-channel inclusion are unchanged",
       idempotency: "only manifests produced by this strategy can resume; previously verified targets are not compounded",
     },
     parameters: {
       overhead: PRICE_REWORK_RULES.overhead,
+      minimumNetContribution: PRICE_REWORK_RULES.minimumNetContribution,
       minimumSellPrice: PRICE_REWORK_RULES.minimumSellPrice,
       compareAtMultiplier: PRICE_REWORK_RULES.compareAtMultiplier,
     },
@@ -902,13 +940,14 @@ async function main() {
   };
   refreshSummary(manifest);
 
-  const blockedCatalogVariants = summary.missingCostVariants + summary.invalidPriceVariants;
+  const blockedCatalogVariants = summary.missingCostVariants + summary.invalidPriceVariants + summary.marketValueHoldVariants;
   if (blockedCatalogVariants > 0) {
     manifest.completedAt = new Date().toISOString();
     await writeManifest(args.output, manifest);
     throw new Error(
-      `Cost-based pricing is blocked for ${blockedCatalogVariants} catalog variant(s): ` +
+      `Nominal market pricing is blocked for ${blockedCatalogVariants} catalog variant(s): ` +
       `${summary.missingCostVariants} missing/invalid live costs and ${summary.invalidPriceVariants} invalid prices. ` +
+      `${summary.marketValueHoldVariants} market-value/cost conflicts. ` +
       `Populate the Shopify inventoryItem.unitCost source before any price apply. See ${args.output}.`,
     );
   }
@@ -920,7 +959,7 @@ async function main() {
     }
     manifest.completedAt = new Date().toISOString();
     await writeManifest(args.output, manifest);
-    process.stdout.write(`Cost-based pricing dry-run complete: ${summary.variantsToUpdate} variant(s) across ${summary.productsWithUpdates} product(s); ${summary.variantsAlreadyAligned} already aligned.\n`);
+    process.stdout.write(`Nominal market pricing dry-run complete: ${summary.variantsToUpdate} variant(s) across ${summary.productsWithUpdates} product(s); ${summary.variantsAlreadyAligned} already aligned; ${summary.loweredPriceVariants} lower, ${summary.raisedPriceVariants} protective floor adjustments, ${summary.costNormalizationVariants} decimal-scale cost anomalies normalized.\n`);
     return;
   }
 
@@ -932,7 +971,7 @@ async function main() {
   if (manifest.summary.failedProducts) {
     throw new Error(`Price rework failed for ${manifest.summary.failedProducts} product(s); see ${args.output}.`);
   }
-  process.stdout.write(`Cost-based pricing complete: ${manifest.summary.updatedVariants} variant(s) updated and verified.\n`);
+  process.stdout.write(`Nominal market pricing complete: ${manifest.summary.updatedVariants} variant(s) updated and verified.\n`);
 }
 
 main().catch((error) => {

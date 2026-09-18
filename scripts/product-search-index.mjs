@@ -26,21 +26,26 @@ function buildSearchImage(input) {
 }
 
 function buildSearchVariant(variants) {
-  const cheapest = (Array.isArray(variants) ? variants : [])
+  const candidates = (Array.isArray(variants) ? variants : [])
     .filter((variant) => variant && variant.price != null)
-    .sort((left, right) => asPrice(left.price) - asPrice(right.price))[0];
+    .sort((left, right) => {
+      const availabilityDelta = Number(right.available === true) - Number(left.available === true);
+      return availabilityDelta || asPrice(left.price) - asPrice(right.price);
+    });
+  const representative = candidates[0];
 
-  if (!cheapest) {
+  if (!representative) {
     return [];
   }
 
   return [
     {
-      id: Number(cheapest.id) || 0,
-      title: plainText(cheapest.title || "Default Title", 120),
-      price: String(cheapest.price),
-      compare_at_price: cheapest.compare_at_price == null ? null : String(cheapest.compare_at_price),
-      available: Boolean(cheapest.available),
+      id: Number(representative.id) || 0,
+      title: plainText(representative.title || "Default Title", 120),
+      price: String(representative.price),
+      compare_at_price:
+        representative.compare_at_price == null ? null : String(representative.compare_at_price),
+      available: representative.available === true,
     },
   ];
 }

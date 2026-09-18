@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import type { ShopifyProduct } from "@/lib/shopify";
-import { discountPercent, type ShopifyCollection } from "@/lib/shopify";
+import { discountPercent, isProductAvailable, type ShopifyCollection } from "@/lib/shopify";
 import { searchProducts } from "@/lib/vs-search";
 import { cn } from "@/lib/utils";
 import {
@@ -130,11 +130,12 @@ export function CollectionBrowser({
 
       if (search.min_price && price < search.min_price) return false;
       if (search.max_price && price > search.max_price) return false;
-      if (search.availability === "in-stock" && !n.availableForSale) return false;
-      if (search.availability === "out-of-stock" && n.availableForSale) return false;
+      const productAvailable = isProductAvailable(n);
+      if (search.availability === "in-stock" && !productAvailable) return false;
+      if (search.availability === "out-of-stock" && productAvailable) return false;
       if (
         search.availability === "low-stock" &&
-        !(n.availableForSale && stockQty > 0 && stockQty <= 5)
+        !(productAvailable && stockQty > 0 && stockQty <= 5)
       )
         return false;
       if (search.tag && !(n.tags ?? []).includes(search.tag)) return false;

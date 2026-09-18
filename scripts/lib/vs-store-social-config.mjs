@@ -55,6 +55,9 @@ function normalizeStoreDomain(value) {
 
 export function readVsStoreSocialConfig(rootDir) {
   const storeDomain = normalizeStoreDomain(process.env.FUTURE_LIGHT_SHOPIFY_STORE_DOMAIN);
+  const shopifyUseCli = /^(1|true|yes|on)$/i.test(
+    String(process.env.FUTURE_LIGHT_SHOPIFY_USE_CLI || ""),
+  );
   const siteUrl = String(
     process.env.FUTURE_LIGHT_SOCIAL_SITE_URL || "https://vss-store.vercel.app",
   ).replace(/\/$/, "");
@@ -72,10 +75,26 @@ export function readVsStoreSocialConfig(rootDir) {
     siteUrl,
     metaPageId: String(process.env.FUTURE_LIGHT_META_PAGE_ID || "").trim(),
     metaPageAccessToken: String(process.env.FUTURE_LIGHT_META_PAGE_ACCESS_TOKEN || "").trim(),
+    // The connected Instagram Business account is discovered from the Page
+    // readback when possible. These optional values make the browser/API
+    // handoff deterministic without putting another secret in the repo.
+    metaInstagramAccountId: String(process.env.FUTURE_LIGHT_META_INSTAGRAM_ACCOUNT_ID || "").trim(),
+    metaInstagramUsername:
+      String(process.env.FUTURE_LIGHT_META_INSTAGRAM_USERNAME || "vs.store2608").trim() ||
+      "vs.store2608",
+    // Instagram Graph publishing needs a publicly reachable image URL. Local
+    // Image Gen files are intentionally left on the authenticated browser
+    // path so Facebook and Instagram receive the exact same upload.
+    metaInstagramPublicImageUrl: String(
+      process.env.FUTURE_LIGHT_META_INSTAGRAM_PUBLIC_IMAGE_URL || "",
+    ).trim(),
     metaGraphVersion: String(process.env.FUTURE_LIGHT_META_GRAPH_VERSION || "v23.0").trim(),
     shopifyAdminAccessToken: String(
       process.env.FUTURE_LIGHT_SHOPIFY_ADMIN_ACCESS_TOKEN || "",
     ).trim(),
+    shopifyUseCli,
+    shopifyCliBinary:
+      String(process.env.FUTURE_LIGHT_SHOPIFY_CLI_BINARY || "shopify").trim() || "shopify",
     shopifyApiVersion: String(process.env.FUTURE_LIGHT_SHOPIFY_API_VERSION || "2026-07").trim(),
     timezone,
     fallbackHour: positiveInteger(process.env.FUTURE_LIGHT_SOCIAL_FALLBACK_HOUR, 12, {
@@ -92,6 +111,14 @@ export function readVsStoreSocialConfig(rootDir) {
       min: 1,
       max: 15,
     }),
+    primaryDiscountCode:
+      String(process.env.FUTURE_LIGHT_SOCIAL_PRIMARY_DISCOUNT_CODE || "VSSTORE15").trim() ||
+      "VSSTORE15",
+    fallbackDiscountCode:
+      String(process.env.FUTURE_LIGHT_SOCIAL_FALLBACK_DISCOUNT_CODE || "VSSTORE10").trim() ||
+      "VSSTORE10",
+    primaryDiscountPercent: 15,
+    fallbackDiscountPercent: 10,
     offerWindowDays: positiveInteger(process.env.FUTURE_LIGHT_SOCIAL_OFFER_WINDOW_DAYS, 7, {
       min: 1,
       max: 30,
@@ -136,12 +163,17 @@ export function readVsStoreSocialConfig(rootDir) {
 export function configMissing(config, { includeMeta = true, includeShopify = true } = {}) {
   const missing = [];
   if (includeMeta) {
-    if (!config.metaPageId) missing.push("FUTURE_LIGHT_META_PAGE_ID");
-    if (!config.metaPageAccessToken) missing.push("FUTURE_LIGHT_META_PAGE_ACCESS_TOKEN");
+    // The authenticated internal browser is a supported publishing path. API
+    // credentials are only required when browser fallback is disabled.
+    if (!config.metaPageId && !config.browserFallbackEnabled)
+      missing.push("FUTURE_LIGHT_META_PAGE_ID");
+    if (!config.metaPageAccessToken && !config.browserFallbackEnabled)
+      missing.push("FUTURE_LIGHT_META_PAGE_ACCESS_TOKEN");
   }
   if (includeShopify) {
     if (!config.storeDomain) missing.push("FUTURE_LIGHT_SHOPIFY_STORE_DOMAIN");
-    if (!config.shopifyAdminAccessToken) missing.push("FUTURE_LIGHT_SHOPIFY_ADMIN_ACCESS_TOKEN");
+    if (!config.shopifyAdminAccessToken && !config.shopifyUseCli)
+      missing.push("FUTURE_LIGHT_SHOPIFY_ADMIN_ACCESS_TOKEN or FUTURE_LIGHT_SHOPIFY_USE_CLI=1");
   }
   return missing;
 }
@@ -151,13 +183,26 @@ export function redactedConfig(config) {
     storeDomain: config.storeDomain || null,
     siteUrl: config.siteUrl,
     metaPageId: config.metaPageId || null,
+    metaInstagramAccountId: config.metaInstagramAccountId || null,
+    metaInstagramUsername: config.metaInstagramUsername || null,
+    metaInstagramPublicImageConfigured: Boolean(config.metaInstagramPublicImageUrl),
     metaGraphVersion: config.metaGraphVersion,
     shopifyApiVersion: config.shopifyApiVersion,
+    shopifyAuthMode: config.shopifyUseCli
+      ? "shopify-cli"
+      : config.shopifyAdminAccessToken
+        ? "admin-token"
+        : "none",
+    shopifyCliBinary: config.shopifyCliBinary,
     timezone: config.timezone,
     fallbackHour: config.fallbackHour,
     offerWeekday: config.offerWeekday,
     defaultDiscountPercent: config.defaultDiscountPercent,
     maxDiscountPercent: config.maxDiscountPercent,
+    primaryDiscountCode: config.primaryDiscountCode,
+    fallbackDiscountCode: config.fallbackDiscountCode,
+    primaryDiscountPercent: config.primaryDiscountPercent,
+    fallbackDiscountPercent: config.fallbackDiscountPercent,
     offerWindowDays: config.offerWindowDays,
     overheadUsd: config.overheadUsd,
     minimumContributionUsd: config.minimumContributionUsd,
@@ -166,6 +211,7 @@ export function redactedConfig(config) {
     credentials: {
       metaPageAccessToken: Boolean(config.metaPageAccessToken),
       shopifyAdminAccessToken: Boolean(config.shopifyAdminAccessToken),
+      shopifyCli: Boolean(config.shopifyUseCli),
       openAiKey: Boolean(process.env.OPENAI_API_KEY),
     },
   };

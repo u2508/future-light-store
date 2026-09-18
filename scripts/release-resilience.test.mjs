@@ -75,7 +75,7 @@ test("catalog release removes missing-cost products before pricing", () => {
   const steps = buildReleaseSteps({ rootDir: "/tmp/future-light-store-test", includeMobile: false, profile: "daily" });
   const labels = steps.map((step) => step.label);
   const missingCostIndex = labels.indexOf("Dry-run products with missing live Shopify variant costs");
-  const pricingIndex = labels.indexOf("Dry-run approved cost-based pricing before base SEO");
+  const pricingIndex = labels.indexOf("Dry-run approved nominal market pricing before base SEO");
   assert.deepEqual(labels.slice(missingCostIndex, missingCostIndex + 3), [
     "Dry-run products with missing live Shopify variant costs",
     "Apply approved missing-cost product removal with live readback",
@@ -96,8 +96,9 @@ test("known guarded failures route to their supported repair ranges", () => {
     ["Apply all-active-catalog product categories and merchandising metafields", "metafield export failed", "Refresh Shopify data after final product publication"],
     ["Verify Shopify merchandising backfill", "Collection all-products mismatch", "Apply all-active-catalog product categories and merchandising metafields"],
     ["Automatically clear visual classification review with guarded evidence", "visual classification review failed", "Build visual taxonomy review queue"],
-    ["Apply resumable variant-image mapping with live readback", "variant image readback mismatch", "Dry-run deterministic and visual variant-image mapping"],
-    ["Verify live full-catalog cost-based pricing before base SEO", "missing live unitCost", "Dry-run products with missing live Shopify variant costs"],
+    ["Require complete ChatGPT visual variant and image decisions", "visual variant approval incomplete", "Build Future Light ChatGPT visual variant and image review queue"],
+    ["Apply approved ChatGPT visual variant and image decisions with live readback", "variant media readback mismatch", "Require complete ChatGPT visual variant and image decisions"],
+    ["Verify live full-catalog nominal market pricing before base SEO", "missing live unitCost", "Dry-run products with missing live Shopify variant costs"],
     ["Verify exact collection membership and price rules", "collection membership mismatch", "Dry-run exact full-catalog collection reconciliation"],
     ["Validate final catalog taxonomy snapshot", "taxonomy snapshot stale", "Read live Shopify tag inventory"],
     ["Verify daily manual collection shuffle", "shuffle order readback mismatch", "Dry-run daily manual collection shuffle"],

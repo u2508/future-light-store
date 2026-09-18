@@ -1,0 +1,35 @@
+{
+  "approvalId": "future-light-nominal-market-pricing-approved-2026-09-17",
+  "approved": true,
+  "approvedAt": "2026-09-17T00:00:00+05:30",
+  "approvedBy": "Future Light Store owner (explicit Codex authorization)",
+  "approvalSource": "Future Light Store owner request to keep prices nominal and market-aligned while preserving the approved $16 overhead",
+  "scope": {
+    "products": "all active Future Light Store Shopify products and variants",
+    "strategyId": "future-light-nominal-market-2026-09-17-v1",
+    "costSource": "live Shopify variant inventoryItem.unitCost.amount",
+    "overhead": 16,
+    "minimumNetContribution": 10,
+    "minimumSellPrice": 0.99,
+    "marketBands": [
+      { "id": "beauty", "maxPrice": 399.99 },
+      { "id": "jewelry", "maxPrice": 199.99 },
+      { "id": "apparel", "maxPrice": 199.99 },
+      { "id": "pet", "maxPrice": 129.99 },
+      { "id": "baby", "maxPrice": 199.99 },
+      { "id": "audio", "maxPrice": 299.99 },
+      { "id": "camera", "maxPrice": 999.99 },
+      { "id": "gaming", "maxPrice": 599.99 },
+      { "id": "electronics", "maxPrice": 499.99 },
+      { "id": "outdoor", "maxPrice": 399.99 },
+      { "id": "home", "maxPrice": 499.99 },
+      { "id": "automotive", "maxPrice": 299.99 },
+      { "id": "default", "maxPrice": 299.99 }
+    ],
+    "formula": "effective live cost plus $16 overhead plus $10 minimum net contribution target, bounded by product market band and psychological rounding; every eligible variant must meet the full cost-plus floor",
+    "sourceCostAnomalies": "decimal-scale cost fingerprints may be normalized only for the effective price calculation; Shopify unitCost is never mutated",
+    "compareAtPrices": "preserve absence; when present normalize to at least 1.25x the nominal market sell price with psychological rounding",
+    "variantPrices": "calculate independently per variant; preserve size, color, bundle, quality, and quantity-tier differences",
+    "status": "do not change product status, inventory, media, variants, or sales-channel inclusion"
+  }
+}

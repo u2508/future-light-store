@@ -12,6 +12,7 @@ const siteUrl = String(process.env.VITE_SITE_URL || "https://vss-store.vercel.ap
 const productIndexPath = resolve(publicDir, "data", "products.json");
 const collectionsPath = resolve(publicDir, "data", "collections.json");
 const knowledgePath = resolve(rootDir, "output", "product-knowledge.json");
+const productSeoPath = resolve(publicDir, "data", "product-seo.json");
 const WRITE_CONCURRENCY = Math.max(4, Math.min(32, Number(process.env.SEO_STATIC_WRITE_CONCURRENCY || 16)));
 
 const STATIC_PAGES = [
@@ -354,7 +355,9 @@ function usefulProductSummary(product, knowledge) {
     .trim();
 }
 
-function productMetaDescription(product, knowledge) {
+function productMetaDescription(product, knowledge, seo) {
+  const optimized = String(seo?.seoDescription || "").trim();
+  if (optimized) return optimized;
   const summaryTail = usefulProductSummary(product, knowledge)
     .replace(new RegExp(`^${escapeRegExp(product.title)}\\s*`, "i"), "")
     .trim();
@@ -383,14 +386,16 @@ function firstOffer(product) {
   };
 }
 
-function productStructuredData(product, knowledge) {
+function productStructuredData(product, knowledge, seo) {
   const url = canonicalUrl(`/products/${product.handle}`);
+  const optimizedTitle = String(seo?.seoTitle || seo?.title || product.title).trim();
+  const optimizedDescription = String(seo?.seoDescription || usefulProductSummary(product, knowledge)).trim();
   const offer = firstOffer(product);
   const graph = [
     {
       "@type": "Product",
-      name: product.title,
-      description: usefulProductSummary(product, knowledge),
+      name: optimizedTitle,
+      description: optimizedDescription,
       url,
       image: imageUrls(product),
       ...(product.vendor ? { brand: { "@type": "Brand", name: product.vendor } } : {}),
@@ -401,7 +406,7 @@ function productStructuredData(product, knowledge) {
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: canonicalUrl("/") },
         { "@type": "ListItem", position: 2, name: "Shop all", item: canonicalUrl("/shop") },
-        { "@type": "ListItem", position: 3, name: product.title, item: url },
+        { "@type": "ListItem", position: 3, name: optimizedTitle, item: url },
       ],
     },
   ];
@@ -489,7 +494,12 @@ function staticStructuredData(page) {
   };
 }
 
-function productBody(product, knowledge) {
+function productBody(product, knowledge, seo) {
+  const optimizedTitle = String(seo?.seoTitle || seo?.title || product.title).trim();
+  const optimizedBody = sanitizeDescriptionHtml(seo?.descriptionHtml || "");
+  if (optimizedBody) {
+    return `<main><article><h1>${escapeHtml(optimizedTitle)}</h1>${optimizedBody}</article></main>`;
+  }
   const type = productType(product, knowledge);
   const listingFacts = relevantListingFacts(product, knowledge);
   const facts = [
@@ -517,9 +527,9 @@ function productBody(product, knowledge) {
     : "Before ordering, review the listed product details and available options to make the right choice.";
   const summary = usefulProductSummary(product, knowledge).replace(
     new RegExp(`^${escapeRegExp(product.title)}`),
-    `The ${product.title}`,
+    `The ${optimizedTitle}`,
   );
-  return `<main><article><h1>${escapeHtml(product.title)}</h1><p>${escapeHtml(summary)}</p><section aria-label="Product details"><h2>Product details</h2><dl>${factsMarkup}</dl></section>${optionsMarkup}<section aria-label="Before ordering"><h2>Before ordering</h2><p>${escapeHtml(orderingText)}</p></section></article></main>`;
+  return `<main><article><h1>${escapeHtml(optimizedTitle)}</h1><p>${escapeHtml(summary)}</p><section aria-label="Product details"><h2>Product details</h2><dl>${factsMarkup}</dl></section>${optionsMarkup}<section aria-label="Before ordering"><h2>Before ordering</h2><p>${escapeHtml(orderingText)}</p></section></article></main>`;
 }
 
 function collectionBody(collection) {
@@ -595,12 +605,14 @@ async function loadProducts() {
 async function main() {
   const template = (await readFile(resolve(distDir, "index.html"), "utf8"))
     .replace(/<div id="root">[\s\S]*?<\/div>/i, '<div id="root"></div>');
-  const [products, collectionsPayload, knowledge] = await Promise.all([
+  const [products, collectionsPayload, knowledge, seoPayload] = await Promise.all([
     loadProducts(),
     readFile(collectionsPath, "utf8").then(JSON.parse),
     readFile(knowledgePath, "utf8").then(JSON.parse).catch(() => null),
+    readFile(productSeoPath, "utf8").then(JSON.parse).catch(() => null),
   ]);
   const knowledgeByHandle = productKnowledgeByHandle(knowledge);
+  const seoByHandle = new Map((seoPayload?.products || []).map((record) => [record.handle, record]));
   const collections = collectionsPayload.collections || [];
 
   const tasks = [];
@@ -617,12 +629,13 @@ async function main() {
     const path = `/products/${product.handle}`;
     const target = resolve(distDir, "products", product.handle, "index.html");
     const knowledgeRecord = knowledgeByHandle.get(product.handle);
+    const seoRecord = seoByHandle.get(product.handle);
     tasks.push({ target, content: renderDocument(template, {
       path,
-      title: `${product.title} | VS Store`,
-      description: productMetaDescription(product, knowledgeRecord),
-      body: productBody(product, knowledgeRecord),
-      structuredData: productStructuredData(product, knowledgeRecord),
+      title: `${seoRecord?.seoTitle || seoRecord?.title || product.title} | VS Store`,
+      description: productMetaDescription(product, knowledgeRecord, seoRecord),
+      body: productBody(product, knowledgeRecord, seoRecord),
+      structuredData: productStructuredData(product, knowledgeRecord, seoRecord),
       ogType: "product",
     }) });
   }
