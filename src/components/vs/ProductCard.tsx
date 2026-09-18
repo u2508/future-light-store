@@ -38,9 +38,6 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
   const variantCount = n.variantsCount?.count ?? variants.length;
   const singleVariant = variantCount === 1;
   const soldOut = !isProductAvailable(n) || unavailable;
-  const lowStock = variants.some(
-    (v) => v.quantityAvailable != null && v.quantityAvailable > 0 && v.quantityAvailable <= 5,
-  );
 
   useEffect(() => {
     const card = cardRef.current;
@@ -194,8 +191,6 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
             </button>
           </div>
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            {lowStock && !soldOut && <span className="font-semibold text-signal">Low stock</span>}
-            {n.productType && <span className="truncate">{n.productType}</span>}
             <Link
               to="/products/$handle"
               params={{ handle: n.handle }}

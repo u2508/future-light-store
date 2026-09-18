@@ -43,6 +43,7 @@ export function QuickActionsSheet({
   const defaultVariantId =
     variants.find((variant) => variant.availableForSale)?.id ?? variants[0]?.id ?? null;
   const [selectedId, setSelectedId] = useState<string | null>(defaultVariantId);
+  const [hasSelectedVariant, setHasSelectedVariant] = useState(false);
   const [unavailableVariantIds, setUnavailableVariantIds] = useState<Set<string>>(new Set());
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
@@ -55,6 +56,7 @@ export function QuickActionsSheet({
     if (open) {
       setQuantity(1);
       setImageIndex(0);
+      setHasSelectedVariant(false);
       setUnavailableVariantIds(new Set());
     }
   }, [open, n.handle]);
@@ -67,6 +69,12 @@ export function QuickActionsSheet({
   const selected = variants.find((v) => v.id === selectedId) ?? null;
   const selectedAvailable =
     Boolean(selected?.availableForSale) && !unavailableVariantIds.has(selected?.id ?? "");
+  const selectedLowStock =
+    hasSelectedVariant &&
+    selectedAvailable &&
+    selected?.quantityAvailable != null &&
+    selected.quantityAvailable > 0 &&
+    selected.quantityAvailable <= 5;
   const price = selected?.price ?? activeNode.priceRange.minVariantPrice;
   const compareAt = selected?.compareAtPrice?.amount ?? null;
   const off = discountPercent(price.amount, compareAt);
@@ -186,7 +194,10 @@ export function QuickActionsSheet({
                     <button
                       key={v.id}
                       disabled={!v.availableForSale || unavailableVariantIds.has(v.id)}
-                      onClick={() => setSelectedId(v.id)}
+                      onClick={() => {
+                        setSelectedId(v.id);
+                        setHasSelectedVariant(true);
+                      }}
                       className={cn(
                         "rounded-xl border px-3 py-2 text-sm transition-colors",
                         v.id === selectedId
@@ -224,14 +235,12 @@ export function QuickActionsSheet({
                   <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <span
-                className={cn(
-                  "text-xs",
-                  selectedAvailable ? "text-muted-foreground" : "text-signal",
-                )}
-              >
-                {selectedAvailable ? "In stock" : "Sold out"}
-              </span>
+              <div className="flex items-center gap-2 text-xs">
+                <span className={selectedAvailable ? "text-muted-foreground" : "text-signal"}>
+                  {selectedAvailable ? "In stock" : "Sold out"}
+                </span>
+                {selectedLowStock && <span className="font-semibold text-signal">Low stock</span>}
+              </div>
             </div>
 
             <div className="flex gap-2">
