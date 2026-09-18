@@ -1,7 +1,7 @@
 const QUIRKY_GIFT_LIMIT = 12;
 
 const HOME_COLLECTION_SOURCES = {
-  bestSellerProducts: "appplaza-best-sellers",
+  bestSellerProducts: "best-sellers",
   quirkyGiftPicks: "gifts",
   everydayEssentialProducts: "garden-tools",
 };
@@ -289,7 +289,11 @@ function productsFromCollection(
   limit = QUIRKY_GIFT_LIMIT,
   preferredProducts = [],
 ) {
-  const productIds = collectionProductsPayload?.collections?.[handle]?.productIds;
+  const productIds = collectionProductsPayload?.collections?.[handle]?.productIds?.length
+    ? collectionProductsPayload.collections[handle].productIds
+    : handle === "best-sellers"
+      ? collectionProductsPayload?.collections?.["appplaza-best-sellers"]?.productIds
+      : null;
   if (!Array.isArray(productIds) || !productIds.length) return [];
   const productsById = new Map((Array.isArray(products) ? products : []).map((product) => [Number(product?.id || 0), product]));
   const collectionProducts = productIds.map((id) => compactProduct(productsById.get(Number(id)))).filter(Boolean);

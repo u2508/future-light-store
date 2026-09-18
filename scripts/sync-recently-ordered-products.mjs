@@ -38,6 +38,7 @@ export const RECENT_ORDER_PRODUCTS_QUERY = /* GraphQL */ `
         lineItems(first: 250) {
           nodes {
             title
+            quantity
             product {
               id
               title

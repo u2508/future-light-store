@@ -49,6 +49,9 @@ import {
   buildSpecialCollectionAssignments,
 } from "./build-new-product-special-collection-tags-local.mjs";
 import {
+  buildSpecialCollectionAssignments as buildSignalSpecialCollectionAssignments,
+} from "./build-new-product-special-collection-tags.mjs";
+import {
   asArray,
   createShopifyAdminGraphQLClient,
   normalizeText,
@@ -59,6 +62,7 @@ import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-local.mjs";
 import { scoreCatalogKnowledgeModelBatch } from "./catalog-knowledge-model-accelerator.mjs";
 import { ensureFutureLightVisionRuntime } from "./future-light-vision-runtime.mjs";
 import { resolveVisualTaxonomyHint } from "../src/lib/catalog-visual-taxonomy.js";
+import { buildMerchandisingAssignments } from "../src/lib/merchandising-collection-rules.js";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const execFileAsync = promisify(execFile);
@@ -1211,6 +1215,16 @@ function textIncludesAny(product, phrases) {
   return phrases.some((phrase) => ` ${text} `.includes(` ${normalizeCatalogText(phrase)} `));
 }
 
+function sourceTextIncludesAny(product, phrases) {
+  const text = normalizeCatalogText([
+    product?.handle,
+    product?.product_type || product?.productType,
+    product?.vendor,
+    ...asArray(product?.liveTags || product?.tags),
+  ].filter(Boolean).join(" "));
+  return phrases.some((phrase) => ` ${text} `.includes(` ${normalizeCatalogText(phrase)} `));
+}
+
 async function buildDynamicAssignments(products) {
   const assignments = new Map(products.map((product) => [normalizeCollectionHandle(product.handle), new Set()]));
   const merchandisingProducts = products.map((product) => ({
@@ -1223,8 +1237,21 @@ async function buildDynamicAssignments(products) {
     const set = assignments.get(normalizeCollectionHandle(assignment.handle));
     for (const handle of assignment.matchedCollections) set?.add(handle);
   }
+  // The Future Light profile does not require the old SALT minimum-count
+  // gate, but it still uses the same guarded anime merchandise matcher. This
+  // keeps real anime/manga/cosplay collectibles discoverable without making
+  // every generic toy, beauty, or clothing record an anime product.
+  for (const assignment of buildSignalSpecialCollectionAssignments(merchandisingProducts)) {
+    if (!assignment.matchedCollections?.includes("anime-collectables")) continue;
+    assignments.get(normalizeCollectionHandle(assignment.handle))?.add("anime-collectables");
+  }
 
   const recentOrders = await readJson(resolve(rootDir, "public", "data", "recently-ordered-products.json"), { products: [] });
+  const merchandisingAssignments = buildMerchandisingAssignments(products, recentOrders);
+  for (const [handle, dynamicHandles] of merchandisingAssignments.entries()) {
+    const assignment = assignments.get(normalizeCollectionHandle(handle));
+    for (const dynamicHandle of dynamicHandles) assignment?.add(dynamicHandle);
+  }
   const bestSellerHandles = new Set(asArray(recentOrders?.products).map((product) => normalizeCollectionHandle(product?.handle)));
   const homeCollections = await readJson(resolve(rootDir, "public", "data", "home-collection-products.json"), { sections: {} });
   const staffHandles = new Set(asArray(homeCollections?.sections?.everydayEssentials?.products).map((product) => normalizeCollectionHandle(product?.handle)));
@@ -1232,7 +1259,6 @@ async function buildDynamicAssignments(products) {
     .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0))
     .slice(0, 250)
     .map((product) => normalizeCollectionHandle(product.handle)));
-  const newCutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
 
   for (const product of products) {
     const handle = normalizeCollectionHandle(product.handle);
@@ -1240,14 +1266,42 @@ async function buildDynamicAssignments(products) {
     if (!set) continue;
     if (bestSellerHandles.has(handle)) set.add("best-sellers");
     if (staffHandles.has(handle)) set.add("staff-picks");
-    if (new Date(product.created_at || 0).getTime() >= newCutoff) set.add("new-arrivals");
     if (bestSellerHandles.has(handle) || staffHandles.has(handle) || newestHandles.has(handle) || textIncludesAny(product, ["viral", "trending", "tiktok"])) set.add("trending-finds");
     const normalizedTags = new Set(asArray(product.liveTags || product.tags).map((tag) => normalizeCollectionHandle(tag)));
-    if (normalizedTags.has("holiday-gifts")) set.add("gifts");
-    if (normalizedTags.has("viral-tiktok-products")) set.add("trending-finds");
-    if (textIncludesAny(product, ["gift for dad", "fathers day", "father gift"])) set.add("gifts-for-dad");
-    if (textIncludesAny(product, ["gift for mom", "mothers day", "mother gift"])) set.add("gifts-for-mom");
-    if (textIncludesAny(product, ["gift for senior", "elderly gift", "senior gift"])) set.add("gifts-for-seniors");
+    if (normalizedTags.has("holiday-gifts")) {
+      set.add("holiday-gifts");
+      set.add("gifts");
+    }
+    if (normalizedTags.has("viral-tiktok-products")) {
+      set.add("viral-tiktok-products");
+      set.add("trending-finds");
+    }
+    const giftIntent = sourceTextIncludesAny(product, [
+      "gift", "gifts", "present", "presents", "gift set", "gift box", "gift idea", "gift ideas",
+      "birthday", "fathers day", "father s day", "mothers day", "mother s day",
+    ]);
+    if (textIncludesAny(product, ["gift for dad", "fathers day", "father gift", "grandpa", "grandfather"])) set.add("gifts-for-dad");
+    if (textIncludesAny(product, ["gift for mom", "mothers day", "mother gift", "grandma", "grandmother"])) set.add("gifts-for-mom");
+    if (giftIntent && sourceTextIncludesAny(product, [
+      "gift for senior", "elderly gift", "senior gift", "senior", "elderly", "grandma", "grandmother",
+      "grandpa", "grandfather", "nana", "granny", "retirement",
+    ]) && !(sourceTextIncludesAny(product, ["anime", "manga"]) && sourceTextIncludesAny(product, ["nana", "keychain", "key ring"]))) set.add("gifts-for-seniors");
+    if (sourceTextIncludesAny(product, ["viral", "tiktok", "tik tok"])) set.add("viral-tiktok-products");
+    const holidaySignal = sourceTextIncludesAny(product, [
+      "christmas", "xmas", "holiday", "festive", "halloween", "thanksgiving", "valentine", "new year",
+      "easter", "graduation", "mothers day", "mother s day", "fathers day", "father s day",
+    ]);
+    const seasonalMerchandise = sourceTextIncludesAny(product, [
+      "ornament", "holiday decor", "christmas decor", "christmas decoration", "festive decor", "stocking",
+      "santa", "snowman", "pumpkin", "wreath", "garland", "party decoration",
+    ]);
+    if (holidaySignal && (giftIntent || seasonalMerchandise)) {
+      set.add("holiday-gifts");
+      // The live Gifts Collection intentionally uses the union source
+      // `gifts OR holiday-gifts`. Keep the planner's expected membership
+      // aligned in the same run, before Shopify's tag write is read back.
+      set.add("gifts");
+    }
     if (textIncludesAny(product, ["housewarming gift", "new home gift"])) set.add("housewarming-gifts");
     if (textIncludesAny(product, ["holiday gift", "christmas gift", "festive gift"])) set.add("gifts");
   }
@@ -1928,8 +1982,24 @@ async function run(args) {
         ),
       );
       if (canReusePriorTagPlan) {
+        // A prior tag plan is only a checkpoint shortcut.  It must not make
+        // the current run blind to the checked-in semantic collection rules.
+        // Older manifests could contain taxonomy tags in `collectionHandles`
+        // while their tag task had no managed collection tags at all, leaving
+        // the corresponding Shopify smart collections empty.  Rebuild the
+        // knowledge object from the saved rule so collection membership is
+        // recalculated against the current governance and dynamic cohorts.
+        let knowledge = null;
+        const priorRuleId = prior.classification.ruleId || "";
+        if (TAXONOMY_DEFINITIONS.some((definition) => definition.id === priorRuleId)) {
+          const taxonomy = classifyCatalogTaxonomyByRuleId(product, priorRuleId, {
+            source: `prior-catalog-integrity-${prior.classification.source || "verified"}`,
+            reason: "Rebuilt knowledge from the last completed classification before refreshing collection membership.",
+          });
+          knowledge = buildProductKnowledgeFromTaxonomy(product, taxonomy);
+        }
         resolvedProducts[index] = {
-          knowledge: null,
+          knowledge,
           source: prior.classification.source,
           priorClassification: prior.classification,
           priorManagedTags: uniqueTags(prior.tagTask.desiredManagedTags),
@@ -2021,22 +2091,48 @@ async function run(args) {
   for (const [index, product] of products.entries()) {
     const resolved = resolvedProducts[index];
     const dynamicHandles = dynamicAssignments.get(normalizeCollectionHandle(product.handle)) || new Set();
+    const merchandisingHandles = new Set(["new-arrivals", "best-sellers"]);
+    const recomputedCollectionTags = resolved.knowledge
+      ? buildProductCollectionTags(product, resolved.knowledge, dynamicHandles)
+      : [];
+    const reusablePriorCollectionTags = uniqueTags(asArray(resolved.priorCollectionTags))
+      .filter((tag) => !merchandisingHandles.has(normalizeCollectionHandle(tag)));
     const approvedSpecialTags = [...dynamicHandles]
       .filter((handle) => Object.prototype.hasOwnProperty.call(SPECIAL_COLLECTION_MINIMUMS, handle))
       .map((handle) => collectionTagForHandle(handle));
-    const collectionTags = resolved.priorCollectionTags || (resolved.source === "review"
+    const priorOrResolvedCollectionTags = resolved.knowledge
+      ? recomputedCollectionTags
+      : reusablePriorCollectionTags.length
+      ? reusablePriorCollectionTags
+      : (resolved.source === "review"
       ? uniqueTags([collectionTagForHandle("classification-review"), ...approvedSpecialTags])
       : buildProductCollectionTags(product, resolved.knowledge, dynamicHandles));
-    if (!collectionTags.length) {
-      throw new Error(`${product.handle} has no semantic collection assignment after classification ${resolved.knowledge?.classificationRule || resolved.priorClassification?.ruleId || "unknown"}.`);
-    }
+    // Dynamic merchandising cohorts are recalculated every release. Merge
+    // them into a reused prior plan so a stale checkpoint cannot erase the
+    // latest 500 or the current top-250 bestseller cohort.
+    const refreshedDynamicTags = uniqueTags([...dynamicHandles]
+      .filter((handle) => merchandisingHandles.has(normalizeCollectionHandle(handle)))
+      .map((handle) => collectionTagForHandle(handle)));
+    const collectionTags = uniqueTags([
+      ...priorOrResolvedCollectionTags,
+      ...refreshedDynamicTags,
+      ...(priorOrResolvedCollectionTags.length || refreshedDynamicTags.length
+        ? []
+        : [collectionTagForHandle("classification-review")]),
+    ]);
     const classificationTags = resolved.priorManagedTags ? [] : ["vision", "guess", "existing-vision", "evidence-fallback"].includes(resolved.source)
       ? [
         simpleCatalogTag("classification-rule", resolved.knowledge.classificationRule),
         simpleCatalogTag("classification-source", resolved.source === "existing-vision" ? "vision" : resolved.source),
       ]
       : [];
-    const desiredManagedTags = resolved.priorManagedTags || (resolved.source === "review"
+    const preservedPriorManagedTags = uniqueTags(asArray(resolved.priorManagedTags))
+      .filter((tag) => !merchandisingHandles.has(normalizeCollectionHandle(tag)));
+    const desiredManagedTags = resolved.priorManagedTags ? uniqueTags([
+      ...preservedPriorManagedTags,
+      ...collectionTags.filter((tag) => isManagedCollectionTag(tag)),
+      ...refreshedDynamicTags,
+    ]) : (resolved.source === "review"
       ? collectionTags
       : uniqueTags([
         ...asArray(resolved.knowledge.proposedTags),

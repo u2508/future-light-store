@@ -35,6 +35,7 @@ function normalizeLineItem(lineItem) {
         title,
     ),
     price: Number.isFinite(price) && price > 0 ? price : null,
+    quantity: Math.max(1, Number(lineItem?.quantity) || 1),
   };
 }
 
@@ -42,15 +43,14 @@ export function buildRecentlyOrderedProductsPayload(ordersInput, options = {}) {
   const limit = Math.max(1, Number(options.limit || 4));
   const minPriceExclusive = Number(options.minPriceExclusive || 0);
   const orders = asArray(ordersInput?.nodes || ordersInput);
-  const products = [];
-  const seen = new Set();
+  const byProductId = new Map();
 
   for (const order of orders) {
     if (order?.cancelledAt) continue;
 
     for (const lineItem of asArray(order?.lineItems?.nodes)) {
       const product = normalizeLineItem(lineItem);
-      if (!product || seen.has(product.id)) continue;
+      if (!product) continue;
       if (
         minPriceExclusive > 0 &&
         (!Number.isFinite(product.price) || product.price <= minPriceExclusive)
@@ -58,13 +58,34 @@ export function buildRecentlyOrderedProductsPayload(ordersInput, options = {}) {
         continue;
       }
 
-      seen.add(product.id);
-      products.push(product);
-      if (products.length >= limit) break;
+      const existing = byProductId.get(product.id);
+      const orderCreatedAt = cleanText(order?.createdAt);
+      if (existing) {
+        existing.quantitySold += product.quantity;
+        existing.orderCount += 1;
+        if (!existing.lastOrderedAt || Date.parse(orderCreatedAt) > Date.parse(existing.lastOrderedAt)) {
+          existing.lastOrderedAt = orderCreatedAt;
+        }
+      } else {
+        byProductId.set(product.id, {
+          ...product,
+          quantitySold: product.quantity,
+          orderCount: 1,
+          lastOrderedAt: orderCreatedAt || null,
+        });
+      }
     }
-
-    if (products.length >= limit) break;
   }
+
+  const products = [...byProductId.values()]
+    .sort((left, right) =>
+      right.quantitySold - left.quantitySold ||
+      right.orderCount - left.orderCount ||
+      Date.parse(right.lastOrderedAt || 0) - Date.parse(left.lastOrderedAt || 0) ||
+      left.handle.localeCompare(right.handle),
+    )
+    .slice(0, limit)
+    .map(({ quantity, ...product }) => product);
 
   return {
     generatedAt: options.generatedAt || new Date().toISOString(),

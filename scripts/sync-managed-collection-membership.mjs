@@ -4,6 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { CATALOG_COLLECTION_PLAN } from "../src/lib/catalog-collection-plan.js";
+import { buildMerchandisingCollectionMembership } from "../src/lib/merchandising-collection-rules.js";
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 
@@ -111,10 +112,11 @@ async function fetchLiveCollectionProducts(handle) {
 }
 
 async function main() {
-  const [productPayload, collectionsPayload, collectionProductsPayload] = await Promise.all([
+  const [productPayload, collectionsPayload, collectionProductsPayload, recentlyOrderedPayload] = await Promise.all([
     readProductCatalogPayload(dataDir),
     readFile(collectionsPath, "utf8").then(JSON.parse),
     readFile(collectionProductsPath, "utf8").then(JSON.parse),
+    readFile(resolve(dataDir, "recently-ordered-products.json"), "utf8").then(JSON.parse).catch(() => ({ products: [] })),
   ]);
   const catalogProductIds = new Set(
     (Array.isArray(productPayload.products) ? productPayload.products : [])
@@ -221,6 +223,35 @@ async function main() {
       liveProductCount: live.productIds.length,
       onlineStoreProductCount: visibleProductIds.length,
       filteredOutOfCatalog: live.productIds.length - visibleProductIds.length,
+    });
+  }
+
+  const merchandisingMembership = buildMerchandisingCollectionMembership(
+    productPayload.products || [],
+    recentlyOrderedPayload,
+  );
+  for (const [handle, products] of Object.entries(merchandisingMembership)) {
+    const productIds = products.map((product) => Number(product?.id)).filter((id) => catalogProductIds.has(id));
+    const currentMapping = nextCollectionProducts.collections[handle] || {};
+    const collectionIndex = nextCollections.findIndex((collection) => collection.handle === handle);
+    const title = handle === "new-arrivals" ? "New Arrivals" : "Best Sellers";
+    if (collectionIndex >= 0) {
+      nextCollections[collectionIndex] = {
+        ...nextCollections[collectionIndex],
+        products_count: productIds.length,
+      };
+    }
+    nextCollectionProducts.collections[handle] = {
+      ...currentMapping,
+      title: currentMapping.title || title,
+      productIds,
+    };
+    summaries.push({
+      handle,
+      source: "deterministic-merchandising-cohort",
+      liveProductCount: productIds.length,
+      onlineStoreProductCount: productIds.length,
+      filteredOutOfCatalog: 0,
     });
   }
 

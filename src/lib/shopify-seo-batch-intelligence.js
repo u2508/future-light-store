@@ -794,6 +794,7 @@ function strictProductTypeForSignals(signals) {
   const h = strictHandleText(signals);
   if (!h) return "";
 
+  if (/\b(?:fingertip gloves?|finger sleeves?|gaming finger sleeves?)\b/i.test(h)) return "mobile gaming finger sleeves";
   if (/\b(?:xiaomi pad 7|mi pad 7|pad 7 pro)\b/i.test(h) && /\b(?:case|cover|pencil holder|rotation)\b/i.test(h)) return "Xiaomi Pad 7 and Pad 7 Pro rotating case with pencil holder";
   if (/\bsteelseries\b/i.test(h) && /\b(?:arctis|earpads?|earmuffs?|headphone)\b/i.test(h)) return "SteelSeries Arctis replacement earpads";
   if (/\bbglossy\b/i.test(h) && /\b(?:body serum|face serum|vitamin e|hyaluronic acid)\b/i.test(h)) return "BGlossy smoothing body and face serum";
@@ -804,7 +805,7 @@ function strictProductTypeForSignals(signals) {
 
   if (/\by1ub\b/i.test(h) && /\b(?:gaming|keyboard|keycap|backlit)\b/i.test(h)) return "Y1UB gaming mechanical-feel keyboard";
   if (/\bugreen\b/i.test(h) && /\b(?:type c|usb c|3[ .-]?5\s*mm|audio|dac)\b/i.test(h)) return "UGREEN USB-C to 3.5mm DAC audio cable";
-  if (/\babzz\b/i.test(h) && /\b(?:rode|wireless go ii|3[ .-]?5\s*mm|usb c)\b/i.test(h)) return "ABZZ USB-C to 3.5mm TRS cable";
+  if (/\babzz\b/i.test(h) && /\b(?:rode|wireless go ii|3[ .-]?5\s*mm|usb c)\b/i.test(h)) return "ABZZ USB-C to 3.5mm AUX TRS cable";
   if (/\binvisible selfie stick\b/i.test(h) && /\b(?:insta360|x3|x4|x5)\b/i.test(h)) return "Insta360 invisible selfie stick";
   if (/\b(?:tripod|selfie stick)\b/i.test(h) && /\b(?:phone|smartphone|camera)\b/i.test(h) && /\b(?:overhead|live stand|shooting|recording)\b/i.test(h)) return "overhead smartphone selfie-stick tripod";
   if (/\bmobile phone stand\b/i.test(h) && /\b(?:lying flat|leaning back|watch tv|bedroom|living room)\b/i.test(h)) return "bedside phone stand for lying-flat viewing";
@@ -904,6 +905,10 @@ function buildStrictHandleTitle(signals) {
   if (!h) return "";
   const brand = strictHandleBrand(h);
 
+  if (/\b(?:fingertip gloves?|finger sleeves?|gaming finger sleeves?)\b/i.test(h)) {
+    const count = strictPackCount(h) || "2";
+    return `${count}-Piece Mobile Gaming Finger Sleeves, Sweatproof Touchscreen Covers`;
+  }
   if (/\bnight vision binoculars\b/i.test(h) && /\binfrared\b/i.test(h)) return "4K Infrared Night-Vision Binoculars with Digital Zoom";
   if (/\bwood kitchenware\b/i.test(h) && /\bcooking set\b/i.test(h)) return "Wooden Kitchen Utensil Set for Cooking and Baking";
   if (/\bcamping wine cooler bags?\b/i.test(h) && /\binsulated\b/i.test(h)) return "Insulated Wine Cooler Tote Bag for Travel";
@@ -942,7 +947,7 @@ function buildStrictHandleTitle(signals) {
   if (/\bstriped\b/i.test(h) && /\b(?:one shoulder|one word shoulder|long sleeve|long sleeved)\b/i.test(h)) return "Striped One-Shoulder Long-Sleeve Top";
   if (/\by1ub\b/i.test(h) && /\b(?:gaming|keyboard|keycap|backlit)\b/i.test(h)) return "Y1UB Gaming Mechanical Keyboard with Backlit Round Keycaps";
   if (/\bugreen\b/i.test(h) && /\b(?:type c|usb c|3[ .-]?5\s*mm|audio|dac)\b/i.test(h)) return "UGREEN USB-C to 3.5mm DAC Audio Cable";
-  if (/\babzz\b/i.test(h) && /\b(?:rode|wireless go ii|3[ .-]?5\s*mm|usb c)\b/i.test(h)) return "ABZZ USB-C to 3.5mm TRS Cable for RODE Wireless GO II";
+  if (/\babzz\b/i.test(h) && /\b(?:rode|wireless go ii|3[ .-]?5\s*mm|usb c)\b/i.test(h)) return "ABZZ USB-C to 3.5mm AUX TRS Cable for RODE Wireless GO II";
   if (/\binvisible selfie stick\b/i.test(h) && /\b(?:insta360|x3|x4|x5)\b/i.test(h)) return "Insta360 Invisible Selfie Stick for X3, X4, and X5";
   if (/\b(?:tripod|selfie stick)\b/i.test(h) && /\b(?:phone|smartphone|camera)\b/i.test(h) && /\b(?:overhead|live stand|shooting|recording)\b/i.test(h)) return "Overhead Smartphone Selfie Stick and Tripod";
   if (/\bmobile phone stand\b/i.test(h) && /\b(?:lying flat|leaning back|watch tv|bedroom|living room)\b/i.test(h)) return "Adjustable Bedside Phone Stand for Lying-Flat Viewing";
@@ -1039,7 +1044,7 @@ function buildStrictHandleTitle(signals) {
   }
 
   if (/articulated arm.*(?:hex pin|female thread)|(?:hex pin|female thread).*articulated arm/i.test(h)) {
-    return "3-Section Articulated Camera Arm with 5/8 Hex Pin and Female Threads";
+      return "3-Section Articulated Camera Mounting Arm with 5/8 Hex Pin and Female Threads";
   }
   if (/(?:3[ .-]?5\s*mm|35mm).*?(?:aux|audio).*cable.*(?:xh2|terminal)|(?:aux|audio).*cable.*(?:xh2|terminal)/i.test(h)) {
     return "3.5mm AUX Audio Cable with XH2.54 3-Pin Male Terminals";
@@ -1455,7 +1460,7 @@ function buildStrictHumanSummary(titleText, signals, facts) {
     return "This UGREEN USB-C to 3.5mm DAC audio cable connects compatible USB-C devices to headphones, car stereos, speakers, or other equipment with a 3.5mm input. Check the DAC support, connector direction, length, and device compatibility before ordering.";
   }
   if (/\babzz\b/i.test(h) && /\b(?:rode|wireless go ii|3[ .-]?5\s*mm|usb c)\b/i.test(h)) {
-    return "This ABZZ USB-C to 3.5mm TRS cable connects a RODE Wireless GO II receiver or compatible audio setup to a 3.5mm input. Check the USB-C direction, TRS wiring, right-angle plug, cable length, and device compatibility before ordering.";
+    return "This ABZZ USB-C to 3.5mm AUX audio TRS cable connects a RODE Wireless GO II receiver or compatible audio setup to a 3.5mm input. Check the USB-C direction, TRS wiring, right-angle plug, cable length, and device compatibility before ordering.";
   }
   if (/\binvisible selfie stick\b/i.test(h) && /\b(?:insta360|x3|x4|x5)\b/i.test(h)) {
     return "This invisible selfie stick is designed for Insta360 X3, X4, X5, ONE X2, RS, GO 2, and GO 3S cameras for handheld or tripod-style shooting. Check the exact camera model, thread, extension length, and mounting accessories before ordering.";
@@ -1581,7 +1586,7 @@ function buildStrictHumanSummary(titleText, signals, facts) {
     return `This ${lightweight}${audience}${capacity ? `${capacity} ` : ""}${use} backpack is built for carrying clothing, gear, and daily essentials.${featureText} Check the capacity, compartments, and shoulder-strap fit before ordering.`;
   }
   if (/articulated arm.*(?:hex pin|female thread)|(?:hex pin|female thread).*articulated arm/i.test(h)) {
-    return "This three-section articulated camera arm positions a compatible light or camera with a 5/8 hex pin and female-thread fittings. Check the pin, thread sizes, and supported load before ordering.";
+    return "This three-section articulated camera mounting arm positions a compatible light or camera with a 5/8 hex pin, 1/4-20 female thread, and 3/8-16 female thread. Check the pin, thread sizes, and supported load before ordering.";
   }
   if (/(?:3[ .-]?5\s*mm|35mm).*?(?:aux|audio).*cable.*(?:xh2|terminal)|(?:aux|audio).*cable.*(?:xh2|terminal)/i.test(h)) {
     return "This audio lead connects a 3.5mm AUX source to an XH2.54 3-pin male terminal. Check the pin spacing, connector direction, and cable length against the equipment before ordering.";
@@ -3728,6 +3733,10 @@ function shortenNaturalSeoLead(value, maxLength) {
 
 function buildNaturalSeoDescription(title, signals) {
   const titleText = normalizePlainText(title);
+  if (/\b(?:fingertip gloves?|finger sleeves?|gaming finger sleeves?)\b/i.test(strictHandleText(signals))) {
+    const count = strictPackCount(strictHandleText(signals)) || "2";
+    return `These ${count}-piece mobile gaming finger sleeves cover the fingertips used for touchscreen play with a breathable, sweatproof fit. Check the pack and size before ordering.`;
+  }
   const knowledge = resolveProductKnowledge(signals.handle);
   const facts = prioritizeProductFacts(extractSupportedProductFacts(signals), knowledge)
     .filter((fact) => fact.label !== "Product focus")
@@ -3974,6 +3983,7 @@ function buildDescriptionHtml(title, signals) {
   const titleText = normalizePlainText(title);
   const knowledge = resolveProductKnowledge(signals.handle);
   const family = normalizePlainText(signals.handle || signals.handlePhrase || "").toLowerCase().replace(/[-_]+/g, " ");
+  const fingerSleeves = /\b(?:fingertip gloves?|finger sleeves?|gaming finger sleeves?)\b/i.test(family);
   const audioTerminalCable = /(?:3[ .-]?5\s*mm|35mm).*?(?:aux|audio).*cable.*(?:xh2|terminal)|(?:aux|audio).*cable.*(?:xh2|terminal)/i.test(family);
   const audioCable = /(?:3[ .-]?5\s*mm|35mm).*?(?:aux|audio).*cable|(?:aux|audio).*cable/i.test(family);
   const cameraMountingArm = /articulated arm.*(?:hex pin|female thread)|(?:hex pin|female thread).*articulated arm/i.test(family);
@@ -4098,7 +4108,9 @@ function buildDescriptionHtml(title, signals) {
     categoryCopy = { ...categoryCopy, purpose: "combines the stated pot or cookware format for camping meal preparation", use: "Use each cookware piece only with a supported heat source and follow the supplied cleaning, packing, and storage guidance." };
   }
   let productUseText = categoryCopy.use;
-  if (/\baudio receiver\b/i.test(family)) {
+  if (fingerSleeves) {
+    productUseText = "Slide the finger sleeves over the fingertips used for touchscreen play, choose the listed pack or size option, and keep them clean and dry between sessions.";
+  } else if (/\baudio receiver\b/i.test(family)) {
     productUseText = "Check the RCA, 3.5mm AUX, optical, USB, and power connections against the audio equipment before ordering. Connect it only to compatible inputs and outputs.";
   } else if (/\b(?:phone holder|phone stand|mobile phone holder|car phone mount)\b/i.test(family)) {
     productUseText = "Check that the phone fits the holder and secure the mount to a stable surface before use. Recheck the grip and mounting point regularly.";
@@ -4152,7 +4164,9 @@ function buildDescriptionHtml(title, signals) {
   const reviewText = signals.reviewSummary
     ? ` Current review data records a ${signals.reviewSummary.rating.toFixed(1)}-star average from ${signals.reviewSummary.ratingCount} trusted reviews.`
     : "";
-  const humanSummary = buildProductDrivenHumanSummary(titleText, signals, knowledge, facts);
+  const humanSummary = fingerSleeves
+    ? `These ${strictPackCount(strictHandleText(signals)) || "2"}-piece mobile gaming finger sleeves cover the fingertips used for touchscreen play, with the sweatproof, breathable format stated in the listing.`
+    : buildProductDrivenHumanSummary(titleText, signals, knowledge, facts);
   const overview = `<p><strong>${escapeHtml(titleText)}</strong> &mdash; ${escapeHtml(humanSummary)}${escapeHtml(reviewText)}</p>`;
   const factualDetails = uniqueValues([
     ...visibleFacts.map((fact) => audioTerminalCable && ["Connector size", "Connection", "Connector layout"].includes(fact.label)
