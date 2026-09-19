@@ -149,21 +149,6 @@ async function fetchJsonUrl(url, { attempt = 0, maxAttempts = maxRequestAttempts
   return response.json();
 }
 
-async function fetchCollectionProductIdsFromCachedFile(handle) {
-  const raw = await readFile(collectionProductsPath, "utf8");
-  const payload = JSON.parse(raw);
-  const entry = payload?.collections?.[handle];
-  const productIds = Array.isArray(entry?.productIds) ? entry.productIds : [];
-
-  if (!productIds.length) {
-    process.stdout.write(`Cached collection products payload missing handle "${handle}"\n`);
-    return [];
-  }
-
-  process.stdout.write(`Using cached collection ids for "${handle}" with ${productIds.length} products\n`);
-  return productIds;
-}
-
 async function loadForcedLiveCollectionHandles() {
   try {
     const manifest = JSON.parse(await readFile(collectionMergeManifestPath, "utf8"));
@@ -1444,15 +1429,10 @@ async function fetchShopCustomData() {
 
 async function fetchCollectionProductIds(handle) {
   const forceLive = forceLiveCollectionHandles.has(handle);
-  if (!forceLive) {
-    try {
-      return await fetchCollectionProductIdsFromCachedFile(handle);
-    } catch (cacheError) {
-      const cacheMessage = cacheError instanceof Error ? cacheError.message : "unknown cache error";
-      process.stdout.write(`Cached collection ids unavailable for "${handle}"; falling back to live fetch (${cacheMessage})\n`);
-    }
-  } else {
+  if (forceLive) {
     process.stdout.write(`Bypassing cached collection ids for completed merge target "${handle}"\n`);
+  } else {
+    process.stdout.write(`Reading live collection membership for "${handle}"\n`);
   }
 
   if (!adminAccessToken && syncActiveCatalog) {
@@ -1494,36 +1474,18 @@ async function fetchCollectionProductIds(handle) {
   const ids = [];
   let page = 1;
 
-  try {
-    while (true) {
-      const url = `${baseUrl}/collections/${handle}/products.json?limit=${limit}&page=${page}&sort_by=manual`;
-      const payload = await fetchJsonUrl(url);
-      const products = Array.isArray(payload.products) ? payload.products : [];
+  while (true) {
+    const url = `${baseUrl}/collections/${handle}/products.json?limit=${limit}&page=${page}&sort_by=manual`;
+    const payload = await fetchJsonUrl(url);
+    const products = Array.isArray(payload.products) ? payload.products : [];
 
-      ids.push(...products.map((product) => product.id));
+    ids.push(...products.map((product) => product.id));
 
-      if (products.length < limit) {
-        break;
-      }
-
-      page += 1;
+    if (products.length < limit) {
+      break;
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown error";
-    if (forceLive) {
-      throw new Error(`Live collection ids failed for completed merge target "${handle}": ${message}`);
-    }
-    process.stdout.write(`Live collection ids failed for "${handle}"; trying cached mapping (${message})\n`);
 
-    try {
-      return await fetchCollectionProductIdsFromCachedFile(handle);
-    } catch (cacheError) {
-      const cacheMessage = cacheError instanceof Error ? cacheError.message : "unknown cache error";
-      process.stdout.write(
-        `Skipping collection "${handle}" after live and cached lookups failed (${message}; ${cacheMessage})\n`,
-      );
-      return [];
-    }
+    page += 1;
   }
 
   return ids;

@@ -54,13 +54,17 @@ export function PredictiveSearch({
     queryKey: ["products", "all"],
     queryFn: () => fetchProducts(99),
     enabled: open,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
   const { data: collections = [] } = useQuery({
     queryKey: ["collections"],
     queryFn: () => fetchCollections(20),
     enabled: open,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   const matches = useMemo(

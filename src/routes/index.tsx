@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, PackageCheck, ShieldCheck, Headphones } from "lucide-react";
-import { fetchCollection, fetchCollections } from "@/lib/shopify";
+import { fetchCollection } from "@/lib/shopify";
 import { HeroCarousel } from "@/components/vs/HeroCarousel";
-import { ProductCatalogGridState, CatalogRequestError } from "@/components/vs/CatalogGridState";
+import { ProductCatalogGridState } from "@/components/vs/CatalogGridState";
 import {
   collectionArtwork,
   collectionArtworkSrcSet,
@@ -63,13 +64,39 @@ function CollectionShelf({
   title: string;
   subtitle: string;
 }) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const [ready, setReady] = useState(false);
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["collection", handle],
     queryFn: () => fetchCollection(handle),
-    staleTime: 5 * 60 * 1000,
+    enabled: ready,
+    staleTime: 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || typeof IntersectionObserver === "undefined") {
+      setReady(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setReady(true);
+        observer.disconnect();
+      },
+      { rootMargin: "700px 0px" },
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <section className="vs-wide-shell py-10 sm:py-14" aria-label={title}>
+    <section ref={sectionRef} className="vs-wide-shell py-10 sm:py-14" aria-label={title}>
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -88,11 +115,11 @@ function CollectionShelf({
       </div>
       <ProductCatalogGridState
         products={(data?.products ?? []).slice(0, 8)}
-        isLoading={isLoading}
-        isError={isError || (!isLoading && !data)}
-        isRetrying={isFetching}
+        isLoading={!ready || isLoading}
+        isError={ready && (isError || (!isLoading && !data))}
+        isRetrying={ready && isFetching}
         onRetry={() => {
-          void refetch();
+          if (ready) void refetch();
         }}
         loadingLabel={`Loading ${title}`}
         errorTitle={`We couldn’t load ${title.toLowerCase()}`}
@@ -106,16 +133,6 @@ function CollectionShelf({
 }
 
 function Index() {
-  const {
-    data: collections = [],
-    isError,
-    isFetching,
-    refetch,
-  } = useQuery({
-    queryKey: ["collections", "home"],
-    queryFn: () => fetchCollections(250),
-    staleTime: 10 * 60 * 1000,
-  });
   const slides = MERCHANDISING_COLLECTIONS.map((item) => ({
     handle: item.handle,
     eyebrow: item.eyebrow,
@@ -123,10 +140,7 @@ function Index() {
     copy: item.copy,
     cta: item.cta,
     imageSrcSet: collectionArtworkSrcSet(item.handle),
-    image: collectionArtwork(
-      item.handle,
-      collections.find((c) => c.handle === item.handle)?.image?.url,
-    ),
+    image: collectionArtwork(item.handle),
   }));
 
   return (
@@ -170,10 +184,7 @@ function Index() {
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-4">
           {QUICK_DISCOVERY.map((world) => {
-            const art = collectionArtwork(
-              world.handle,
-              collections.find((c) => c.handle === world.handle)?.image?.url,
-            );
+            const art = collectionArtwork(world.handle);
             return (
               <Link
                 key={world.handle}
@@ -234,21 +245,9 @@ function Index() {
             <ArrowUpRight className="h-4 w-4" />
           </Link>
         </div>
-        {isError && (
-          <CatalogRequestError
-            title="Collection details couldn’t load"
-            isRetrying={isFetching}
-            onRetry={() => {
-              void refetch();
-            }}
-          />
-        )}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {WORLDS.map((world) => {
-            const art = collectionArtwork(
-              world.handle,
-              collections.find((c) => c.handle === world.handle)?.image?.url,
-            );
+            const art = collectionArtwork(world.handle);
             return (
               <Link
                 key={world.handle}

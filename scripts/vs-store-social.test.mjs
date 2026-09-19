@@ -31,9 +31,9 @@ import { isSocialNetworkError } from "./lib/vs-store-social-network.mjs";
 import {
   readImageGenRequest,
   readImageGenResult,
+  readSocialState,
   recordUsage,
   socialPaths,
-  writeBrowserFallbackRequest,
   writeImageGenRequest,
   writeImageGenResult,
 } from "./lib/vs-store-social-state.mjs";
@@ -409,23 +409,6 @@ test("partial discount writes reconcile by the deterministic code", async () => 
   assert.equal(calls[0].variables.query, "code:VSWELCOME");
 });
 
-test("browser fallback writes a durable, token-free request", async () => {
-  const rootDir = await mkdtemp(join(tmpdir(), "vs-store-social-test-"));
-  try {
-    await writeBrowserFallbackRequest(rootDir, {
-      runKey: "2026-09-18",
-      fingerprint: "fingerprint",
-      actions: [{ type: "meta.schedule_vs_store_page_post" }],
-    });
-    const request = JSON.parse(await readFile(socialPaths(rootDir).browserRequest, "utf8"));
-    assert.equal(request.status, "pending");
-    assert.equal(request.fingerprint, "fingerprint");
-    assert.equal(Object.hasOwn(request, "accessToken"), false);
-  } finally {
-    await rm(rootDir, { recursive: true, force: true });
-  }
-});
-
 test("Image Gen handoff stays durable and token-free", async () => {
   const rootDir = await mkdtemp(join(tmpdir(), "vs-store-imagegen-test-"));
   try {
@@ -450,6 +433,29 @@ test("Image Gen handoff stays durable and token-free", async () => {
     assert.equal(result.image.path, imagePath);
     assert.equal(Object.hasOwn(request, "accessToken"), false);
     assert.equal(Object.hasOwn(result, "accessToken"), false);
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test("legacy browser-wait state is failed safely after fallback removal", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "vs-store-social-state-test-"));
+  try {
+    await mkdir(join(rootDir, "output", "social"), { recursive: true });
+    await writeFile(
+      socialPaths(rootDir).state,
+      JSON.stringify({
+        schemaVersion: 3,
+        status: "waiting_for_browser",
+        pending: { runKey: "2026-09-18", offerPlan: { status: "browser-required" } },
+      }),
+      "utf8",
+    );
+    const state = await readSocialState(rootDir);
+    assert.equal(state.schemaVersion, 4);
+    assert.equal(state.status, "failed");
+    assert.equal(state.pending, null);
+    assert.match(state.error, /API-only/i);
   } finally {
     await rm(rootDir, { recursive: true, force: true });
   }

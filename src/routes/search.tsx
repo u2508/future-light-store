@@ -31,13 +31,20 @@ export const Route = createFileRoute("/search")({
 
 function SearchPage() {
   const { q } = Route.useSearch();
+  const normalizedQuery = q.trim();
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ["products", "search-index"],
-    queryFn: fetchSearchProducts,
-    staleTime: 5 * 60 * 1000,
+    queryKey: ["products", "search-index", normalizedQuery],
+    queryFn: () => fetchSearchProducts(normalizedQuery),
+    enabled: normalizedQuery.length > 0,
+    staleTime: 0,
+    refetchInterval: 60 * 1000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
-  const results = searchProducts(products, q).map((m) => m.product);
+  const results = normalizedQuery
+    ? searchProducts(products, normalizedQuery).map((m) => m.product)
+    : [];
 
   return (
     <div className="vs-wide-shell py-8">

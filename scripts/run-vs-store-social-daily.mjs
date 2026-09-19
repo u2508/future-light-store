@@ -15,15 +15,12 @@ import {
 import {
   acquireSocialLock,
   appendSocialEvent,
-  clearBrowserFallbackFiles,
   clearImageGenResult,
   clearImageGenFiles,
-  readBrowserFallbackResult,
   readImageGenResult,
   readSocialState,
   recordUsage,
   socialPaths,
-  writeBrowserFallbackRequest,
   writeImageGenRequest,
   writeSocialState,
 } from "./lib/vs-store-social-state.mjs";
@@ -68,7 +65,6 @@ function parseArgs(argv) {
     checkConfig: false,
     dryRun: false,
     resume: false,
-    resumeBrowser: false,
     resumeImageGen: false,
     skipOffer: false,
   };
@@ -77,7 +73,6 @@ function parseArgs(argv) {
     if (token === "--check-config") args.checkConfig = true;
     else if (token === "--dry-run") args.dryRun = true;
     else if (token === "--resume") args.resume = true;
-    else if (token === "--resume-browser") args.resumeBrowser = true;
     else if (token === "--resume-imagegen") args.resumeImageGen = true;
     else if (token === "--skip-offer") args.skipOffer = true;
     else throw new Error(`Unknown argument: ${token}`);
@@ -194,26 +189,6 @@ function targetForContent(content) {
   return null;
 }
 
-function buildDeferredOfferPlan({ config, content, now, reason }) {
-  const window = getFridayOfferWindow(now, config.timezone);
-  return {
-    status: "browser-required",
-    target: targetForContent(content),
-    code: config.primaryDiscountCode,
-    fallbackCode: config.fallbackDiscountCode,
-    percent: null,
-    startsAt: window.startsAt.toISOString(),
-    endsAt: window.endsAt.toISOString(),
-    marginPolicy: {
-      primaryPercent: config.primaryDiscountPercent,
-      fallbackPercent: config.fallbackDiscountPercent,
-      overheadUsd: config.overheadUsd,
-      minimumContributionUsd: config.minimumContributionUsd,
-    },
-    reason,
-  };
-}
-
 function isManagedDiscount(discountId, discount, state, code) {
   return Boolean(
     state?.couponRegistry?.[code]?.discountId === discountId ||
@@ -238,12 +213,7 @@ async function prepareOffer({ config, content, now, retryInfo, skipOffer, state,
       ? createVsStoreShopifyClient(config)
       : null;
   if (!client) {
-    return buildDeferredOfferPlan({
-      config,
-      content,
-      now,
-      reason: "shopify-api-credential-missing",
-    });
+    return { status: "not-requested", target, reason: "shopify-api-credential-missing" };
   }
 
   const products = await fetchStorewideProductsForOffer(client, { retryInfo });
@@ -333,25 +303,6 @@ async function prepareOffer({ config, content, now, retryInfo, skipOffer, state,
     input,
     discountAction,
   };
-}
-
-function browserOfferCaption(caption, offerPlan) {
-  if (offerPlan?.status !== "browser-required") return caption;
-  if (offerPlan.target?.type === "all" && caption.includes("A heartfelt thank-you")) {
-    return caption.replace(
-      /\n\nVisit the store:/,
-      `\n\nAs a thank-you to the VS Store family, use code {{OFFER_CODE}} for the verified {{OFFER_PERCENT}}% weekend discount while the offer is active.\n\nVisit the store:`,
-    );
-  }
-  return caption
-    .replace(
-      /\n\nSee the photos and available choices here:/,
-      `\n\nUse code {{OFFER_CODE}} for {{OFFER_PERCENT}}% off this featured item while the offer is active.\n\nSee the photos and available choices here:`,
-    )
-    .replace(
-      /\n\nExplore it here:/,
-      `\n\nUse code {{OFFER_CODE}} for {{OFFER_PERCENT}}% off eligible items in this collection while the offer is active.\n\nExplore it here:`,
-    );
 }
 
 function makeFingerprint(value) {
@@ -572,58 +523,6 @@ async function writePending(rootDir, state, pending, status) {
   await writeSocialState(rootDir, { ...state, status, pending });
 }
 
-async function writeBrowserRequest({ config, pending, offerPlan }) {
-  const actions = [];
-  if (offerPlan?.status === "browser-required") {
-    actions.push({
-      type: "shopify.reconcile_weekly_storewide_discount",
-      target: offerPlan.target,
-      proposedCode: offerPlan.code,
-      fallbackCode: offerPlan.fallbackCode,
-      startsAt: offerPlan.startsAt,
-      endsAt: offerPlan.endsAt,
-      marginPolicy: offerPlan.marginPolicy,
-      instructions:
-        "In Shopify Admin, inspect every active, published, in-stock product variant's price and inventoryItem.unitCost. Try the 15% proposed code first, then the 10% fallback code only if 15% fails the contribution floor. Reconcile an existing VS Store-managed code instead of creating a duplicate. Verify the saved code, actual percentage, storewide scope, Friday 00:00 through Monday 00:00 America/New_York dates, one-use-per-customer setting, and no-stacking setting before returning the result. If the margin gate fails, a code conflicts with an unmanaged discount, or Shopify cannot verify the saved discount, skip the offer and remove the offer paragraph from the post before publishing.",
-    });
-  }
-  actions.push({
-    type: "meta.schedule_vs_store_page_post",
-    pageName: "VS Store",
-    pageId: config.metaPageId || null,
-    destinations: ["facebook", "instagram"],
-    instagramAccount: {
-      accountId:
-        pending.destinations?.instagram?.accountId || config.metaInstagramAccountId || null,
-      username: pending.destinations?.instagram?.username || config.metaInstagramUsername || null,
-    },
-    imagePath: pending.imagePath,
-    caption: pending.captionTemplate,
-    scheduledAt: pending.scheduledAt,
-    targetUrl: pending.targetUrl,
-    instructions:
-      "Use the Codex internal browser only. Schedule/publish the exact same image and final caption to the VS Store Facebook Page and its connected Instagram account @vs.store2608 in the same Meta Business Suite composer flow. If existingFacebookPost is present, do not create a duplicate Facebook post; verify/read back that post and publish only the missing Instagram destination. Do not touch ads, spend, campaigns, Threads, SALT, or theme settings. If a verified discount was created, replace {{OFFER_CODE}} and {{OFFER_PERCENT}} in the caption before publishing. If the offer was skipped, remove the entire offer sentence/paragraph and never publish unresolved placeholders. Confirm and read back both final post IDs and URLs, then record both through the browser bridge.",
-  });
-  await writeBrowserFallbackRequest(config.rootDir, {
-    runKey: pending.runKey,
-    fingerprint: pending.fingerprint,
-    timezone: config.timezone,
-    actions,
-    offer: offerPlan || null,
-    post: {
-      imagePath: pending.imagePath,
-      captionTemplate: pending.captionTemplate,
-      scheduledAt: pending.scheduledAt,
-      targetUrl: pending.targetUrl,
-      destinations: pending.destinations || {
-        facebook: { required: true, pageId: config.metaPageId || null },
-        instagram: { required: true, username: config.metaInstagramUsername || "vs.store2608" },
-      },
-      existingFacebookPost: pending.metaPost || null,
-    },
-  });
-}
-
 async function waitForNetwork({ config, state, runKey, error }) {
   const startedAt = Date.now();
   let intervalMs = config.networkPollMs;
@@ -678,187 +577,6 @@ async function waitForNetwork({ config, state, runKey, error }) {
   return false;
 }
 
-async function consumeBrowserResult({ config, state, now }) {
-  const pending = state.pending;
-  if (!pending) return false;
-  const result = await readBrowserFallbackResult(config.rootDir);
-  if (!result) return false;
-  if (result.runKey !== pending.runKey || result.fingerprint !== pending.fingerprint) {
-    throw new Error("Browser fallback result does not match the pending social run fingerprint.");
-  }
-  if (result.status !== "success")
-    throw new Error(`Internal-browser fallback reported ${result.status || "failure"}.`);
-  if (!result.post?.verified || !result.post?.id || !result.post?.url) {
-    throw new Error(
-      "Internal-browser fallback did not provide a verified Facebook post ID and URL.",
-    );
-  }
-  if (!result.instagramPost?.verified || !result.instagramPost?.id || !result.instagramPost?.url) {
-    throw new Error(
-      "Internal-browser fallback did not provide a verified Instagram post ID and URL.",
-    );
-  }
-  if (result.post?.caption && /\{\{(?:OFFER_CODE|OFFER_PERCENT)\}\}/.test(result.post.caption)) {
-    throw new Error(
-      "Internal-browser fallback recorded a Facebook caption with unresolved offer placeholders.",
-    );
-  }
-  if (
-    result.post?.caption &&
-    /\b(?:brand name|catalog tag|source specifications|high concerned chemical|use & care|key details)\s*:/i.test(
-      result.post.caption,
-    )
-  ) {
-    throw new Error(
-      "Internal-browser fallback recorded a Facebook caption containing raw catalog labels.",
-    );
-  }
-  if (
-    result.instagramPost?.caption &&
-    /\{\{(?:OFFER_CODE|OFFER_PERCENT)\}\}/.test(result.instagramPost.caption)
-  ) {
-    throw new Error(
-      "Internal-browser fallback recorded an Instagram caption with unresolved offer placeholders.",
-    );
-  }
-  let offer = null;
-  if (pending.offerPlan?.status === "browser-required") {
-    if (result.offerSkipped === true) {
-      offer = null;
-    } else if (
-      !result.discount?.verified ||
-      !result.discount?.id ||
-      !result.discount?.code ||
-      ![config.primaryDiscountCode, config.fallbackDiscountCode].includes(result.discount.code) ||
-      Number(result.discount?.percent) !==
-        (result.discount.code === config.primaryDiscountCode
-          ? config.primaryDiscountPercent
-          : config.fallbackDiscountPercent) ||
-      result.discount?.targetType !== "all" ||
-      result.discount?.allItems !== true ||
-      result.discount?.appliesOncePerCustomer !== true ||
-      result.discount?.combinesWith?.orderDiscounts !== false ||
-      result.discount?.combinesWith?.productDiscounts !== false ||
-      result.discount?.combinesWith?.shippingDiscounts !== false
-    ) {
-      throw new Error(
-        "Internal-browser fallback did not provide a verified eligible Shopify discount.",
-      );
-    } else {
-      offer = {
-        status: "verified",
-        discountId: result.discount.id,
-        code: result.discount.code,
-        percent: Number(result.discount.percent),
-        target: pending.offerPlan.target,
-        startsAt: result.discount.startsAt || now.toISOString(),
-        endsAt: result.discount.endsAt || null,
-        allItems: true,
-        appliesOncePerCustomer: true,
-        combinesWith: {
-          orderDiscounts: false,
-          productDiscounts: false,
-          shippingDiscounts: false,
-        },
-      };
-    }
-  } else if (pending.offerPlan?.status === "verified") {
-    offer = pending.offerPlan;
-  }
-  const historyEntry = {
-    runKey: pending.runKey,
-    kind: pending.content.kind,
-    variant: pending.content.variant || null,
-    slot: pending.content.slot || null,
-    weekday: pending.content.weekday || null,
-    weekKey: pending.content.weekKey || null,
-    handle: pending.content.handle,
-    title: pending.content.title,
-    selectedAt: pending.selectedAt,
-    publishedAt: result.post.publishedAt || result.post.scheduledAt || now.toISOString(),
-    postId: result.post.id,
-    postUrl: result.post.url,
-    instagramPostId: result.instagramPost.id,
-    instagramPostUrl: result.instagramPost.url,
-    instagramPost: {
-      id: result.instagramPost.id,
-      url: result.instagramPost.url,
-      publishedAt: result.instagramPost.publishedAt || result.instagramPost.scheduledAt || null,
-    },
-    image: pending.imagePath
-      ? { path: pending.imagePath, mode: pending.imageMode || "imagegen" }
-      : null,
-    offer: offer
-      ? { code: offer.code, percent: offer.percent, discountId: offer.discountId }
-      : null,
-    executionPath: "internal-browser",
-  };
-  let nextState = {
-    ...recordUsage(state, {
-      kind: pending.content.kind,
-      handle: pending.content.handle,
-      usedAt: historyEntry.publishedAt,
-      weekKey: pending.content.weekKey,
-    }),
-    status: "completed",
-    lastRunKey: pending.runKey,
-    lastOffer: offer
-      ? {
-          createdAt: offer.startsAt,
-          startsAt: offer.startsAt,
-          endsAt: offer.endsAt,
-          code: offer.code,
-          percent: offer.percent,
-          discountId: offer.discountId,
-          target: offer.target,
-        }
-      : state.lastOffer,
-    couponRegistry: offer
-      ? {
-          ...(state.couponRegistry || {}),
-          [offer.code]: {
-            discountId: offer.discountId,
-            code: offer.code,
-            percent: offer.percent,
-            targetType: offer.target?.type || null,
-            startsAt: offer.startsAt,
-            endsAt: offer.endsAt,
-          },
-        }
-      : state.couponRegistry || {},
-    pending: null,
-    destinations: {
-      facebook: {
-        ...(state.destinations?.facebook || { required: true }),
-        lastPostId: result.post.id,
-        lastPostUrl: result.post.url,
-      },
-      instagram: {
-        ...(state.destinations?.instagram || { required: true }),
-        required: true,
-        lastPostId: result.instagramPost.id,
-        lastPostUrl: result.instagramPost.url,
-      },
-    },
-    history: [historyEntry, ...(Array.isArray(state.history) ? state.history : [])].slice(0, 90),
-  };
-  nextState = await writeSocialState(config.rootDir, nextState);
-  await appendSocialEvent(config.rootDir, {
-    type: "completed",
-    runKey: pending.runKey,
-    executionPath: "internal-browser",
-    postId: result.post.id,
-    instagramPostId: result.instagramPost.id,
-    discountId: offer?.discountId || null,
-  });
-  await clearBrowserFallbackFiles(config.rootDir);
-  await clearImageGenFiles(config.rootDir);
-  process.stdout.write(
-    `VS Store social run completed through internal browser: Facebook ${result.post.url}; Instagram ${result.instagramPost.url}\n`,
-  );
-  return Boolean(nextState);
-}
-
 async function migrateStalePendingState({ state, runKey, now }) {
   const pendingRunKey = state?.pending?.runKey;
   const legacyPending =
@@ -868,7 +586,6 @@ async function migrateStalePendingState({ state, runKey, now }) {
   if (!pendingRunKey || (pendingRunKey === runKey && !legacyPending)) return state;
   const scheduledAt = Date.parse(String(state.pending?.scheduledAt || ""));
   if (!legacyPending && Number.isFinite(scheduledAt) && scheduledAt > now.getTime()) return state;
-  await clearBrowserFallbackFiles(rootDir);
   await clearImageGenFiles(rootDir);
   const migrated = await writeSocialState(rootDir, {
     ...state,
@@ -898,17 +615,6 @@ async function runDaily(args, config) {
     state = await migrateStalePendingState({ state, runKey, now });
     const pendingForRun =
       state.pending?.runKey === runKey && state.pending?.content?.kind ? state.pending : null;
-
-    if (state.pending && (args.resumeBrowser || state.status === "waiting_for_browser")) {
-      if (await consumeBrowserResult({ config, state, now })) return;
-      if (args.resumeBrowser) {
-        process.stdout.write(
-          "No matching internal-browser result is available yet; the social run remains waiting_for_browser.\n",
-        );
-        process.exitCode = 75;
-        return;
-      }
-    }
 
     if (state.status === "completed" && state.lastRunKey === runKey) {
       process.stdout.write(
@@ -963,10 +669,9 @@ async function runDaily(args, config) {
         peak = await metaClient.audiencePeak({ retryInfo });
       } catch (error) {
         if (!isNetworkError(error)) {
-          process.stdout.write(
-            `Meta audience timing unavailable; using fallback hour ${config.fallbackHour}:00.\n`,
+          throw new Error(
+            `Meta audience timing failed; no fallback timing is configured: ${normalizeText(error.message)}`,
           );
-          peak = choosePeakHour(new Map(), config.fallbackHour);
         } else {
           const recovered = await waitForNetwork({ config, state, runKey, error });
           if (!recovered) {
@@ -984,8 +689,8 @@ async function runDaily(args, config) {
         };
       } catch (error) {
         if (isNetworkError(error)) throw error;
-        process.stdout.write(
-          `Linked Instagram account readback unavailable; using browser fallback if needed: ${normalizeText(error.message)}\n`,
+        throw new Error(
+          `Linked Instagram account readback failed; API-only publishing cannot continue: ${normalizeText(error.message)}`,
         );
       }
     }
@@ -1030,16 +735,6 @@ async function runDaily(args, config) {
             state,
             dryRun: args.dryRun,
           });
-        } else if (config.browserFallbackEnabled) {
-          offerPlan = buildDeferredOfferPlan({
-            config,
-            content,
-            now,
-            reason: normalizeText(error.message),
-          });
-          process.stdout.write(
-            `Shopify offer API path unavailable; deferring the guarded offer to internal browser: ${offerPlan.reason}\n`,
-          );
         } else {
           offerPlan = {
             status: "not-requested",
@@ -1052,7 +747,7 @@ async function runDaily(args, config) {
     const offerForCaption =
       offerPlan.status === "verified" ? { code: offerPlan.code, percent: offerPlan.percent } : null;
     const baseCaption = buildContentCaption(content, config, offerForCaption);
-    const captionTemplate = browserOfferCaption(baseCaption, offerPlan);
+    const captionTemplate = baseCaption;
     const targetUrl = targetUrlForContent(content, config);
     let image = null;
     if (
@@ -1153,25 +848,6 @@ async function runDaily(args, config) {
       return;
     }
 
-    if (offerPlan.status === "browser-required") {
-      state = await writeSocialState(rootDir, {
-        ...state,
-        status: "waiting_for_browser",
-        pending: pendingBase,
-      });
-      await writeBrowserRequest({ config, pending: pendingBase, offerPlan });
-      await appendSocialEvent(rootDir, {
-        type: "waiting_for_browser",
-        runKey,
-        reason: "shopify-discount-or-meta-browser-fallback",
-      });
-      process.stdout.write(
-        `Internal-browser fallback required. Request saved at ${socialPaths(rootDir).browserRequest}.\n`,
-      );
-      process.exitCode = 75;
-      return;
-    }
-
     let offer = offerPlan.status === "verified" ? offerPlan : null;
     let caption = offer
       ? buildContentCaption(content, config, { code: offer.code, percent: offer.percent })
@@ -1179,117 +855,64 @@ async function runDaily(args, config) {
     let postResponse;
 
     if (!metaClient) {
-      const pending = {
-        ...pendingBase,
-        captionTemplate: offer ? caption : captionTemplate,
-        offerPlan: offer || offerPlan,
-      };
-      state = await writeSocialState(rootDir, { ...state, status: "waiting_for_browser", pending });
-      await writeBrowserRequest({ config, pending, offerPlan: offer || offerPlan });
-      await appendSocialEvent(rootDir, {
-        type: "waiting_for_browser",
-        runKey,
-        reason: "meta-api-credential-missing",
-      });
-      process.stdout.write(
-        `Meta API credentials are missing; internal-browser request saved at ${socialPaths(rootDir).browserRequest}.\n`,
-      );
-      process.exitCode = 75;
-      return;
+      throw new Error("Meta API credentials are missing; browser fallback has been removed.");
     }
 
-    // Facebook can schedule a local upload, while Instagram Graph publishing
-    // needs a public image URL and cannot schedule this local creative for the
-    // future peak slot. Route those runs to the authenticated Meta composer so
-    // both destinations receive the exact same upload and scheduled time.
-    const needsInstagramBrowser =
+    const apiCannotPublishInstagram =
       !instagramAccount.id ||
       !config.metaInstagramPublicImageUrl ||
       scheduledAt.getTime() > Date.now() + 2 * 60 * 1000;
-    if (needsInstagramBrowser) {
-      if (!config.browserFallbackEnabled) {
-        throw new Error(
-          "Instagram same-post scheduling requires the authenticated Meta browser fallback for this local creative.",
-        );
-      }
-      const pending = {
-        ...pendingBase,
-        captionTemplate: offer ? caption : captionTemplate,
-        offerPlan: offer || offerPlan,
-      };
-      state = await writeSocialState(rootDir, { ...state, status: "waiting_for_browser", pending });
-      await writeBrowserRequest({ config, pending, offerPlan: offer || offerPlan });
-      await appendSocialEvent(rootDir, {
-        type: "waiting_for_browser",
-        runKey,
-        reason: "instagram-same-post-browser-fallback-required",
-      });
-      process.stdout.write(
-        `Instagram same-post scheduling requires the authenticated Meta browser; request saved at ${socialPaths(rootDir).browserRequest}.\n`,
+    if (apiCannotPublishInstagram) {
+      throw new Error(
+        "Instagram API publishing requires a linked Instagram account, a public image URL, and an immediate API slot; browser fallback has been removed.",
       );
-      process.exitCode = 75;
-      return;
     }
 
     let instagramResponse;
-    try {
-      postResponse = await metaClient.schedulePhoto({
-        imagePath: image.path,
-        caption,
-        scheduledAt,
-        retryInfo,
-      });
-    } catch (error) {
-      if (isNetworkError(error)) {
-        state = await writeSocialState(rootDir, {
-          ...state,
-          status: "waiting_for_network",
-          pending: { ...pendingBase, captionTemplate: caption, offerPlan: offer },
-        });
-        const recovered = await waitForNetwork({ config, state, runKey, error });
-        if (!recovered) {
-          process.exitCode = 75;
-          return;
-        }
+    let postId = normalizeText(pendingForRun?.metaPost?.id);
+    if (!postId) {
+      try {
         postResponse = await metaClient.schedulePhoto({
           imagePath: image.path,
           caption,
           scheduledAt,
           retryInfo,
         });
-      } else {
-        const pending = { ...pendingBase, captionTemplate: caption, offerPlan: offer };
-        state = await writeSocialState(rootDir, {
-          ...state,
-          status: "waiting_for_browser",
-          pending,
-        });
-        await writeBrowserRequest({ config, pending, offerPlan: offer });
-        await appendSocialEvent(rootDir, {
-          type: "waiting_for_browser",
-          runKey,
-          reason: normalizeText(error.message),
-        });
-        process.stdout.write(
-          `Meta API publish unavailable; internal-browser request saved at ${socialPaths(rootDir).browserRequest}.\n`,
-        );
-        process.exitCode = 75;
-        return;
+      } catch (error) {
+        if (isNetworkError(error)) {
+          state = await writeSocialState(rootDir, {
+            ...state,
+            status: "waiting_for_network",
+            pending: { ...pendingBase, captionTemplate: caption, offerPlan: offer },
+          });
+          const recovered = await waitForNetwork({ config, state, runKey, error });
+          if (!recovered) {
+            process.exitCode = 75;
+            return;
+          }
+          postResponse = await metaClient.schedulePhoto({
+            imagePath: image.path,
+            caption,
+            scheduledAt,
+            retryInfo,
+          });
+        } else {
+          throw error;
+        }
       }
+      postId = normalizeText(postResponse?.id || postResponse?.post_id);
+      if (!postId) throw new Error("Meta publish response did not include a post ID.");
+      state = await writeSocialState(rootDir, {
+        ...state,
+        status: "verifying",
+        pending: {
+          ...pendingBase,
+          captionTemplate: caption,
+          offerPlan: offer,
+          metaPost: { id: postId },
+        },
+      });
     }
-
-    const postId = normalizeText(postResponse?.id || postResponse?.post_id);
-    if (!postId) throw new Error("Meta publish response did not include a post ID.");
-    state = await writeSocialState(rootDir, {
-      ...state,
-      status: "verifying",
-      pending: {
-        ...pendingBase,
-        captionTemplate: caption,
-        offerPlan: offer,
-        metaPost: { id: postId },
-      },
-    });
     const postReadback = await metaClient.postReadback(postId, { retryInfo });
     if (normalizeText(postReadback?.id) !== postId)
       throw new Error("Meta post readback returned an unexpected post ID.");
@@ -1314,25 +937,7 @@ async function runDaily(args, config) {
         throw new Error("Instagram post readback did not include a permalink.");
       instagramResponse = { ...instagramReadback, id: instagramPostId };
     } catch (error) {
-      if (!config.browserFallbackEnabled) throw error;
-      const pending = {
-        ...pendingBase,
-        captionTemplate: caption,
-        offerPlan: offer,
-        metaPost: { id: postId, url: postReadback.permalink_url || null },
-      };
-      await writeSocialState(rootDir, { ...state, status: "waiting_for_browser", pending });
-      await writeBrowserRequest({ config, pending, offerPlan: offer });
-      await appendSocialEvent(rootDir, {
-        type: "waiting_for_browser",
-        runKey,
-        reason: `instagram-api-publish-failed:${normalizeText(error.message)}`,
-      });
-      process.stdout.write(
-        `Facebook is verified but Instagram API publish needs browser completion; request saved at ${socialPaths(rootDir).browserRequest}.\n`,
-      );
-      process.exitCode = 75;
-      return;
+      throw error;
     }
     const instagramPostId = normalizeText(instagramResponse?.id);
     const historyEntry = {
@@ -1422,7 +1027,6 @@ async function runDaily(args, config) {
       instagramPostId,
       discountId: offer?.discountId || null,
     });
-    await clearBrowserFallbackFiles(rootDir);
     await clearImageGenFiles(rootDir);
     process.stdout.write(
       `VS Store social run completed through Meta API: Facebook ${postReadback.permalink_url || `scheduled post ${postId}`}; Instagram ${instagramResponse.permalink || instagramPostId}\n`,

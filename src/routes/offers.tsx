@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { discountPercent, fetchAllProducts } from "@/lib/shopify";
+import { discountPercent, fetchAllProducts, fetchProductBrowsePage } from "@/lib/shopify";
 import { ProductGridSkeleton, EmptyProducts } from "@/components/vs/ProductCard";
 import { ProgressiveProductGrid } from "@/components/vs/CatalogGridState";
 import { canonicalUrl } from "@/lib/seo";
@@ -25,11 +26,31 @@ export const Route = createFileRoute("/offers")({
 });
 
 function OffersPage() {
-  const { data: products = [], isLoading } = useQuery({
+  const [loadFullCatalog, setLoadFullCatalog] = useState(false);
+  const initialCatalog = useQuery({
+    queryKey: ["products", "offers", "initial"],
+    queryFn: () => fetchProductBrowsePage(0),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
+  useEffect(() => {
+    if (!initialCatalog.isSuccess && !initialCatalog.isError) return;
+    const timer = window.setTimeout(() => setLoadFullCatalog(true), 650);
+    return () => window.clearTimeout(timer);
+  }, [initialCatalog.isError, initialCatalog.isSuccess]);
+
+  const fullCatalog = useQuery({
     queryKey: ["products", "offers"],
     queryFn: () => fetchAllProducts(),
-    staleTime: 5 * 60 * 1000,
+    enabled: loadFullCatalog,
+    staleTime: 0,
+    refetchInterval: 60 * 1000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
+  const products = fullCatalog.data ?? initialCatalog.data ?? [];
+  const isLoading = products.length === 0 && (initialCatalog.isLoading || fullCatalog.isLoading);
 
   const offers = products.filter(
     (p) =>

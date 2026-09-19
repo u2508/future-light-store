@@ -159,8 +159,19 @@ function themeAssetUrl(path: string) {
 
 async function fetchThemeJson<T>(path: string): Promise<T> {
   let url = themeAssetUrl(path);
-  if (url === path && typeof window !== "undefined" && typeof document !== "undefined") {
-    for (let attempt = 0; attempt < 40 && url === path; attempt += 1) {
+  const isLocalHost =
+    typeof window !== "undefined" && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+  if (
+    url === path &&
+    !isLocalHost &&
+    typeof window !== "undefined" &&
+    typeof document !== "undefined"
+  ) {
+    // Shopify injects the asset map before the deferred app module runs, but
+    // keep a short fallback window for unusual script ordering. The previous
+    // two-second poll made every local/static catalog request feel slow when
+    // the map was intentionally absent in Vite development.
+    for (let attempt = 0; attempt < 6 && url === path; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 50));
       url = themeAssetUrl(path);
     }
@@ -393,6 +404,30 @@ async function fetchStaticCatalogProducts(): Promise<ShopifyProduct[]> {
   return applyProductSeoToProducts(products);
 }
 
+/**
+ * Load only one compact browse page so the catalog can render its first cards
+ * before the complete catalog and SEO index hydrate in the background.
+ */
+export async function fetchProductBrowsePage(pageIndex = 0): Promise<ShopifyProduct[]> {
+  const pageSize = 250;
+  let page = 0;
+  let after: string | null = null;
+  while (page <= pageIndex) {
+    const data = await storefrontApiRequest(BROWSE_PRODUCTS_QUERY, {
+      first: pageSize,
+      after,
+      query: null,
+    });
+    const connection = data?.data?.products;
+    if (!connection) throw new Error("Shopify live catalog returned no product connection");
+    if (page === pageIndex) return connection.edges ?? [];
+    if (!connection.pageInfo?.hasNextPage || !connection.pageInfo?.endCursor) return [];
+    after = connection.pageInfo.endCursor;
+    page += 1;
+  }
+  return [];
+}
+
 export const PRODUCT_FRAGMENT = `
   id
   title
@@ -485,6 +520,33 @@ export const COLLECTIONS_QUERY = `
   }
 `;
 
+const COLLECTION_PRODUCT_FRAGMENT = `
+  id
+  title
+  handle
+  vendor
+  productType
+  tags
+  availableForSale
+  variantsCount { count }
+  priceRange { minVariantPrice { amount currencyCode } }
+  compareAtPriceRange { minVariantPrice { amount currencyCode } }
+  images(first: 1) { edges { node { url altText } } }
+  variants(first: 1) {
+    edges {
+      node {
+        id
+        title
+        price { amount currencyCode }
+        compareAtPrice { amount currencyCode }
+        availableForSale
+        selectedOptions { name value }
+      }
+    }
+  }
+  options { name values }
+`;
+
 export const COLLECTION_BY_HANDLE_QUERY = `
   query GetCollection($handle: String!, $first: Int!) {
     collection(handle: $handle) {
@@ -494,7 +556,7 @@ export const COLLECTION_BY_HANDLE_QUERY = `
       description
       updatedAt
       image { url altText }
-      products(first: $first) { edges { node { ${PRODUCT_FRAGMENT} } } }
+      products(first: $first) { edges { node { ${COLLECTION_PRODUCT_FRAGMENT} } } }
     }
   }
 `;
@@ -506,6 +568,17 @@ export interface ShopifyCollection {
   description: string;
   updatedAt?: string;
   image: { url: string; altText: string | null } | null;
+}
+
+interface StaticCollectionsPayload {
+  collections?: Array<{
+    id?: number | string;
+    legacyResourceId?: number | string;
+    handle?: string;
+    title?: string;
+    updated_at?: string;
+    customData?: { heroSummary?: string } | null;
+  }>;
 }
 
 export async function storefrontApiRequest(query: string, variables: Record<string, unknown> = {}) {
@@ -536,21 +609,16 @@ export async function fetchProducts(first = 50, query?: string): Promise<Shopify
     after: null,
     query: query ?? null,
   });
-  return applyProductSeoToProducts(data?.data?.products?.edges ?? []);
+  return data?.data?.products?.edges ?? [];
 }
 
 /**
  * Load the complete compact search index so search is not limited to the
  * first API page. Fall back to Shopify when a theme artifact is unavailable.
  */
-export async function fetchSearchProducts(): Promise<ShopifyProduct[]> {
-  try {
-    const products = await fetchStaticSearchProducts();
-    if (products.length > 0) return products;
-  } catch (error) {
-    console.warn("Static search catalog unavailable; using Shopify search fallback", error);
-  }
-  return fetchProducts(99);
+export async function fetchSearchProducts(query?: string): Promise<ShopifyProduct[]> {
+  const normalizedQuery = query?.trim();
+  return fetchProducts(99, normalizedQuery || undefined);
 }
 
 /**
@@ -559,15 +627,16 @@ export async function fetchSearchProducts(): Promise<ShopifyProduct[]> {
  * cursor until the connection is exhausted.
  */
 export async function fetchAllProducts(query?: string): Promise<ShopifyProduct[]> {
-  if (!query) {
-    try {
-      const products = await fetchStaticCatalogProducts();
-      if (products.length > 0) return products;
-    } catch (error) {
-      console.warn("Static product catalog unavailable; using Shopify catalog fallback", error);
-    }
-  }
+  return fetchLiveAllProducts(query);
+}
 
+/**
+ * Revalidate the full catalog directly against Shopify. The storefront uses
+ * the static browse shards for its first paint, then calls this live path in
+ * the background so price and availability changes can replace the cached
+ * cards without making the initial page wait for a 2,000+ product walk.
+ */
+export async function fetchLiveAllProducts(query?: string): Promise<ShopifyProduct[]> {
   const products: ShopifyProduct[] = [];
   const pageSize = 250;
   let after: string | null = null;
@@ -585,15 +654,12 @@ export async function fetchAllProducts(query?: string): Promise<ShopifyProduct[]
     after = connection?.pageInfo?.endCursor ?? null;
   }
 
-  return applyProductSeoToProducts(products);
+  return products;
 }
 
 export async function fetchProduct(handle: string): Promise<ShopifyProductNode | null> {
   const data = await storefrontApiRequest(PRODUCT_BY_HANDLE_QUERY, { handle });
-  const product = data?.data?.product ?? null;
-  if (!product) return null;
-  const index = await getProductSeoIndex();
-  return applyProductSeoToNode(product, index);
+  return data?.data?.product ?? null;
 }
 
 export async function fetchCollections(first = 20): Promise<ShopifyCollection[]> {
@@ -605,8 +671,16 @@ export async function fetchCollection(handle: string) {
   const data = await storefrontApiRequest(COLLECTION_BY_HANDLE_QUERY, { handle, first: 100 });
   const collection = data?.data?.collection;
   if (!collection) return null;
-  const products = await applyProductSeoToProducts(
-    (collection.products?.edges ?? []) as ShopifyProduct[],
+  const products = (collection.products?.edges ?? []).map(
+    (edge: { node: ShopifyProductNode }) =>
+      ({
+        node: {
+          ...edge.node,
+          // Collection shelves only request listing fields. Product descriptions
+          // and full media are loaded by the product detail route/quick view.
+          description: edge.node.description ?? "",
+        },
+      }) satisfies ShopifyProduct,
   );
   return {
     ...collection,

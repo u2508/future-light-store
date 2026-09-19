@@ -357,7 +357,7 @@ export function CollectionBrowser({
       <form
         aria-label="Product filters"
         onSubmit={(event) => event.preventDefault()}
-        className="mt-8 grid gap-8 xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)_260px]"
+        className="vs-catalog-layout mt-8 grid gap-8 xl:grid-cols-[240px_minmax(0,1fr)]"
       >
         <aside className="hidden lg:block">
           <div className="sticky top-32 space-y-6 rounded-[2rem] border border-border/70 bg-card p-5 shadow-[var(--shadow-card)]">
@@ -457,18 +457,18 @@ export function CollectionBrowser({
                 ) : undefined
               }
               skeletonCount={12}
-              gridClassName="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"
+              gridClassName="vs-catalog-product-grid grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-3"
             />
           ) : (
             <ProgressiveProductGrid
               products={filtered}
               resetKey={filterKey}
-              gridClassName="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6"
+              gridClassName="vs-catalog-product-grid grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-3"
             />
           )}
         </div>
 
-        <aside className="hidden 2xl:block">
+        <aside className="vs-collection-shortcuts hidden">
           <div className="sticky top-32 rounded-[2rem] border border-border/70 bg-card p-5 shadow-[var(--shadow-card)]">
             <div className="flex items-center justify-between">
               <div>

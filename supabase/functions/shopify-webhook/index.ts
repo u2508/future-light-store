@@ -1,6 +1,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { adminGraphql, ORDER_FIELDS, orderRow, num, type AdminOrder } from "../_shared/shopify.ts";
+import { sendMetaPurchase } from "../_shared/meta.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -17,7 +18,8 @@ function toGid(id: unknown): string | null {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+  if (req.method !== "POST")
+    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
 
   const topic = req.headers.get("x-shopify-topic") ?? "unknown";
   const service = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -78,7 +80,26 @@ Deno.serve(async (req) => {
     }));
     if (disputeRows.length > 0) await service.from("shopify_refunds").upsert(disputeRows);
 
-    eventInsert.status = "processed";
+    let metaPurchase: Awaited<ReturnType<typeof sendMetaPurchase>>;
+    try {
+      metaPurchase = await sendMetaPurchase(order, topic);
+    } catch (error) {
+      // Meta is a downstream analytics sink. Never turn a successfully mirrored
+      // Shopify order into a failed webhook just because CAPI is unavailable.
+      metaPurchase = {
+        sent: false,
+        reason: error instanceof Error ? error.message : String(error),
+      };
+    }
+    if (metaPurchase.sent) {
+      eventInsert.status = "processed";
+    } else if (metaPurchase.skipped) {
+      eventInsert.status = "processed";
+    } else {
+      eventInsert.status = "processed_with_warnings";
+      eventInsert.error = `Meta Purchase event not sent: ${metaPurchase.reason}`;
+      console.error("Meta Purchase event not sent", topic, metaPurchase.reason);
+    }
   } catch (error) {
     eventInsert.status = "failed";
     eventInsert.error = error instanceof Error ? error.message : String(error);

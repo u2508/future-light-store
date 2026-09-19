@@ -76,15 +76,14 @@ export function readVsStoreSocialConfig(rootDir) {
     metaPageId: String(process.env.FUTURE_LIGHT_META_PAGE_ID || "").trim(),
     metaPageAccessToken: String(process.env.FUTURE_LIGHT_META_PAGE_ACCESS_TOKEN || "").trim(),
     // The connected Instagram Business account is discovered from the Page
-    // readback when possible. These optional values make the browser/API
-    // handoff deterministic without putting another secret in the repo.
+    // readback when possible. These optional values make API publishing
+    // deterministic without putting another secret in the repo.
     metaInstagramAccountId: String(process.env.FUTURE_LIGHT_META_INSTAGRAM_ACCOUNT_ID || "").trim(),
     metaInstagramUsername:
       String(process.env.FUTURE_LIGHT_META_INSTAGRAM_USERNAME || "vs.store2608").trim() ||
       "vs.store2608",
-    // Instagram Graph publishing needs a publicly reachable image URL. Local
-    // Image Gen files are intentionally left on the authenticated browser
-    // path so Facebook and Instagram receive the exact same upload.
+    // Instagram Graph publishing needs a publicly reachable image URL. The
+    // Image Gen handoff therefore completes before the API publishing step.
     metaInstagramPublicImageUrl: String(
       process.env.FUTURE_LIGHT_META_INSTAGRAM_PUBLIC_IMAGE_URL || "",
     ).trim(),
@@ -153,9 +152,6 @@ export function readVsStoreSocialConfig(rootDir) {
       1_800_000,
       { min: 30_000, max: 21_600_000 },
     ),
-    browserFallbackEnabled: !/^(0|false|no)$/i.test(
-      String(process.env.FUTURE_LIGHT_SOCIAL_BROWSER_FALLBACK || "1"),
-    ),
     fontFile: String(process.env.FUTURE_LIGHT_SOCIAL_FONT_FILE || "").trim(),
   };
 }
@@ -163,12 +159,10 @@ export function readVsStoreSocialConfig(rootDir) {
 export function configMissing(config, { includeMeta = true, includeShopify = true } = {}) {
   const missing = [];
   if (includeMeta) {
-    // The authenticated internal browser is a supported publishing path. API
-    // credentials are only required when browser fallback is disabled.
-    if (!config.metaPageId && !config.browserFallbackEnabled)
-      missing.push("FUTURE_LIGHT_META_PAGE_ID");
-    if (!config.metaPageAccessToken && !config.browserFallbackEnabled)
-      missing.push("FUTURE_LIGHT_META_PAGE_ACCESS_TOKEN");
+    if (!config.metaPageId) missing.push("FUTURE_LIGHT_META_PAGE_ID");
+    if (!config.metaPageAccessToken) missing.push("FUTURE_LIGHT_META_PAGE_ACCESS_TOKEN");
+    if (!config.metaInstagramPublicImageUrl)
+      missing.push("FUTURE_LIGHT_META_INSTAGRAM_PUBLIC_IMAGE_URL");
   }
   if (includeShopify) {
     if (!config.storeDomain) missing.push("FUTURE_LIGHT_SHOPIFY_STORE_DOMAIN");
@@ -207,7 +201,6 @@ export function redactedConfig(config) {
     overheadUsd: config.overheadUsd,
     minimumContributionUsd: config.minimumContributionUsd,
     requestConcurrency: config.requestConcurrency,
-    browserFallbackEnabled: config.browserFallbackEnabled,
     credentials: {
       metaPageAccessToken: Boolean(config.metaPageAccessToken),
       shopifyAdminAccessToken: Boolean(config.shopifyAdminAccessToken),

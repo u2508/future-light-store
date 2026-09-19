@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-export const SOCIAL_STATE_VERSION = 3;
+export const SOCIAL_STATE_VERSION = 4;
 
 export function socialPaths(rootDir) {
   const directory = resolve(rootDir, "output", "social");
@@ -10,8 +10,6 @@ export function socialPaths(rootDir) {
     directory,
     state: resolve(directory, "vs-store-facebook-daily-state.json"),
     lock: resolve(directory, ".vs-store-facebook-daily.lock"),
-    browserRequest: resolve(directory, "browser-fallback-request.json"),
-    browserResult: resolve(directory, "browser-fallback-result.json"),
     imageGenRequest: resolve(directory, "imagegen-request.json"),
     imageGenResult: resolve(directory, "imagegen-result.json"),
     eventLog: resolve(directory, "events.jsonl"),
@@ -52,9 +50,18 @@ export async function readSocialState(rootDir) {
   const filePath = socialPaths(rootDir).state;
   try {
     const parsed = JSON.parse(await readFile(filePath, "utf8"));
+    const browserFallbackState =
+      parsed?.status === "waiting_for_browser" ||
+      parsed?.pending?.offerPlan?.status === "browser-required";
     return {
       ...defaultState(),
       ...parsed,
+      schemaVersion: SOCIAL_STATE_VERSION,
+      status: browserFallbackState ? "failed" : parsed?.status || "idle",
+      pending: browserFallbackState ? null : parsed?.pending || null,
+      error: browserFallbackState
+        ? "Internal-browser fallback was removed; the social runner is API-only."
+        : parsed?.error || null,
       usageLedger: {
         product: parsed?.usageLedger?.product || {},
         collection: parsed?.usageLedger?.collection || {},
@@ -170,16 +177,6 @@ export async function acquireSocialLock(rootDir, { staleAfterMs = 8 * 60 * 60 * 
   }
 }
 
-export async function writeBrowserFallbackRequest(rootDir, request) {
-  const paths = socialPaths(rootDir);
-  await writeAtomic(paths.browserRequest, {
-    schemaVersion: 1,
-    status: "pending",
-    createdAt: new Date().toISOString(),
-    ...request,
-  });
-}
-
 export async function writeImageGenRequest(rootDir, request) {
   const paths = socialPaths(rootDir);
   await writeAtomic(paths.imageGenRequest, {
@@ -231,24 +228,6 @@ export async function clearImageGenFiles(rootDir) {
   await Promise.all([
     rm(paths.imageGenRequest, { force: true }),
     rm(paths.imageGenResult, { force: true }),
-  ]);
-}
-
-export async function readBrowserFallbackResult(rootDir) {
-  const filePath = socialPaths(rootDir).browserResult;
-  try {
-    return JSON.parse(await readFile(filePath, "utf8"));
-  } catch (error) {
-    if (error?.code === "ENOENT") return null;
-    throw error;
-  }
-}
-
-export async function clearBrowserFallbackFiles(rootDir) {
-  const paths = socialPaths(rootDir);
-  await Promise.all([
-    rm(paths.browserRequest, { force: true }),
-    rm(paths.browserResult, { force: true }),
   ]);
 }
 

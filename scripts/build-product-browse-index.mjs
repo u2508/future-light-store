@@ -6,7 +6,8 @@ import { resolve } from "node:path";
 const dataDir = resolve(process.cwd(), "public", "data");
 const sourcePattern = /^products-\d{4}\.json$/;
 const outputPattern = /^product-browse-\d{4}\.json$/;
-const maxShardBytes = 4.5 * 1024 * 1024;
+const maxShardBytes = 1 * 1024 * 1024;
+const maxShardProducts = 48;
 
 function compactProduct(product) {
   const images = Array.isArray(product?.images) ? product.images : [];
@@ -57,13 +58,18 @@ async function main() {
 
   const compactProducts = products
     .map(compactProduct)
-    .filter((product) => product.id && product.handle && product.title && product.variants.length > 0);
+    .filter(
+      (product) => product.id && product.handle && product.title && product.variants.length > 0,
+    );
   const groups = [];
   let group = [];
   let groupBytes = 0;
   for (const product of compactProducts) {
     const productBytes = Buffer.byteLength(JSON.stringify(product));
-    if (group.length && groupBytes + productBytes + 1 > maxShardBytes) {
+    if (
+      group.length &&
+      (groupBytes + productBytes + 1 > maxShardBytes || group.length >= maxShardProducts)
+    ) {
       groups.push(group);
       group = [];
       groupBytes = 0;
@@ -111,6 +117,7 @@ async function main() {
       total: compactProducts.length,
       shardCount,
       shardMaxBytes: maxShardBytes,
+      shardMaxProducts: maxShardProducts,
       shards: shards.map(({ serialized, ...shard }) => shard),
     }),
     "utf8",

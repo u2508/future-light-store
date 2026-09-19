@@ -2,3 +2,6 @@ project_id = "miiybtxnnxlimmiyfauy"
 
 [functions.shopify-storefront]
 verify_jwt = false
+
+[functions.shopify-webhook]
+verify_jwt = false

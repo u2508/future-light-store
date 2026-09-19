@@ -422,8 +422,15 @@ async function readJson(filePath, fallback = null) {
   }
 }
 
-function buildPriorIntegritySnapshot(manifest) {
-  if (!manifest?.completedAt) return null;
+function buildPriorIntegritySnapshot(manifest, { allowGeneratedAt = false } = {}) {
+  // A guarded review-only retry may resume from the atomic pre-readback
+  // checkpoint written before the apply/readback phase. That checkpoint has
+  // complete classifications and tag tasks but intentionally has no
+  // completedAt until the final live verification succeeds. It is safe to
+  // reuse only for the explicit review-only cohort; normal runs still require
+  // a completed manifest.
+  const checkpointAt = manifest?.completedAt || (allowGeneratedAt ? manifest?.generatedAt : null);
+  if (!checkpointAt) return null;
   if (manifest?.version !== COLLECTION_GOVERNANCE_VERSION) return null;
   if (manifest?.taxonomyVersion && manifest.taxonomyVersion !== CATALOG_TAXONOMY_VERSION) return null;
   if (
@@ -456,7 +463,7 @@ function buildPriorIntegritySnapshot(manifest) {
   }
 
   return {
-    completedAt: manifest.completedAt,
+    completedAt: checkpointAt,
     byHandle,
     legacyVersionMetadata: !manifest.taxonomyVersion || !manifest.collectionGovernanceVersion,
   };
@@ -1842,7 +1849,9 @@ async function run(args) {
     required: process.env.SALT_REQUIRE_KNOWLEDGE_MODEL === "1",
   });
   process.stdout.write("Catalog integrity: knowledge model/evidence loaded.\n");
-  const priorSnapshot = buildPriorIntegritySnapshot(priorManifest);
+  const priorSnapshot = buildPriorIntegritySnapshot(priorManifest, {
+    allowGeneratedAt: args.reviewOnly,
+  });
   const catalog = await readProductCatalogPayload(resolve(rootDir, "public", "data"));
   process.stdout.write("Catalog integrity: local catalog loaded.\n");
   let liveProducts;

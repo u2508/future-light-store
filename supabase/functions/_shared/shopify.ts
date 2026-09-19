@@ -112,6 +112,7 @@ export const ORDER_FIELDS = `
       originalTotalSet { shopMoney { amount } }
       discountedTotalSet { shopMoney { amount } }
       image { url }
+      product { id }
       variant { id title inventoryItem { unitCost { amount } } }
     }
   }
@@ -155,6 +156,7 @@ export interface AdminOrder {
       originalTotalSet: { shopMoney: { amount: string } };
       discountedTotalSet: { shopMoney: { amount: string } };
       image: { url: string } | null;
+      product: { id: string } | null;
       variant: {
         id: string;
         title: string;

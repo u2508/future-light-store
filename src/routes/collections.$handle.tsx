@@ -32,6 +32,10 @@ function CollectionPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["collection", handle],
     queryFn: () => fetchCollection(handle),
+    staleTime: 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
   const artwork = collectionArtwork(handle, data?.image?.url);
 

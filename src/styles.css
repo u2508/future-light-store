@@ -21,6 +21,58 @@
   }
 }
 
+/* Keep the desktop storefront intentionally airy without changing tablet/mobile flow. */
+@media (min-width: 1024px) {
+  .vs-wide-shell {
+    width: 70%;
+    max-width: none;
+    padding-inline: 0;
+  }
+}
+
+/* Keep the desktop catalog breathable when side panels share the shell. */
+.vs-catalog-product-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 768px) {
+  .vs-catalog-product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .vs-catalog-layout {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1536px) {
+  .vs-catalog-layout {
+    grid-template-columns: 200px minmax(0, 1fr) 200px;
+  }
+
+  .vs-collection-shortcuts {
+    display: block;
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 1800px) {
+  .vs-catalog-layout {
+    grid-template-columns: 240px minmax(0, 1fr) 240px;
+  }
+
+  .vs-catalog-product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .vs-collection-shortcuts {
+    display: block;
+    grid-column: auto;
+  }
+}
+
 @media (max-width: 1023px) {
   html {
     scroll-padding-bottom: 6.5rem;

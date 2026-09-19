@@ -92,53 +92,23 @@ npm run social:daily:resume-imagegen
 
 The bridge accepts only an image path, run key, and fingerprint. The runner
 checks the path, file type, size, and matching fingerprint before any Meta or
-browser publish step. If Image Gen is unavailable, the run remains paused and
+API publish step. If Image Gen is unavailable, the run remains paused and
 no local image renderer is substituted.
 
-## Internal-browser fallback
+## API-only execution
 
-When the API path cannot publish both destinations, cannot schedule the exact
-same local creative for Instagram, or cannot create a safe discount, the runner writes
-`output/social/browser-fallback-request.json` and enters `waiting_for_browser`.
-The Codex automation should use the authenticated internal browser only, follow
-the request actions, and never change ads, spend, campaigns, Threads, SALT, or
-theme settings.
-
-After the internal-browser flow has verified both the Facebook post and the
-connected Instagram post, plus the Shopify discount when requested, write the
-result through the bridge. Record the exact final caption when practical so the
-runner can reject unresolved offer placeholders and raw catalog labels:
-
-```bash
-node scripts/vs-store-social-browser-bridge.mjs --write-result \
-  --run-key YYYY-MM-DD \
-  --fingerprint PENDING_FINGERPRINT \
-  --post-id VERIFIED_POST_ID \
-  --post-url VERIFIED_POST_URL \
-  --post-caption "EXACT_FINAL_CAPTION" \
-  --instagram-post-id VERIFIED_INSTAGRAM_POST_ID \
-  --instagram-post-url VERIFIED_INSTAGRAM_POST_URL \
-  --instagram-post-caption "EXACT_FINAL_CAPTION" \
-  --discount-id VERIFIED_DISCOUNT_ID \
-  --discount-code VERIFIED_CODE \
-  --discount-percent 15 \
-  --discount-starts-at 2026-09-18T04:00:00.000Z \
-  --discount-ends-at 2026-09-21T04:00:00.000Z \
-  --discount-target-type all \
-  --discount-all-items \
-  --discount-applies-once \
-  --discount-no-stacking
-npm run social:daily:resume-browser
-```
-
-If the weekly offer was not created, remove the entire offer paragraph from the
-caption, use `--skip-offer` with the bridge, and resume the verified normal
-post. The bridge accepts identifiers only; it never accepts or prints access
-tokens.
+The social runner has no authenticated-browser fallback. Meta Page and
+Instagram publishing, Shopify catalog reads, and guarded discount creation must
+complete through their configured APIs. A missing permission, missing linked
+Instagram account, missing public image URL, or non-network API failure stops
+the run with a durable `failed` state; it never silently changes the post,
+creates a duplicate, or asks the browser to finish it. DNS, timeout, and rate
+limit failures remain in the durable `waiting_for_network` state and are
+retried with backoff.
 
 ## Automation behavior
 
 The separate Codex scheduled task invokes `npm run social:daily`, resumes
-`waiting_for_network` and `waiting_for_browser` state, and reports only
-material failures, completion, or required setup. Keep the Mac and Codex
-desktop app available for local scheduled runs and internal-browser fallback.
+`waiting_for_network` state, and reports only material failures, completion, or
+required setup. Keep the Mac and Codex desktop app available for the local
+scheduled task and Image Gen handoff.

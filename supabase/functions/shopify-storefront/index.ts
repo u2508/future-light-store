@@ -25,7 +25,10 @@ const CART_OPERATIONS = new Set([
   "cartLinesRemove",
 ]);
 
-const CATALOG_CACHE_CONTROL = "public, max-age=60, stale-while-revalidate=300";
+// Catalog reads must never replay a stale product or inventory response. The
+// browser keeps the first live page responsive while React Query revalidates
+// the active view, but the edge proxy itself must always contact Shopify.
+const CATALOG_CACHE_CONTROL = "no-store";
 
 const json = (body: unknown, status = 200, cacheControl = CATALOG_CACHE_CONTROL) =>
   new Response(JSON.stringify(body), {

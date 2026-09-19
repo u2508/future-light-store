@@ -19,6 +19,8 @@
     "catalog:knowledge:model:train": "node scripts/train-catalog-knowledge-model.mjs --records 256000000 --output output/catalog-knowledge-model.json",
     "catalog:knowledge:model:verify": "node scripts/verify-catalog-knowledge-model.mjs",
     "catalog:listing-intelligence:test": "node scripts/validate-product-listing-intelligence.mjs",
+    "dsers:product-policy:test": "node --test scripts/dsers-product-policy.test.mjs",
+    "dsers:product-policy:check": "node scripts/validate-dsers-product-candidate.mjs",
     "catalog:tags:fetch": "node scripts/fetch-shopify-tag-inventory.mjs",
     "catalog:taxonomy:audit": "node scripts/build-catalog-taxonomy-audit.mjs",
     "catalog:taxonomy:validate": "node scripts/validate-catalog-taxonomy.mjs",
@@ -116,7 +118,6 @@
     "release:proactive-repair": "node scripts/release-proactive-repair.mjs",
     "social:daily": "node scripts/run-vs-store-social-daily.mjs",
     "social:daily:resume": "node scripts/run-vs-store-social-daily.mjs --resume",
-    "social:daily:resume-browser": "node scripts/run-vs-store-social-daily.mjs --resume-browser",
     "social:daily:resume-imagegen": "node scripts/run-vs-store-social-daily.mjs --resume-imagegen",
     "social:daily:check-config": "node scripts/run-vs-store-social-daily.mjs --check-config",
     "social:daily:dry-run": "node scripts/run-vs-store-social-daily.mjs --dry-run"

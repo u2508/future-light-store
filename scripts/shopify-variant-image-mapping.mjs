@@ -221,6 +221,27 @@ const LIVE_PRODUCT_MEDIA_SELECTION = /* GraphQL */ `
   id
   handle
   title
+  variants(first: $variantFirst) {
+    nodes {
+      id
+      title
+      sku
+      selectedOptions {
+        name
+        value
+      }
+      media(first: 1) {
+        nodes {
+          __typename
+          id
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
   media(first: $mediaFirst, after: $mediaAfter) {
     nodes {
       __typename
@@ -240,7 +261,7 @@ const LIVE_PRODUCT_MEDIA_SELECTION = /* GraphQL */ `
 `;
 
 const LIVE_PRODUCT_MEDIA_BY_ID_QUERY = /* GraphQL */ `
-  query ShopifyVariantImageProductMediaById($ids: [ID!]!, $mediaFirst: Int!, $mediaAfter: String) {
+  query ShopifyVariantImageProductMediaById($ids: [ID!]!, $variantFirst: Int!, $mediaFirst: Int!, $mediaAfter: String) {
     nodes(ids: $ids) {
       ... on Product { ${LIVE_PRODUCT_MEDIA_SELECTION} }
     }
@@ -1100,7 +1121,7 @@ async function fetchLiveProductMediaByIds(ids, cachePath = "") {
     const batch = missingIds.slice(batchIndex * 20, (batchIndex + 1) * 20);
     const data = await executeGraphQl(
       LIVE_PRODUCT_MEDIA_BY_ID_QUERY,
-      { ids: batch, mediaFirst: liveMediaPageSize, mediaAfter: null },
+      { ids: batch, variantFirst: liveVariantPageSize, mediaFirst: liveMediaPageSize, mediaAfter: null },
       { operation: `scoped media batch ${batchIndex + 1}/${batchCount}` },
     );
     const products = (data.nodes || []).filter((product) => product?.id);
@@ -1110,7 +1131,7 @@ async function fetchLiveProductMediaByIds(ids, cachePath = "") {
       while (pageInfo.hasNextPage && pageInfo.endCursor) {
         const nextData = await executeGraphQl(
           LIVE_PRODUCT_MEDIA_BY_ID_QUERY,
-          { ids: [product.id], mediaFirst: liveMediaPageSize, mediaAfter: pageInfo.endCursor },
+          { ids: [product.id], variantFirst: liveVariantPageSize, mediaFirst: liveMediaPageSize, mediaAfter: pageInfo.endCursor },
           { operation: `media continuation ${product.handle || product.id}` },
         );
         const nextProduct = (nextData.nodes || []).find((entry) => String(entry?.id || "") === String(product.id));
