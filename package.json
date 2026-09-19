@@ -6,7 +6,7 @@
   "scripts": {
     "predev": "node scripts/generate-sitemap.ts",
     "dev": "vite dev",
-    "prebuild": "node scripts/generate-sitemap.ts",
+    "prebuild": "SALT_SHOPIFY_SKIP_PRODUCT_ENRICHMENT=1 SALT_SHOPIFY_SKIP_OPTIONAL_ENRICHMENT=1 node scripts/sync-shopify-data.mjs && node scripts/generate-sitemap.ts",
     "build": "node scripts/build-web-release.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",

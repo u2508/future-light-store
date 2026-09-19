@@ -24,8 +24,8 @@ import {
   stableJson,
 } from "./lib/performance-runtime.mjs";
 
-const baseUrl = process.env.SALT_SHOP_URL;
-if (!baseUrl) throw new Error("SALT_SHOP_URL is required to sync the Future Light Store catalog.");
+const baseUrl =
+  process.env.SALT_SHOP_URL || "https://vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
 const shopDomain = new URL(baseUrl).hostname;
 const limit = Number(process.env.SALT_PAGE_LIMIT || 250);
 const adminAccessToken =
@@ -59,6 +59,7 @@ const publicRetryBaseDelayMs = Number(process.env.SALT_SHOPIFY_PUBLIC_RETRY_BASE
 const adminRetryBaseDelayMs = Number(process.env.SALT_SHOPIFY_ADMIN_RETRY_BASE_DELAY_MS ?? 1500);
 const storefrontBoundaryMode = String(process.env.SALT_SHOPIFY_STOREFRONT_BOUNDARY || "live").trim().toLowerCase();
 const skipProductEnrichment = /^(1|true|yes)$/i.test(process.env.SALT_SHOPIFY_SKIP_PRODUCT_ENRICHMENT || "");
+const skipOptionalEnrichment = /^(1|true|yes)$/i.test(process.env.SALT_SHOPIFY_SKIP_OPTIONAL_ENRICHMENT || "");
 const syncActiveCatalog = /^(1|true|yes)$/i.test(process.env.SALT_SHOPIFY_SYNC_ACTIVE_CATALOG || "");
 const useCliAdminPricing = /^(1|true|yes)$/i.test(process.env.SALT_SHOPIFY_USE_CLI_ADMIN_PRICING || "");
 const collectionsPath = resolve(outDir, "collections.json");
@@ -1245,6 +1246,11 @@ function applyAdminVariantPricing(products, pricingMap) {
 }
 
 async function fetchCollectionCustomDataMap(collections) {
+  if (skipOptionalEnrichment) {
+    process.stdout.write("Skipping optional collection metafield enrichment for the live web build\n");
+    return new Map();
+  }
+
   if (!Array.isArray(collections) || !collections.length) {
     return new Map();
   }
@@ -1282,6 +1288,15 @@ async function fetchCollectionCustomDataMap(collections) {
 }
 
 async function fetchShopCustomData() {
+  if (skipOptionalEnrichment) {
+    process.stdout.write("Skipping optional shop metafield enrichment for the live web build\n");
+    return {
+      id: "shop",
+      name: "Future Light Store",
+      customData: normalizeShopCustomData({}),
+    };
+  }
+
   if (!adminAccessToken) {
     const payload = await runShopifyStoreGraphQL(SHOP_CUSTOM_DATA_QUERY);
     const shop = payload?.shop || {};
