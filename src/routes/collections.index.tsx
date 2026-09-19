@@ -32,8 +32,8 @@ function CollectionsIndex() {
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["collections", "all"],
     queryFn: () => fetchCollections(250),
-    staleTime: 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchInterval: 60 * 1000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });

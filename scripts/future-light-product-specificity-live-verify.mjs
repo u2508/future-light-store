@@ -28,6 +28,7 @@ const PRODUCTS_QUERY = /* GraphQL */ `
         status
         category { id name fullName }
         seo { title description }
+        resourcePublications(first: 100) { nodes { isPublished channel { name } } }
       }
       pageInfo { hasNextPage endCursor }
     }
@@ -36,6 +37,12 @@ const PRODUCTS_QUERY = /* GraphQL */ `
 
 function normalize(value) { return String(value ?? "").replace(/\s+/g, " ").trim(); }
 function stripHtml(value) { return String(value || "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/\s+/g, " ").trim(); }
+function isOnlineStorePublished(product) {
+  return (product?.resourcePublications?.nodes || []).some((publication) => (
+    publication?.isPublished === true &&
+    String(publication?.channel?.name || "").trim().toLowerCase() === "online store"
+  ));
+}
 function parseEnvValue(value) {
   const trimmed = String(value || "").trim();
   if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) return trimmed.slice(1, -1);
@@ -113,6 +120,7 @@ async function main() {
     const payload = data.products;
     for (const product of payload.nodes || []) {
       if (normalize(product.vendor) !== FUTURE_LIGHT_BRAND) continue;
+      if (!isOnlineStorePublished(product)) continue;
       products.push(product);
     }
     after = payload.pageInfo?.hasNextPage ? payload.pageInfo.endCursor : null;
@@ -121,17 +129,18 @@ async function main() {
   const audited = products.map(auditProduct);
   const failed = audited.filter((entry) => entry.issues.length);
   const manifest = {
-    schemaVersion: "2026-09-17.future-light-product-specificity-live-verify.1",
+    schemaVersion: "2026-09-20.future-light-online-store-specificity-live-verify.2",
     targetStoreDomain: FUTURE_LIGHT_SHOP_DOMAIN,
     readOnly: true,
     liveMutation: false,
     retryInfo,
-    summary: { activeProducts: audited.length, passedProducts: audited.length - failed.length, failedProducts: failed.length, pages: page },
+    scope: "active products published to the Shopify Online Store channel",
+    summary: { onlineStoreProducts: audited.length, passedProducts: audited.length - failed.length, failedProducts: failed.length, pages: page },
     products: audited,
     verifiedAt: new Date().toISOString(),
   };
   await writeFile(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-  process.stdout.write(`Future Light live specificity: ${manifest.summary.passedProducts}/${manifest.summary.activeProducts} passed; ${manifest.summary.failedProducts} failed across ${page} page(s). Read-only; no Shopify mutation.\n`);
+  process.stdout.write(`Future Light Online Store specificity: ${manifest.summary.passedProducts}/${manifest.summary.onlineStoreProducts} passed; ${manifest.summary.failedProducts} failed across ${page} page(s). Read-only; no Shopify mutation.\n`);
   if (failed.length) {
     process.stderr.write(`${failed.slice(0, 12).map((entry) => `${entry.handle}: ${entry.issues.join(", ")}`).join(" | ")}\n`);
     process.exitCode = 1;

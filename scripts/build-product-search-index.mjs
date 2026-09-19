@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { buildProductSearchPayload } from "./product-search-index.mjs";
-import { readProductCatalogPayload } from "./product-catalog-files.mjs";
+import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 import { writeProductSearchPayload } from "./product-search-files.mjs";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
 import { scoreCatalogKnowledgeModelBatch } from "./catalog-knowledge-model-accelerator.mjs";
@@ -70,7 +70,9 @@ async function readPrecomputedKnowledgeByKey(productsPayload) {
 }
 
 async function main() {
-  const productsPayload = await readProductCatalogPayload(dataDir);
+  const { products: productsPayload } = await readFreshLiveCatalogSnapshot(dataDir, {
+    context: "product search build catalog",
+  });
   const knowledgeModel = await readCatalogKnowledgeModel({
     required: process.env.SALT_REQUIRE_KNOWLEDGE_MODEL === "1",
   });

@@ -28,6 +28,7 @@ const PRODUCTS_QUERY = /* GraphQL */ `
         vendor
         status
         seo { title description }
+        resourcePublications(first: 100) { nodes { isPublished channel { name } } }
       }
       pageInfo { hasNextPage endCursor }
     }
@@ -75,6 +76,13 @@ function expectedSeoTitle(row) {
   return normalize(row.seoTitle || row.title);
 }
 
+function isOnlineStorePublished(product) {
+  return (product?.resourcePublications?.nodes || []).some((publication) => (
+    publication?.isPublished === true &&
+    String(publication?.channel?.name || "").trim().toLowerCase() === "online store"
+  ));
+}
+
 function compareProduct(live, expected) {
   const fields = [
     ["title", live.title, expected.title],
@@ -106,7 +114,7 @@ async function main() {
     const data = await client.run(PRODUCTS_QUERY, { first: PAGE_SIZE, after }, { operation: `read Future Light SEO parity page ${pages}`, retryInfo });
     const payload = data.products;
     for (const product of payload.nodes || []) {
-      if (normalize(product.vendor) === FUTURE_LIGHT_BRAND) liveProducts.push(product);
+      if (normalize(product.vendor) === FUTURE_LIGHT_BRAND && isOnlineStorePublished(product)) liveProducts.push(product);
     }
     after = payload.pageInfo?.hasNextPage ? payload.pageInfo.endCursor : null;
   } while (after);
@@ -118,11 +126,12 @@ async function main() {
     .map((product) => compareProduct(product, expectedByHandle.get(product.handle)));
   const drifted = compared.filter((product) => product.mismatches.length);
   const manifest = {
-    schemaVersion: "2026-09-17.future-light-product-seo-live-parity.1",
+    schemaVersion: "2026-09-20.future-light-online-store-product-seo-live-parity.2",
     targetStoreDomain: FUTURE_LIGHT_SHOP_DOMAIN,
     readOnly: true,
     liveMutation: false,
     artifactPath: "public/data/product-seo.json",
+    scope: "active products published to the Shopify Online Store channel",
     retryInfo,
     summary: {
       artifactProducts: expectedByHandle.size,

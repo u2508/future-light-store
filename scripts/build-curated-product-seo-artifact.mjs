@@ -213,7 +213,23 @@ function titleCandidate(sourceTitle, handle, imageAlt) {
   if (/\bbluetooth\b/i.test(combined) && !/bluetooth/i.test(candidate)) additions.push("Bluetooth");
   let result = normalize(`${candidate}${additions.length ? ` with ${additions.join(" & ")}` : ""}`);
   result = result.replace(/\s+-\s+Ref\s+\w+/i, "").replace(/\b(?:certified|official|genuine|guaranteed)\b/gi, "").replace(/\s{2,}/g, " ").replace(/\s+([,.])/g, "$1").trim();
-  return result.length > 100 ? `${result.slice(0, 97).replace(/\s+\S*$/, "")}…` : result;
+  return result;
+}
+
+function fitProductTitle(value, maxLength = 70) {
+  const text = normalize(value)
+    .replace(/[.…]+$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  const words = text.split(/\s+/);
+  if (text.length <= maxLength) {
+    while (words.length > 1 && /^(?:a|an|and|for|from|in|into|of|on|or|the|to|with|&)$/i.test(words.at(-1))) words.pop();
+    return words.join(" ").trim();
+  }
+
+  while (words.length > 1 && words.join(" ").length > maxLength) words.pop();
+  while (words.length > 1 && /^(?:a|an|and|for|from|in|into|of|on|or|the|to|with|&)$/i.test(words.at(-1))) words.pop();
+  return words.join(" ").replace(/[,:;\-–—]+$/g, "").trim();
 }
 
 function evidenceFacts(handle, sourceTitle, imageAlt) {
@@ -316,11 +332,12 @@ async function main() {
     const imageAlts = imageEvidence(live, legacy);
     const sourceTitle = normalize(legacy?.title);
     const handleEvidence = `${handle} ${sourceTitle} ${imageAlts.join(" ")}`;
-    let title = titleCandidate(sourceTitle, handle, imageAlts[0] || "");
+    let title = fitProductTitle(titleCandidate(sourceTitle, handle, imageAlts[0] || ""));
     const originalTitle = title;
     const seen = usedTitles.get(title.toLowerCase()) || 0;
     if (seen > 0) {
-      title = normalize(`${title} — Listing ${seen + 1}`);
+      const suffix = ` — Listing ${seen + 1}`;
+      title = `${fitProductTitle(title, 70 - suffix.length)}${suffix}`.trim();
     }
     usedTitles.set(originalTitle.toLowerCase(), seen + 1);
     const family = familyFor(handleEvidence);

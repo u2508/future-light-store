@@ -3,7 +3,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { buildProductKnowledgePayload } from "../src/lib/product-knowledge-base.js";
-import { readProductCatalogPayload } from "./product-catalog-files.mjs";
+import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
 import { scoreCatalogKnowledgeModelBatch } from "./catalog-knowledge-model-accelerator.mjs";
 
@@ -12,7 +12,9 @@ const outputDir = resolve(process.cwd(), "output");
 const knowledgePath = resolve(outputDir, "product-knowledge.json");
 
 async function main() {
-  const productsPayload = await readProductCatalogPayload(dataDir);
+  const { products: productsPayload } = await readFreshLiveCatalogSnapshot(dataDir, {
+    context: "product knowledge build catalog",
+  });
   const knowledgeModel = await readCatalogKnowledgeModel({
     required: process.env.SALT_REQUIRE_KNOWLEDGE_MODEL === "1",
   });

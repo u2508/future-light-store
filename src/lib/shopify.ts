@@ -1,15 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 
-interface ThemeAssetMap {
-  [path: string]: string | undefined;
-}
-
-declare global {
-  interface Window {
-    SALT_THEME_ASSETS?: ThemeAssetMap;
-  }
-}
-
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
@@ -70,343 +60,9 @@ export function isProductAvailable(product: ShopifyProductNode) {
   return product.availableForSale !== false;
 }
 
-interface SearchShardManifest {
-  total?: number;
-  shards?: Array<{ path?: string }>;
-}
-
-interface SearchProductRecord {
-  id?: number | string;
-  title?: string;
-  handle?: string;
-  body_html?: string;
-  vendor?: string;
-  product_type?: string;
-  tags?: string[] | string;
-  updated_at?: string;
-  variant_count?: number;
-  variants?: Array<{
-    id?: number | string;
-    title?: string;
-    price?: string | number;
-    compare_at_price?: string | number | null;
-    available?: boolean;
-  }>;
-  images?: Array<{ src?: string; alt?: string | null }>;
-  image?: { src?: string; alt?: string | null } | null;
-}
-
-interface CatalogProductRecord extends SearchProductRecord {
-  legacyResourceId?: number | string;
-  descriptionHtml?: string;
-  productType?: string;
-  product_type?: string;
-  images?: Array<{ src?: string; alt?: string | null }>;
-  variants?: Array<{
-    id?: number | string;
-    legacyResourceId?: number | string;
-    title?: string;
-    price?: string | number;
-    compare_at_price?: string | number | null;
-    available?: boolean;
-    inventory_quantity?: number | null;
-  }>;
-  options?: Array<{ name?: string; values?: string[] }>;
-}
-
-interface ProductSeoRecord {
-  handle?: string;
-  title?: string;
-  seoTitle?: string;
-  seoDescription?: string;
-  descriptionHtml?: string;
-  productType?: string;
-}
-
-interface ProductSeoManifest {
-  products?: ProductSeoRecord[];
-}
-
-let renderedThemeAssetMap: ThemeAssetMap | undefined;
-let productSeoIndexPromise: Promise<Map<string, ProductSeoRecord>> | undefined;
-
-function getThemeAssetMap() {
-  if (typeof window === "undefined") return undefined;
-  if (window.SALT_THEME_ASSETS) return window.SALT_THEME_ASSETS;
-  if (renderedThemeAssetMap) return renderedThemeAssetMap;
-  if (typeof document === "undefined") return undefined;
-
-  const assetScript = Array.from(document.scripts).find((script) =>
-    script.textContent?.includes("window.SALT_THEME_ASSETS"),
-  );
-  const match = assetScript?.textContent?.match(
-    /window\.SALT_THEME_ASSETS\s*=\s*(\{[\s\S]*?\})\s*;/,
-  );
-  if (!match?.[1]) return undefined;
-
-  try {
-    renderedThemeAssetMap = JSON.parse(match[1]) as ThemeAssetMap;
-  } catch {
-    return undefined;
-  }
-  return renderedThemeAssetMap;
-}
-
-function themeAssetUrl(path: string) {
-  if (typeof window === "undefined") return path;
-  return getThemeAssetMap()?.[path] ?? path;
-}
-
-async function fetchThemeJson<T>(path: string): Promise<T> {
-  let url = themeAssetUrl(path);
-  const isLocalHost =
-    typeof window !== "undefined" && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
-  if (
-    url === path &&
-    !isLocalHost &&
-    typeof window !== "undefined" &&
-    typeof document !== "undefined"
-  ) {
-    // Shopify injects the asset map before the deferred app module runs, but
-    // keep a short fallback window for unusual script ordering. The previous
-    // two-second poll made every local/static catalog request feel slow when
-    // the map was intentionally absent in Vite development.
-    for (let attempt = 0; attempt < 6 && url === path; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      url = themeAssetUrl(path);
-    }
-  }
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error(`Theme catalog request failed (${response.status})`);
-  return (await response.json()) as T;
-}
-
-async function loadProductSeoIndex() {
-  try {
-    const manifest = await fetchThemeJson<ProductSeoManifest>("/data/product-seo.json");
-    const index = new Map<string, ProductSeoRecord>();
-    for (const record of manifest.products ?? []) {
-      const handle = String(record.handle ?? "").trim();
-      if (handle) index.set(handle, record);
-    }
-    return index;
-  } catch (error) {
-    console.warn("Product SEO artifact unavailable; using Shopify catalog copy", error);
-    return new Map<string, ProductSeoRecord>();
-  }
-}
-
-function getProductSeoIndex() {
-  productSeoIndexPromise ??= loadProductSeoIndex();
-  return productSeoIndexPromise;
-}
-
-function applyProductSeoToNode(
-  product: ShopifyProductNode,
-  index: Map<string, ProductSeoRecord>,
-): ShopifyProductNode {
-  const record = index.get(product.handle);
-  if (!record) return product;
-  const title = String(record.seoTitle || record.title || "").trim();
-  const description = String(record.seoDescription || "").trim();
-  const descriptionHtml = String(record.descriptionHtml || "").trim();
-  return {
-    ...product,
-    ...(title ? { title } : {}),
-    ...(description ? { description } : {}),
-    ...(descriptionHtml ? { descriptionHtml } : {}),
-    ...(record.productType ? { productType: record.productType } : {}),
-  };
-}
-
-async function applyProductSeoToProducts(products: ShopifyProduct[]) {
-  const index = await getProductSeoIndex();
-  if (!index.size) return products;
-  return products.map((product) => ({
-    ...product,
-    node: applyProductSeoToNode(product.node, index),
-  }));
-}
-
-function shopifyGid(type: "Product" | "ProductVariant", id: number | string | undefined) {
-  const value = String(id ?? "").match(/\d+$/)?.[0];
-  return value ? `gid://shopify/${type}/${value}` : "";
-}
-
-function moneyValue(value: string | number | undefined, currencyCode = "USD") {
-  return { amount: String(value ?? "0"), currencyCode };
-}
-
-function searchRecordToProduct(record: SearchProductRecord): ShopifyProduct | null {
-  const productId = shopifyGid("Product", record.id);
-  const handle = String(record.handle ?? "").trim();
-  const title = String(record.title ?? "").trim();
-  if (!productId || !handle || !title) return null;
-
-  const rawVariants = Array.isArray(record.variants) ? record.variants : [];
-  const variants = rawVariants
-    .map((variant): ShopifyVariant | null => {
-      const id = shopifyGid("ProductVariant", variant.id);
-      if (!id) return null;
-      const price = moneyValue(variant.price);
-      const compareAtPrice =
-        variant.compare_at_price == null ? null : moneyValue(variant.compare_at_price);
-      return {
-        id,
-        title: String(variant.title ?? "Default Title"),
-        price,
-        compareAtPrice,
-        availableForSale: Boolean(variant.available),
-        selectedOptions: [],
-      } satisfies ShopifyVariant;
-    })
-    .filter((variant): variant is ShopifyVariant => Boolean(variant));
-  const firstImage = record.image ?? record.images?.[0] ?? null;
-  const images = firstImage?.src
-    ? [{ node: { url: firstImage.src, altText: firstImage.alt ?? null } }]
-    : [];
-  const firstVariant = variants[0];
-  const price = firstVariant?.price ?? moneyValue(0);
-  const compareAtPrice = firstVariant?.compareAtPrice ?? null;
-  const tags = Array.isArray(record.tags)
-    ? record.tags
-    : String(record.tags ?? "")
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean);
-
-  return {
-    node: {
-      id: productId,
-      title,
-      description: String(record.body_html ?? ""),
-      handle,
-      vendor: String(record.vendor ?? ""),
-      productType: String(record.product_type ?? ""),
-      tags,
-      updatedAt: record.updated_at,
-      availableForSale: variants.some((variant) => variant.availableForSale),
-      priceRange: { minVariantPrice: price },
-      ...(compareAtPrice ? { compareAtPriceRange: { minVariantPrice: compareAtPrice } } : {}),
-      images: { edges: images },
-      variants: { edges: variants.map((node) => ({ node })) },
-      variantsCount: { count: Math.max(Number(record.variant_count) || 0, variants.length) },
-      options: [],
-    },
-  };
-}
-
-function catalogRecordToProduct(record: CatalogProductRecord): ShopifyProduct | null {
-  const productId = shopifyGid("Product", record.legacyResourceId ?? record.id);
-  const handle = String(record.handle ?? "").trim();
-  const title = String(record.title ?? "").trim();
-  if (!productId || !handle || !title) return null;
-
-  const variants = (record.variants ?? [])
-    .map((variant): ShopifyVariant | null => {
-      const id = shopifyGid("ProductVariant", variant.legacyResourceId ?? variant.id);
-      if (!id) return null;
-      const price = moneyValue(variant.price);
-      const compareAtPrice =
-        variant.compare_at_price == null ? null : moneyValue(variant.compare_at_price);
-      return {
-        id,
-        title: String(variant.title ?? "Default Title"),
-        price,
-        compareAtPrice,
-        availableForSale: Boolean(variant.available),
-        quantityAvailable:
-          variant.inventory_quantity == null ? null : Number(variant.inventory_quantity),
-        selectedOptions: [],
-      } satisfies ShopifyVariant;
-    })
-    .filter((variant): variant is ShopifyVariant => Boolean(variant));
-  if (variants.length === 0) return null;
-
-  const firstImage = record.image ?? record.images?.[0] ?? null;
-  const images = (record.images ?? (firstImage ? [firstImage] : []))
-    .filter((image) => image?.src)
-    .slice(0, 6)
-    .map((image) => ({ node: { url: image.src!, altText: image.alt ?? null } }));
-  const prices = variants
-    .map((variant) => Number(variant.price.amount))
-    .filter((price) => Number.isFinite(price));
-  const compareAtPrices = variants
-    .map((variant) => Number(variant.compareAtPrice?.amount))
-    .filter((price) => Number.isFinite(price) && price > 0);
-  const productType = String(record.productType ?? record.product_type ?? "");
-  const options = (record.options ?? [])
-    .map((option) => ({ name: String(option.name ?? ""), values: option.values ?? [] }))
-    .filter((option) => option.name && option.values.length > 0);
-
-  return {
-    node: {
-      id: productId,
-      title,
-      description: String(record.descriptionHtml ?? record.body_html ?? ""),
-      descriptionHtml: record.descriptionHtml,
-      handle,
-      vendor: String(record.vendor ?? ""),
-      productType,
-      tags: Array.isArray(record.tags)
-        ? record.tags
-        : String(record.tags ?? "")
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean),
-      updatedAt: record.updated_at,
-      availableForSale: variants.some((variant) => variant.availableForSale),
-      variantsCount: { count: variants.length },
-      priceRange: {
-        minVariantPrice: moneyValue(prices.length ? Math.min(...prices) : 0),
-      },
-      ...(compareAtPrices.length > 0
-        ? { compareAtPriceRange: { minVariantPrice: moneyValue(Math.min(...compareAtPrices)) } }
-        : {}),
-      images: { edges: images },
-      variants: { edges: variants.map((node) => ({ node })) },
-      options,
-    },
-  };
-}
-
-async function fetchStaticSearchProducts(): Promise<ShopifyProduct[]> {
-  const manifest = await fetchThemeJson<SearchShardManifest>("/data/product-search.json");
-  const shardPaths = (manifest.shards ?? []).map((shard) => shard.path).filter(Boolean) as string[];
-  if (shardPaths.length === 0) throw new Error("Theme search catalog has no shards");
-  const shardPayloads = await Promise.all(
-    shardPaths.map((path) => fetchThemeJson<{ products?: SearchProductRecord[] }>(path)),
-  );
-  const products = shardPayloads
-    .flatMap((payload) => payload.products ?? [])
-    .map(searchRecordToProduct)
-    .filter((product): product is ShopifyProduct => Boolean(product));
-  if (Number.isFinite(manifest.total) && products.length < Number(manifest.total)) {
-    throw new Error("Theme search catalog is incomplete");
-  }
-  return applyProductSeoToProducts(products);
-}
-
-async function fetchStaticCatalogProducts(): Promise<ShopifyProduct[]> {
-  const manifest = await fetchThemeJson<SearchShardManifest>("/data/product-browse.json");
-  const shardPaths = (manifest.shards ?? []).map((shard) => shard.path).filter(Boolean) as string[];
-  if (shardPaths.length === 0) throw new Error("Theme product catalog has no shards");
-  const shardPayloads = await Promise.all(
-    shardPaths.map((path) => fetchThemeJson<{ products?: CatalogProductRecord[] }>(path)),
-  );
-  const products = shardPayloads
-    .flatMap((payload) => payload.products ?? [])
-    .map(catalogRecordToProduct)
-    .filter((product): product is ShopifyProduct => Boolean(product));
-  if (Number.isFinite(manifest.total) && products.length < Number(manifest.total)) {
-    throw new Error("Theme product catalog is incomplete");
-  }
-  return applyProductSeoToProducts(products);
-}
-
 /**
  * Load only one compact browse page so the catalog can render its first cards
- * before the complete catalog and SEO index hydrate in the background.
+ * before the complete live catalog hydrates in the background.
  */
 export async function fetchProductBrowsePage(pageIndex = 0): Promise<ShopifyProduct[]> {
   const pageSize = 250;
@@ -556,7 +212,7 @@ export const COLLECTION_BY_HANDLE_QUERY = `
       description
       updatedAt
       image { url altText }
-      products(first: $first) { edges { node { ${COLLECTION_PRODUCT_FRAGMENT} } } }
+      products(first: $first) { edges { node {${COLLECTION_PRODUCT_FRAGMENT} } } }
     }
   }
 `;
@@ -570,19 +226,10 @@ export interface ShopifyCollection {
   image: { url: string; altText: string | null } | null;
 }
 
-interface StaticCollectionsPayload {
-  collections?: Array<{
-    id?: number | string;
-    legacyResourceId?: number | string;
-    handle?: string;
-    title?: string;
-    updated_at?: string;
-    customData?: { heroSummary?: string } | null;
-  }>;
-}
-
 export async function storefrontApiRequest(query: string, variables: Record<string, unknown> = {}) {
-  if (!isShopifyConfigured) return null;
+  if (!isShopifyConfigured) {
+    throw new Error("Live Shopify catalog is not configured");
+  }
 
   const { data, error } = await supabase.functions.invoke("shopify-storefront", {
     body: { query, variables },
@@ -612,10 +259,7 @@ export async function fetchProducts(first = 50, query?: string): Promise<Shopify
   return data?.data?.products?.edges ?? [];
 }
 
-/**
- * Load the complete compact search index so search is not limited to the
- * first API page. Fall back to Shopify when a theme artifact is unavailable.
- */
+/** Load search results directly from the live Shopify Storefront API. */
 export async function fetchSearchProducts(query?: string): Promise<ShopifyProduct[]> {
   const normalizedQuery = query?.trim();
   return fetchProducts(99, normalizedQuery || undefined);
@@ -630,12 +274,7 @@ export async function fetchAllProducts(query?: string): Promise<ShopifyProduct[]
   return fetchLiveAllProducts(query);
 }
 
-/**
- * Revalidate the full catalog directly against Shopify. The storefront uses
- * the static browse shards for its first paint, then calls this live path in
- * the background so price and availability changes can replace the cached
- * cards without making the initial page wait for a 2,000+ product walk.
- */
+/** Revalidate the full catalog directly against Shopify. */
 export async function fetchLiveAllProducts(query?: string): Promise<ShopifyProduct[]> {
   const products: ShopifyProduct[] = [];
   const pageSize = 250;

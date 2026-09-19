@@ -24,7 +24,7 @@
 /* Keep the desktop storefront intentionally airy without changing tablet/mobile flow. */
 @media (min-width: 1024px) {
   .vs-wide-shell {
-    width: 70%;
+    width: 68%;
     max-width: none;
     padding-inline: 0;
   }

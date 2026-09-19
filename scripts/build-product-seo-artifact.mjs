@@ -5,10 +5,10 @@ import { resolve } from "node:path";
 import {
   buildProductSeoRecord,
 } from "./lib/future-light-product-seo.mjs";
+import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 
 const rootDir = process.cwd();
 const dataDir = resolve(rootDir, "public", "data");
-const manifestPath = resolve(dataDir, "products.json");
 const knowledgePath = resolve(rootDir, "output", "future-light-seo-gpt-200", "manifest.json");
 const outputPath = resolve(dataDir, "product-seo.json");
 const overridesPath = resolve(rootDir, "config", "future-light-seo-overrides.json");
@@ -23,14 +23,10 @@ async function readJson(path, fallback = null) {
 }
 
 async function loadCatalog() {
-  const manifest = await readJson(manifestPath);
-  if (!manifest?.shards?.length) throw new Error("Product catalog manifest has no shards");
-  const products = [];
-  for (const shard of manifest.shards) {
-    const payload = await readJson(resolve(dataDir, shard.file));
-    products.push(...(payload?.products || []));
-  }
-  return { manifest, products };
+  const { products } = await readFreshLiveCatalogSnapshot(dataDir, {
+    context: "product SEO artifact catalog",
+  });
+  return { manifest: products, products: products.products || [] };
 }
 
 function duplicateGroupCount(records, field) {

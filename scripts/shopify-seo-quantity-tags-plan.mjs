@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { buildShopifySeoReleasePlan } from "../src/lib/shopify-seo-release.js";
@@ -9,21 +9,16 @@ import {
   normalizeShopifyTags,
   reconcileManagedMinimumQuantityTags,
 } from "../src/lib/shopify-seo-managed-tags.js";
-import { readProductCatalogPayload } from "./product-catalog-files.mjs";
+import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const dataDir = resolve(rootDir, "public", "data");
 const outputPath = resolve(rootDir, "output", "shopify-seo-quantity-tags-plan.json");
 
-async function loadJson(name) {
-  return JSON.parse(await readFile(resolve(dataDir, name), "utf8"));
-}
-
-const [productsPayload, collectionsPayload, collectionProducts] = await Promise.all([
-  readProductCatalogPayload(dataDir),
-  loadJson("collections.json"),
-  loadJson("collection-products.json"),
-]);
+const { products: productsPayload, collections: collectionsPayload, collectionProducts } =
+  await readFreshLiveCatalogSnapshot(dataDir, {
+    context: "Shopify SEO quantity-tag plan catalog",
+  });
 const products = Array.isArray(productsPayload?.products) ? productsPayload.products : [];
 const snapshot = {
   products,

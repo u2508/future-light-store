@@ -2,10 +2,9 @@
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 import {
   configMissing,
   loadVsStoreSocialEnv,
@@ -86,80 +85,20 @@ function normalizeText(value) {
     .trim();
 }
 
-function isAuthOrPermissionError(error) {
-  return Boolean(
-    error?.code === "MISSING_CREDENTIAL" ||
-    error?.status === 401 ||
-    error?.status === 403 ||
-    /permission|access token|unauthori[sz]ed|forbidden|credentials? not configured/i.test(
-      String(error?.message || error),
-    ),
-  );
-}
-
 function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
-async function loadLocalCatalog() {
-  const productPayload = await readProductCatalogPayload(resolve(rootDir, "public", "data"));
-  const collectionPayload = JSON.parse(
-    await readFile(resolve(rootDir, "public", "data", "collections.json"), "utf8"),
-  );
-  const products = Array.isArray(productPayload?.products) ? productPayload.products : [];
-  const productsByHandle = new Map(products.map((product) => [product?.handle, product]));
-  const collections = (
-    Array.isArray(collectionPayload?.collections) ? collectionPayload.collections : []
-  ).map((collection) => {
-    const featuredProducts = Array.isArray(collection?.customData?.featuredProducts)
-      ? collection.customData.featuredProducts
-      : [];
-    const nodes = featuredProducts
-      .map((featured) => productsByHandle.get(featured?.handle) || featured)
-      .filter(Boolean);
-    const firstImage =
-      nodes[0]?.image?.src || nodes[0]?.featuredImage?.url || nodes[0]?.images?.[0]?.src || "";
-    return {
-      ...collection,
-      image: collection?.image || (firstImage ? { src: firstImage } : null),
-      products: collection?.products || { nodes },
-    };
-  });
-  return {
-    products,
-    collections,
-    fetchedAt: productPayload?.generatedAt || collectionPayload?.generatedAt || null,
-    source: "local-catalog-snapshot",
-  };
-}
-
 async function loadCatalog(config, retryInfo) {
-  const local = await loadLocalCatalog();
   if (!config.shopifyAdminAccessToken && !config.shopifyUseCli) {
-    process.stdout.write(
-      `Shopify API credentials are not configured; using local catalog snapshot (${local.products.length} products, ${local.collections.length} collections).\n`,
-    );
-    return local;
+    throw new Error("Shopify API credentials are required; local catalog fallback is disabled.");
   }
   const client = createVsStoreShopifyClient(config);
-  try {
-    const remote = await fetchSocialCatalog(client, { retryInfo });
-    if (!remote.products.length || !remote.collections.length)
-      throw new Error("Shopify social catalog response is incomplete.");
-    return { ...remote, source: "shopify-admin-graphql" };
-  } catch (error) {
-    if (
-      local.products.length &&
-      local.collections.length &&
-      (isNetworkError(error) || isAuthOrPermissionError(error))
-    ) {
-      process.stdout.write(
-        `Shopify catalog read unavailable; using local snapshot for this run: ${normalizeText(error.message)}\n`,
-      );
-      return { ...local, fallbackReason: normalizeText(error.message) };
-    }
-    throw error;
+  const remote = await fetchSocialCatalog(client, { retryInfo });
+  if (!remote.products.length || !remote.collections.length) {
+    throw new Error("Shopify social catalog response is incomplete; refusing to use local catalog data.");
   }
+  return { ...remote, source: "shopify-admin-graphql" };
 }
 
 function buildContentCaption(content, config, offer = null) {

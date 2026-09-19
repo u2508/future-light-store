@@ -35,7 +35,7 @@ export function QuickActionsSheet({
     queryKey: ["product", n.handle, "quick-actions"],
     queryFn: () => fetchProduct(n.handle),
     enabled: open && needsFullProduct,
-    staleTime: 30 * 1000,
+    staleTime: 0,
     refetchInterval: open ? 60 * 1000 : false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

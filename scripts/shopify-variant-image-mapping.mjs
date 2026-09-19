@@ -7,7 +7,7 @@ import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { normalizeHandleValue, normalizePlainText } from "../src/lib/shopify-seo-batch.js";
-import { readProductCatalogPayload } from "./product-catalog-files.mjs";
+import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -1001,7 +1001,10 @@ async function loadHandles(handlesPath) {
 
 async function loadSnapshot(inputPath) {
   if (basename(inputPath) === "products.json") {
-    return readProductCatalogPayload(dirname(inputPath));
+    const { products } = await readFreshLiveCatalogSnapshot(dirname(inputPath), {
+      context: "variant-image mapping catalog",
+    });
+    return products;
   }
 
   const raw = await readFile(inputPath, "utf8");
@@ -1014,6 +1017,12 @@ async function loadMediaCache(cachePath, scopedProductIds) {
     const parsed = JSON.parse(raw);
     const products = Array.isArray(parsed) ? parsed : parsed?.products;
     if (!Array.isArray(products) || !products.length || parsed?.mediaPagesComplete !== true) return null;
+    const generatedAt = Date.parse(String(parsed?.generatedAt || ""));
+    const maxAgeMs = Math.max(
+      60_000,
+      Number(process.env.SALT_WEB_BUILD_MAX_CATALOG_AGE_MS || 30 * 60 * 1000),
+    );
+    if (!Number.isFinite(generatedAt) || Date.now() - generatedAt > maxAgeMs) return null;
     const ids = new Set(products.map((product) => String(product?.id || "")).filter(Boolean));
     if (scopedProductIds.some((id) => !ids.has(String(id)))) return null;
     if (products.some((product) => product?.media?.pageInfo?.hasNextPage || product?.variants?.pageInfo?.hasNextPage)) return null;

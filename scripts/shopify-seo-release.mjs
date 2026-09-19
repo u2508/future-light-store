@@ -26,9 +26,9 @@ import {
 } from "../src/lib/product-content-specificity.js";
 import { auditProductSeoRecords } from "./lib/future-light-product-seo.mjs";
 import { PRICE_REWORK_RULES } from "../src/lib/shopify-price-rework-policy.js";
-import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
 import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
+import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -806,13 +806,10 @@ function applyProductSeoArtifact(plan, artifact, { requireComplete = false } = {
 }
 
 async function loadCatalogSnapshot() {
-  const [products, collections, collectionProducts] = await Promise.all([
-    readProductCatalogPayload(inputDir),
-    readJson("collections.json"),
-    readJson("collection-products.json"),
-  ]);
-
-  return { products, collections, collectionProducts };
+  return readFreshLiveCatalogSnapshot(inputDir, {
+    shopUrl: shopBase,
+    context: "Shopify SEO release catalog",
+  });
 }
 
 async function loadFrozenCatalogSnapshot(filePath, baseSnapshot) {

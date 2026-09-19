@@ -279,28 +279,47 @@ async function readRowsFromSpreadsheet(filePath) {
   };
 }
 
-async function readJsonFileIfExists(filePath, fallbackValue) {
-  try {
-    const raw = await readFile(filePath, "utf8");
-    return JSON.parse(raw);
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      return fallbackValue;
-    }
+async function readJsonFileRequired(filePath) {
+  return JSON.parse(await readFile(filePath, "utf8"));
+}
 
-    throw error;
+function assertFreshLiveCatalogSnapshot(products, collections) {
+  const generatedAt = String(products?.generatedAt || collections?.generatedAt || "");
+  const parsedGeneratedAt = Date.parse(generatedAt);
+  const maxAgeMs = Math.max(
+    60_000,
+    Number(process.env.SALT_WEB_BUILD_MAX_CATALOG_AGE_MS || 30 * 60 * 1000),
+  );
+  if (!Number.isFinite(parsedGeneratedAt)) {
+    throw new Error("Live Shopify catalog snapshot is missing generatedAt; run sync:data before this script.");
+  }
+
+  const source = String(products?.source || collections?.source || "").trim();
+  if (!source) {
+    throw new Error("Live Shopify catalog snapshot is missing its source; refusing local catalog data.");
+  }
+  if (new URL(source).hostname !== STORE_DOMAIN) {
+    throw new Error(`Catalog snapshot source does not match Shopify store ${STORE_DOMAIN}.`);
+  }
+  if (Date.now() - parsedGeneratedAt > maxAgeMs) {
+    throw new Error("Live Shopify catalog snapshot is stale; run sync:data before this script.");
+  }
+  if (!Number(products?.total) || !Number(collections?.total)) {
+    throw new Error("Live Shopify catalog snapshot is incomplete; refusing local fallback data.");
   }
 }
 
-async function loadLocalCatalogSnapshot() {
+async function loadLiveCatalogSnapshot() {
   const collectionsPath = resolve(process.cwd(), "public/data/collections.json");
   const collectionProductsPath = resolve(process.cwd(), "public/data/collection-products.json");
 
   const [products, collections, collectionProducts] = await Promise.all([
     readProductCatalogPayload(resolve(process.cwd(), "public/data")),
-    readJsonFileIfExists(collectionsPath, {}),
-    readJsonFileIfExists(collectionProductsPath, {}),
+    readJsonFileRequired(collectionsPath),
+    readJsonFileRequired(collectionProductsPath),
   ]);
+
+  assertFreshLiveCatalogSnapshot(products, collections);
 
   return {
     products,
@@ -978,7 +997,7 @@ async function main() {
   const inputPath = requireInputPath(args.input);
   const { rows, header } = await readRowsFromSpreadsheet(inputPath);
   const outputTargets = deriveOutputTargets(inputPath, args.output);
-  const catalogSnapshot = await loadLocalCatalogSnapshot();
+  const catalogSnapshot = await loadLiveCatalogSnapshot();
   const catalogContext = createSeoCatalogContext(catalogSnapshot);
   const categoryCache = new Map();
   const mode = getModeLabel(args);

@@ -32,8 +32,8 @@ function CollectionPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["collection", handle],
     queryFn: () => fetchCollection(handle),
-    staleTime: 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchInterval: 60 * 1000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });

@@ -70,8 +70,8 @@ function CollectionShelf({
     queryKey: ["collection", handle],
     queryFn: () => fetchCollection(handle),
     enabled: ready,
-    staleTime: 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchInterval: 60 * 1000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });

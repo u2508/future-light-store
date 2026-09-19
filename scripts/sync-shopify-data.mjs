@@ -12,7 +12,7 @@ import {
   normalizeShopCustomData,
 } from "../src/lib/product-custom-data.js";
 import { buildProductSearchPayload } from "./product-search-index.mjs";
-import { readProductCatalogPayload, writeProductCatalogPayload } from "./product-catalog-files.mjs";
+import { writeProductCatalogPayload } from "./product-catalog-files.mjs";
 import { writeProductSearchPayload } from "./product-search-files.mjs";
 import { filterOnlineStoreProducts, filterProductIdsToCatalog } from "./shopify-publication.mjs";
 import {
@@ -64,7 +64,6 @@ const useCliAdminPricing = /^(1|true|yes)$/i.test(process.env.SALT_SHOPIFY_USE_C
 const collectionsPath = resolve(outDir, "collections.json");
 const collectionProductsPath = resolve(outDir, "collection-products.json");
 const collectionMergeManifestPath = resolve(process.cwd(), "output", "catalog-collection-merge-manifest.json");
-const productCustomDataBulkPath = resolve(process.cwd(), "output", ".shopify-metafield-custom-data-bulk.jsonl");
 const aboutPath = resolve(outDir, "about.json");
 const blogPostsPath = resolve(outDir, "blog-posts.json");
 const shopPath = resolve(outDir, "shop.json");
@@ -1069,110 +1068,6 @@ async function fetchProductCustomDataMap(products) {
   return records;
 }
 
-function parseBulkReferenceIds(field) {
-  const raw = field?.jsonValue ?? field?.value ?? [];
-  let values = raw;
-
-  if (typeof values === "string") {
-    try {
-      values = JSON.parse(values);
-    } catch {
-      values = [];
-    }
-  }
-
-  if (!Array.isArray(values)) {
-    values = values ? [values] : [];
-  }
-
-  return values
-    .map((value) => (typeof value === "string" ? value : String(value?.id || "")))
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
-
-function buildBulkReferenceNodes(field, productsByGid) {
-  return parseBulkReferenceIds(field).map((id) => {
-    const referencedProduct = productsByGid.get(id);
-    if (!referencedProduct) {
-      return { id, legacyResourceId: Number(extractNumericId(id)) || null, title: id };
-    }
-
-    return {
-      id: referencedProduct.id,
-      legacyResourceId: referencedProduct.legacyResourceId,
-      handle: referencedProduct.handle,
-      title: referencedProduct.title,
-      productType: referencedProduct.productType,
-      vendor: referencedProduct.vendor,
-    };
-  });
-}
-
-function attachBulkCustomDataReferences(node, productsByGid) {
-  const result = { ...node };
-  for (const key of [
-    "relatedProducts",
-    "complementaryProducts",
-    "complementaryProductsFallback",
-    "diaperType",
-  ]) {
-    if (!node?.[key]) {
-      continue;
-    }
-
-    result[key] = {
-      ...node[key],
-      references: { nodes: buildBulkReferenceNodes(node[key], productsByGid) },
-    };
-  }
-
-  return result;
-}
-
-async function loadProductCustomDataBulkCache(products) {
-  const raw = await readFile(productCustomDataBulkPath, "utf8");
-  const selectedIds = new Set(
-    products
-      .map((product) => product.admin_graphql_api_id || toShopifyGid("Product", product.id))
-      .filter(Boolean),
-  );
-  const productNodes = new Map();
-
-  for (const line of raw.split(/\r?\n/)) {
-    if (!line.trim()) {
-      continue;
-    }
-
-    const node = JSON.parse(line);
-    if (!node?.__parentId && selectedIds.has(node.id)) {
-      productNodes.set(node.id, node);
-    }
-  }
-
-  if (productNodes.size !== selectedIds.size) {
-    throw new Error(
-      `completed Shopify metafield bulk cache is incomplete (${productNodes.size}/${selectedIds.size} products)`,
-    );
-  }
-
-  const records = new Map();
-  for (const node of productNodes.values()) {
-    const customData = normalizeCustomDataNode(attachBulkCustomDataReferences(node, productNodes));
-    if (customData) {
-      records.set(String(node.legacyResourceId), customData);
-    }
-  }
-
-  if (records.size !== products.length) {
-    throw new Error(
-      `completed Shopify metafield bulk cache normalized ${records.size}/${products.length} products`,
-    );
-  }
-
-  return records;
-}
-
 async function fetchProductVariantCostMap(products) {
   if (!Array.isArray(products) || !products.length) {
     return new Map();
@@ -1388,30 +1283,17 @@ async function fetchCollectionCustomDataMap(collections) {
 
 async function fetchShopCustomData() {
   if (!adminAccessToken) {
-    try {
-      const payload = await runShopifyStoreGraphQL(SHOP_CUSTOM_DATA_QUERY);
-      const shop = payload?.shop || {};
+    const payload = await runShopifyStoreGraphQL(SHOP_CUSTOM_DATA_QUERY);
+    const shop = payload?.shop || {};
 
-      return {
-        id: String(shop.id || "shop"),
-        name: String(shop.name || "SALT"),
-        customData: normalizeShopCustomData({
-          bannerText: shop.bannerText?.jsonValue ?? shop.bannerText?.value ?? null,
-          trustStrip: normalizeStringList(shop.trustStrip?.jsonValue ?? shop.trustStrip?.value ?? []),
-        }),
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown error";
-      process.stdout.write(`Shopify CLI shop lookup failed; using fallback shop payload (${message})\n`);
-      return {
-        id: "shop",
-        name: "SALT",
-        customData: normalizeShopCustomData({
-          bannerText: "",
-          trustStrip: [],
-        }),
-      };
-    }
+    return {
+      id: String(shop.id || "shop"),
+      name: String(shop.name || "SALT"),
+      customData: normalizeShopCustomData({
+        bannerText: shop.bannerText?.jsonValue ?? shop.bannerText?.value ?? null,
+        trustStrip: normalizeStringList(shop.trustStrip?.jsonValue ?? shop.trustStrip?.value ?? []),
+      }),
+    };
   }
 
   const payload = await fetchAdminGraphQL(SHOP_CUSTOM_DATA_QUERY);
@@ -1767,63 +1649,18 @@ async function fetchBlogPosts() {
   }
 }
 
-async function fetchProductsFromCachedFile() {
-  const payload = await readProductCatalogPayload(outDir);
-  const products = Array.isArray(payload.products) ? payload.products : [];
-
-  if (!products.length) {
-    throw new Error("Cached product payload is empty");
-  }
-
-  const publishedProducts = filterOnlineStoreProducts(products);
-  if (!publishedProducts.length) {
-    throw new Error("Cached product payload contains no products published to Online Store");
-  }
-
-  process.stdout.write(
-    `Using cached product payload with ${products.length} products; kept ${publishedProducts.length} published Online Store products\n`,
-  );
-  return publishedProducts;
-}
-
 async function mergeAdminProductsWithStorefrontFeed(adminProducts) {
-  let storefrontProducts;
-  let boundarySource = "live";
-
   if (["cache", "cached", "snapshot"].includes(storefrontBoundaryMode)) {
-    storefrontProducts = await fetchProductsFromCachedFile();
-    boundarySource = "cached";
-    process.stdout.write("Using cached Online Store boundary by explicit configuration\n");
-  } else {
-    try {
-      storefrontProducts = await fetchPublishedStorefrontProducts();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "unknown storefront feed error";
-      storefrontProducts = await fetchProductsFromCachedFile();
-      boundarySource = "cached";
-      process.stdout.write(`Live Online Store boundary unavailable; using cached boundary with current Admin product data (${message})\n`);
-    }
+    throw new Error("Cached Online Store boundaries are disabled; use the live Shopify boundary.");
   }
+  const storefrontProducts = await fetchPublishedStorefrontProducts();
 
   const adminById = new Map(adminProducts.map((product) => [String(product?.id || ""), product]));
   const adminByHandle = new Map(
     adminProducts.map((product) => [String(product?.handle || "").trim().toLowerCase(), product]),
   );
 
-  const boundaryProducts = boundarySource === "cached"
-    ? storefrontProducts.filter((storefrontProduct) => {
-        const hasAdminMatch =
-          adminById.has(String(storefrontProduct?.id || "")) ||
-          adminByHandle.has(String(storefrontProduct?.handle || "").trim().toLowerCase());
-        return hasAdminMatch;
-      })
-    : storefrontProducts;
-
-  if (boundarySource === "cached" && boundaryProducts.length !== storefrontProducts.length) {
-    process.stdout.write(
-      `Removed ${storefrontProducts.length - boundaryProducts.length} stale cached products absent from the fresh Admin feed\n`,
-    );
-  }
+  const boundaryProducts = storefrontProducts;
 
   const mergedProducts = boundaryProducts.map((storefrontProduct) => {
     const adminProduct =
@@ -1833,36 +1670,6 @@ async function mergeAdminProductsWithStorefrontFeed(adminProducts) {
 
     if (!adminProduct) {
       return storefrontProduct;
-    }
-
-    if (boundarySource === "cached") {
-      const adminVariantsById = new Map(
-        (Array.isArray(adminProduct.variants) ? adminProduct.variants : [])
-          .map((variant) => [String(variant?.id || variant?.legacyResourceId || ""), variant])
-          .filter(([variantId]) => variantId),
-      );
-      const variants = storefrontProduct.variants?.length
-        ? storefrontProduct.variants.map((storefrontVariant) => {
-            const adminVariant = adminVariantsById.get(String(storefrontVariant?.id || storefrontVariant?.legacyResourceId || ""));
-            if (!adminVariant) {
-              return storefrontVariant;
-            }
-
-            return {
-              ...storefrontVariant,
-              price: adminVariant.price ?? storefrontVariant.price,
-              compare_at_price: adminVariant.compare_at_price ?? storefrontVariant.compare_at_price ?? null,
-            };
-          })
-        : adminProduct.variants;
-
-      return {
-        ...storefrontProduct,
-        ...adminProduct,
-        // Cached data supplies channel membership and the complete public variant set;
-        // fresh Admin data supplies current variant pricing.
-        variants,
-      };
     }
 
     // The public Online Store feed is authoritative for channel membership and
@@ -1996,19 +1803,6 @@ async function fetchActiveCatalogProducts() {
   return products;
 }
 
-async function fetchCollectionsFromCachedFile() {
-  const raw = await readFile(collectionsPath, "utf8");
-  const payload = JSON.parse(raw);
-  const collections = Array.isArray(payload.collections) ? payload.collections : [];
-
-  if (!collections.length) {
-    throw new Error("Cached collections payload is empty");
-  }
-
-  process.stdout.write(`Using cached collections payload with ${collections.length} collections\n`);
-  return collections;
-}
-
 async function fetchAboutPageFromCachedFile() {
   const raw = await readFile(aboutPath, "utf8");
   const payload = JSON.parse(raw);
@@ -2077,37 +1871,10 @@ async function fetchProductsForSync() {
       }
 
       if (skipProductEnrichment) {
-        let cachedProducts = [];
-        try {
-          cachedProducts = (await readProductCatalogPayload(outDir)).products;
-        } catch {
-          // A first-time sync can run without an older catalog to overlay.
-        }
-
-        const cachedById = new Map(cachedProducts.map((product) => [String(product?.id), product]));
-        const cachedByHandle = new Map(
-          cachedProducts.map((product) => [String(product?.handle || "").trim().toLowerCase(), product]),
-        );
-        const fastProducts = products.map((product) => {
-          const cachedMatch =
-            cachedById.get(String(product?.id)) ||
-            cachedByHandle.get(String(product?.handle || "").trim().toLowerCase()) ||
-            null;
-
-          return cachedMatch?.customData
-            ? {
-                ...product,
-                customData: cachedMatch.customData,
-                average_rating: product.average_rating ?? cachedMatch.average_rating,
-                total_reviews: product.total_reviews ?? cachedMatch.total_reviews,
-              }
-            : product;
-        });
-
         process.stdout.write(
           `Using ${adminAccessToken ? "Admin API" : "Shopify CLI"} product feed with ${products.length} products; skipped optional product enrichment for fast catalog refresh\n`,
         );
-        return fastProducts;
+        return products;
       }
 
       try {
@@ -2153,34 +1920,15 @@ async function fetchProductsForSync() {
         return enrichedProducts;
       } catch (error) {
         const message = error instanceof Error ? error.message : "unknown error";
-        try {
-          const cachedCustomDataMap = await loadProductCustomDataBulkCache(products);
-          const recoveredProducts = products.map((product) => ({
-            ...product,
-            customData: cachedCustomDataMap.get(String(product.id)) || null,
-          }));
-
-          process.stdout.write(
-            `${adminAccessToken ? "Admin" : "CLI"} product metafield fetch failed; recovered complete custom data from Shopify bulk cache (${message})\n`,
-          );
-          process.stdout.write(
-            `${adminAccessToken ? "Using Admin API" : "Using Shopify CLI"} product feed with ${recoveredProducts.length} products and ${cachedCustomDataMap.size} recovered metafield payloads\n`,
-          );
-          return recoveredProducts;
-        } catch (cacheError) {
-          const cacheMessage = cacheError instanceof Error ? cacheError.message : "unknown bulk cache error";
-          const enrichmentError = new Error(
-            `product merchandising enrichment failed and no complete recovery cache is available: ${message}; ${cacheMessage}`,
-          );
-          enrichmentError.code = "PRODUCT_ENRICHMENT_INCOMPLETE";
-          throw enrichmentError;
-        }
+        const enrichmentError = new Error(
+          `product merchandising enrichment failed against live Shopify data: ${message}`,
+        );
+        enrichmentError.code = "PRODUCT_ENRICHMENT_INCOMPLETE";
+        throw enrichmentError;
       }
     }
 
-    process.stdout.write(
-      `${adminAccessToken ? "Admin API" : "Storefront"} product feed returned 0 products; falling back to storefront JSON\n`,
-    );
+    throw new Error(`${adminAccessToken ? "Admin API" : "Storefront"} product feed returned 0 products`);
   } catch (error) {
     if (error?.code === "PRODUCT_ENRICHMENT_INCOMPLETE") {
       throw error;
@@ -2188,119 +1936,50 @@ async function fetchProductsForSync() {
 
     const message = error instanceof Error ? error.message : "unknown error";
     process.stdout.write(
-      `${adminAccessToken ? "Admin" : "CLI"} product feed failed; falling back to cached/storefront JSON (${message})\n`,
+      `${adminAccessToken ? "Admin" : "CLI"} product feed failed; trying the live Storefront feed (${message})\n`,
     );
   }
-
-  try {
-    return await fetchPublishedStorefrontProducts();
-  } catch (liveError) {
-    const message = liveError instanceof Error ? liveError.message : "unknown live storefront error";
-    process.stdout.write(`Live storefront product feed unavailable; trying cached data (${message})\n`);
-  }
-
-  try {
-    return await fetchProductsFromCachedFile();
-  } catch (cacheError) {
-    const message = cacheError instanceof Error ? cacheError.message : "unknown cache error";
-    process.stdout.write(`Cached product payload unavailable; falling back to storefront JSON (${message})\n`);
-  }
-
   return fetchPublishedStorefrontProducts();
 }
 
 async function fetchCollectionsForSync() {
+  let collections;
   try {
-    const collections = adminAccessToken
+    collections = adminAccessToken
       ? await fetchAdminPaged("collections", "/collections.json")
       : syncActiveCatalog
         ? await fetchCollectionsFromCli()
       : await fetchPaged("collections", "/collections.json");
-
-    if (collections.length) {
-      try {
-        const customDataMap = await fetchCollectionCustomDataMap(collections);
-        const enrichedCollections = collections.map((collection) => {
-          const customData = customDataMap.get(String(collection.id)) || null;
-          if (!customData) {
-            return collection;
-          }
-
-          return {
-            ...collection,
-            customData,
-          };
-        });
-
-        process.stdout.write(
-          `${adminAccessToken ? "Using Admin API" : "Using Shopify CLI"} collections feed with ${collections.length} collections and ${customDataMap.size} metafield payloads\n`,
-        );
-        return enrichedCollections;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "unknown error";
-        process.stdout.write(
-          `${adminAccessToken ? "Admin" : "CLI"} collection metafield fetch failed; returning collection feed without custom data (${message})\n`,
-        );
-        process.stdout.write(
-          `${adminAccessToken ? "Using Admin API" : "Using Shopify CLI"} collections feed with ${collections.length} collections\n`,
-        );
-        return collections;
-      }
-    }
-
-    process.stdout.write(
-      `${adminAccessToken ? "Admin API" : "Storefront"} collections feed returned 0 collections; falling back to storefront JSON\n`,
-    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
     process.stdout.write(
-      `${adminAccessToken ? "Admin" : "CLI"} collections feed failed; falling back to cached/storefront JSON (${message})\n`,
+      `${adminAccessToken ? "Admin" : "CLI"} collections feed failed; trying the live Storefront feed (${message})\n`,
     );
+    collections = await fetchPaged("collections", "/collections.json");
+  }
+
+  if (!collections.length) {
+    throw new Error("Shopify live collections feed returned 0 collections");
   }
 
   try {
-    const cachedCollections = await fetchCollectionsFromCachedFile();
-    if (adminAccessToken && cachedCollections.length) {
-      try {
-        const customDataMap = await fetchCollectionCustomDataMap(cachedCollections);
-        const enrichedCollections = cachedCollections.map((collection) => {
-          const customData = customDataMap.get(String(collection.id)) || null;
-          return customData ? { ...collection, customData } : collection;
-        });
-        process.stdout.write(
-          `Using cached collection membership with live Admin collection metafields (${customDataMap.size} payloads)\n`,
-        );
-        return enrichedCollections;
-      } catch (error) {
-        const customDataMessage = error instanceof Error ? error.message : "unknown collection metafield error";
-        process.stdout.write(`Live Admin collection metafields unavailable; retaining cached collection data (${customDataMessage})\n`);
-      }
-    }
-
-    return cachedCollections;
-  } catch (cacheError) {
-    const message = cacheError instanceof Error ? cacheError.message : "unknown cache error";
-    process.stdout.write(`Cached collections payload unavailable; falling back to storefront JSON (${message})\n`);
+    const customDataMap = await fetchCollectionCustomDataMap(collections);
+    const enrichedCollections = collections.map((collection) => {
+      const customData = customDataMap.get(String(collection.id)) || null;
+      return customData ? { ...collection, customData } : collection;
+    });
+    process.stdout.write(
+      `${adminAccessToken ? "Using Admin API" : "Using Shopify CLI"} collections feed with ${collections.length} collections and ${customDataMap.size} metafield payloads\n`,
+    );
+    return enrichedCollections;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown error";
+    throw new Error(`Live Shopify collection enrichment failed: ${message}`);
   }
-
-  return fetchPaged("collections", "/collections.json");
 }
 
 async function fetchShopForSync() {
-  try {
-    return await fetchShopCustomData();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown error";
-    process.stdout.write(`Shop custom data fetch failed; using fallback shop payload (${message})\n`);
-    return {
-      id: "shop",
-      name: "Future Light Store",
-      customData: normalizeShopCustomData({
-        bannerText: "",
-        trustStrip: [],
-      }),
-    };
-  }
+  return fetchShopCustomData();
 }
 
 async function main() {

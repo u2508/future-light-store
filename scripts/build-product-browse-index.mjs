@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import { readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { readdir, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 
 const dataDir = resolve(process.cwd(), "public", "data");
-const sourcePattern = /^products-\d{4}\.json$/;
 const outputPattern = /^product-browse-\d{4}\.json$/;
 const maxShardBytes = 1 * 1024 * 1024;
 const maxShardProducts = 48;
@@ -43,18 +43,12 @@ function serializeShard(generatedAt, source, total, shardIndex, shardCount, prod
 }
 
 async function main() {
-  const files = (await readdir(dataDir)).filter((file) => sourcePattern.test(file)).sort();
-  if (files.length === 0) throw new Error("No product catalog shards found");
-
-  const products = [];
-  let generatedAt = new Date().toISOString();
-  let source = "/data/products.json";
-  for (const file of files) {
-    const payload = JSON.parse(await readFile(resolve(dataDir, file), "utf8"));
-    generatedAt = payload.generatedAt || generatedAt;
-    source = payload.source || source;
-    products.push(...(Array.isArray(payload.products) ? payload.products : []));
-  }
+  const { products: productsPayload } = await readFreshLiveCatalogSnapshot(dataDir, {
+    context: "product browse build catalog",
+  });
+  const products = Array.isArray(productsPayload?.products) ? productsPayload.products : [];
+  const generatedAt = productsPayload.generatedAt;
+  const source = productsPayload.source;
 
   const compactProducts = products
     .map(compactProduct)

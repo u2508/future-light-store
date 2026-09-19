@@ -73,7 +73,7 @@ function ShopPage() {
   });
   const { data: collections = [], isLoading: collectionsLoading } = useQuery({
     queryKey: ["collections", "sidebar"],
-    queryFn: () => fetchCollections(100),
+    queryFn: () => fetchCollections(250),
     staleTime: 0,
     refetchInterval: 60 * 1000,
     refetchOnWindowFocus: true,

@@ -107,68 +107,10 @@ function resolveThemeDir() {
 const themeDir = resolveThemeDir();
 const themeAssetsDir = resolve(themeDir, "assets");
 const themeScaffoldEntries = ["assets", "config", "layout", "locales", "sections", "templates"];
-const themeDataAssets = [
-  { source: "products.json", asset: "data-products.json", themePath: "/data/products.json" },
-  {
-    source: "home-featured-products.json",
-    asset: "data-home-featured-products.json",
-    themePath: "/data/home-featured-products.json",
-  },
-  {
-    source: "home-collection-products.json",
-    asset: "data-home-collection-products.json",
-    themePath: "/data/home-collection-products.json",
-  },
-  {
-    source: "recently-ordered-products.json",
-    asset: "data-recently-ordered-products.json",
-    themePath: "/data/recently-ordered-products.json",
-  },
-  {
-    source: "product-search.json",
-    asset: "data-product-search.json",
-    themePath: "/data/product-search.json",
-  },
-  {
-    source: "collections.json",
-    asset: "data-collections.json",
-    themePath: "/data/collections.json",
-  },
-  {
-    source: "collection-products.json",
-    asset: "data-collection-products.json",
-    themePath: "/data/collection-products.json",
-  },
-  { source: "about.json", asset: "data-about.json", themePath: "/data/about.json" },
-  { source: "blog-posts.json", asset: "data-blog-posts.json", themePath: "/data/blog-posts.json" },
-  { source: "shop.json", asset: "data-shop.json", themePath: "/data/shop.json" },
-  {
-    source: "product-browse.json",
-    asset: "data-product-browse.json",
-    themePath: "/data/product-browse.json",
-  },
-  {
-    source: "product-seo.json",
-    asset: "data-product-seo.json",
-    themePath: "/data/product-seo.json",
-  },
-];
-const PRODUCT_SHARD_SOURCE_PATTERN = /^products-\d{4}\.json$/;
-const PRODUCT_SEARCH_SHARD_SOURCE_PATTERN = /^product-search-\d{4}\.json$/;
-const PRODUCT_BROWSE_SHARD_SOURCE_PATTERN = /^product-browse-\d{4}\.json$/;
-
-function serializeInlineJson(value) {
-  return JSON.stringify(value ?? null).replace(/</g, "\\u003c");
-}
-
-function buildThemeAssetMapEntries() {
-  return themeDataAssets
-    .map(
-      ({ themePath, asset }) =>
-        `    ${JSON.stringify(themePath)}: {{ '${asset}' | asset_url | json }}`,
-    )
-    .join(",\n");
-}
+// The React storefront reads catalog, pricing, availability, search and SEO
+// data from live Shopify APIs. Keep no generated catalog assets in the theme;
+// their presence would make stale data available as an accidental fallback.
+const THEME_CATALOG_ASSET_PATTERN = /^data-.*\.json$/;
 
 function parseEntryAssets(indexHtml) {
   const jsMatch = indexHtml.match(/<script[^>]+type="module"[^>]+src="([^"]+)"/i);
@@ -209,7 +151,6 @@ function templateJson(sectionType = "salt-app") {
 async function writeThemeScaffold(
   settingsData = null,
   routeAssets = {},
-  homeFeaturedProductsPayload = null,
 ) {
   await mkdir(resolve(themeDir, "layout"), { recursive: true });
   await mkdir(resolve(themeDir, "sections"), { recursive: true });
@@ -799,13 +740,6 @@ async function writeThemeScaffold(
         })();
       </script>
     {% endif %}
-    {% if request.page_type == 'index' %}
-      <script>
-        (function () {
-          window.__SALT_HOME_PREFETCH__ = ${serializeInlineJson(homeFeaturedProductsPayload)};
-        })();
-      </script>
-    {% endif %}
     {% if request.page_type == 'collection' and collection %}
       {% paginate collection.products by 250 %}
         <script>
@@ -914,7 +848,6 @@ async function writeThemeScaffold(
   window.SALT_THEME_ASSETS = {
     "/brand/salt-logo.png": {{ '${themeLogoAsset}' | asset_url | json }},
     "/brand-salt-logo.png": {{ '${themeLogoAsset}' | asset_url | json }},
-${buildThemeAssetMapEntries()}
   };
 </script>
 {% if request.page_type == 'product' and product %}
@@ -1105,35 +1038,10 @@ async function copyAssets(entryJsPath, entryCssPath) {
     }
   }
 
-  const existingProductShardAssets = (await readdir(themeAssetsDir)).filter((asset) =>
-    /^data-products-\d{4}\.json$/.test(asset),
+  const existingCatalogAssets = (await readdir(themeAssetsDir)).filter((asset) =>
+    THEME_CATALOG_ASSET_PATTERN.test(asset),
   );
-  const existingProductSearchShardAssets = (await readdir(themeAssetsDir)).filter((asset) =>
-    /^data-product-search-\d{4}\.json$/.test(asset),
-  );
-  const existingProductBrowseShardAssets = (await readdir(themeAssetsDir)).filter((asset) =>
-    /^data-product-browse-\d{4}\.json$/.test(asset),
-  );
-  await Promise.all(
-    [
-      ...existingProductShardAssets,
-      ...existingProductSearchShardAssets,
-      ...existingProductBrowseShardAssets,
-    ].map((asset) =>
-      rm(resolve(themeAssetsDir, asset), { force: true }),
-    ),
-  );
-
-  await Promise.all(
-    themeDataAssets.map(async (asset) => {
-      const sourcePath = resolve(publicDir, "data", asset.source);
-      await copyAssetWithTrackedFallback(
-        sourcePath,
-        resolve(themeAssetsDir, asset.asset),
-        `public/data/${asset.source}`,
-      );
-    }),
-  );
+  await Promise.all(existingCatalogAssets.map((asset) => rm(resolve(themeAssetsDir, asset), { force: true })));
 
   return themeEntryJs;
 }
@@ -1146,48 +1054,11 @@ async function main() {
   const settingsData = existsSync(settingsDataPath)
     ? await readFile(settingsDataPath, "utf8")
     : null;
-  const homeFeaturedProductsPath = resolve(publicDir, "data", "home-featured-products.json");
-  const homeFeaturedProductsPayload = existsSync(homeFeaturedProductsPath)
-    ? JSON.parse(await readFile(homeFeaturedProductsPath, "utf8"))
-    : null;
   const distAssets = await readdir(resolve(distDir, "assets"));
   const routeAssets = {
     home: distAssets.find((asset) => /^HomePage-[A-Za-z0-9_-]+\.js$/.test(asset)) || "",
     product: distAssets.find((asset) => /^ProductPage-[A-Za-z0-9_-]+\.js$/.test(asset)) || "",
   };
-
-  const productShardSources = (await readdir(resolve(publicDir, "data")))
-    .filter((source) => PRODUCT_SHARD_SOURCE_PATTERN.test(source))
-    .sort();
-  for (const source of productShardSources) {
-    themeDataAssets.push({
-      source,
-      asset: `data-${source}`,
-      themePath: `/data/${source}`,
-    });
-  }
-
-  const productSearchShardSources = (await readdir(resolve(publicDir, "data")))
-    .filter((source) => PRODUCT_SEARCH_SHARD_SOURCE_PATTERN.test(source))
-    .sort();
-  for (const source of productSearchShardSources) {
-    themeDataAssets.push({
-      source,
-      asset: `data-${source}`,
-      themePath: `/data/${source}`,
-    });
-  }
-
-  const productBrowseShardSources = (await readdir(resolve(publicDir, "data")))
-    .filter((source) => PRODUCT_BROWSE_SHARD_SOURCE_PATTERN.test(source))
-    .sort();
-  for (const source of productBrowseShardSources) {
-    themeDataAssets.push({
-      source,
-      asset: `data-${source}`,
-      themePath: `/data/${source}`,
-    });
-  }
 
   await mkdir(themeDir, { recursive: true });
   await Promise.all(
@@ -1201,7 +1072,6 @@ async function main() {
   await writeThemeScaffold(
     settingsData,
     { ...routeAssets, entry: themeEntryJs },
-    homeFeaturedProductsPayload,
   );
 
   process.stdout.write(`Shopify theme bundle generated at ${themeDir}\n`);

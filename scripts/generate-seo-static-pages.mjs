@@ -602,15 +602,49 @@ async function loadProducts() {
   return products.filter((product) => product?.handle && product.status !== "DRAFT");
 }
 
+function assertFreshLiveCatalog(productsManifest, collectionsPayload) {
+  const generatedAt = String(productsManifest?.generatedAt || collectionsPayload?.generatedAt || "");
+  const source = String(productsManifest?.source || collectionsPayload?.source || "").trim();
+  const parsedGeneratedAt = Date.parse(generatedAt);
+  const maxAgeMs = Math.max(
+    60_000,
+    Number(process.env.SALT_WEB_BUILD_MAX_CATALOG_AGE_MS || 30 * 60 * 1000),
+  );
+  if (!source || !Number.isFinite(parsedGeneratedAt)) {
+    throw new Error("Live catalog manifest is missing source or generatedAt; refusing stale build data.");
+  }
+
+  const expectedShopUrl = String(process.env.SALT_SHOP_URL || "").trim();
+  if (expectedShopUrl) {
+    const sourceHost = new URL(source).hostname;
+    const expectedHost = new URL(expectedShopUrl).hostname;
+    if (sourceHost !== expectedHost) {
+      throw new Error(`Live catalog source ${sourceHost} does not match configured Shopify store ${expectedHost}.`);
+    }
+  }
+
+  const ageMs = Date.now() - parsedGeneratedAt;
+  if (ageMs > maxAgeMs) {
+    throw new Error(
+      `Live catalog snapshot is ${Math.round(ageMs / 60_000)} minutes old; refresh Shopify data before building.`,
+    );
+  }
+  if (!Number(productsManifest?.total) || !Number(collectionsPayload?.total)) {
+    throw new Error("Live catalog manifest is incomplete; refusing to build from fallback data.");
+  }
+}
+
 async function main() {
   const template = (await readFile(resolve(distDir, "index.html"), "utf8"))
     .replace(/<div id="root">[\s\S]*?<\/div>/i, '<div id="root"></div>');
-  const [products, collectionsPayload, knowledge, seoPayload] = await Promise.all([
-    loadProducts(),
+  const [productsManifest, collectionsPayload, knowledge, seoPayload] = await Promise.all([
+    readFile(productIndexPath, "utf8").then(JSON.parse),
     readFile(collectionsPath, "utf8").then(JSON.parse),
     readFile(knowledgePath, "utf8").then(JSON.parse).catch(() => null),
     readFile(productSeoPath, "utf8").then(JSON.parse).catch(() => null),
   ]);
+  assertFreshLiveCatalog(productsManifest, collectionsPayload);
+  const products = await loadProducts();
   const knowledgeByHandle = productKnowledgeByHandle(knowledge);
   const seoByHandle = new Map((seoPayload?.products || []).map((record) => [record.handle, record]));
   const collections = collectionsPayload.collections || [];

@@ -9,6 +9,7 @@ import { recommendedConcurrency } from "./lib/performance-runtime.mjs";
 import { areCompatibleReleaseProfiles, readReleaseRunState } from "./release.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
+const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
 const envFiles = [
   resolve(rootDir, ".env.release.local"),
   resolve(rootDir, ".env.release"),
@@ -54,6 +55,29 @@ async function loadReleaseEnv() {
 function fail(message) {
   process.stderr.write(`Future Light Store release preflight failed: ${message}\n`);
   process.exit(1);
+}
+
+function loadLiveCatalogBeforePreflight() {
+  process.stdout.write("Loading the live Shopify catalog before release preflight...\n");
+  const result = spawnSync(npmBin, ["run", "sync:data"], {
+    cwd: rootDir,
+    env: process.env,
+    stdio: "inherit",
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    fail("live Shopify catalog bootstrap failed; release will not use a local catalog snapshot.");
+  }
+
+  const sitemap = spawnSync(process.execPath, [resolve(rootDir, "scripts", "generate-sitemap.ts")], {
+    cwd: rootDir,
+    env: process.env,
+    stdio: "inherit",
+  });
+  if (sitemap.error) throw sitemap.error;
+  if (sitemap.status !== 0) {
+    fail("live Shopify sitemap bootstrap failed; release will not continue with a stale sitemap.");
+  }
 }
 
 async function listingIntelligenceFingerprint() {
@@ -196,6 +220,7 @@ async function main() {
   process.env.SHOPIFY_CLI_AGENT_INFO ||= "n:future-light-store|v:1|p:openai";
   process.env.SHOPIFY_CLI_AGENT_IDS ||= `s:future-light-store|r:${process.pid}|i:future-light-store-release`;
 
+  loadLiveCatalogBeforePreflight();
   await runListingIntelligencePreflight();
 
   const forwardedArgs = [...process.argv.slice(2)];

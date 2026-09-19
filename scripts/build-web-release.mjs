@@ -5,8 +5,10 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync, spawn } from "node:child_process";
+import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 
 const rootDir = process.cwd();
+const distDir = resolve(rootDir, "dist");
 const nodeBin = process.execPath;
 
 async function ensure(path, label) {
@@ -178,7 +180,16 @@ function pauseOneDrive() {
   };
 }
 
+async function removeStaticCatalogFromReleaseOutput() {
+  // Catalog JSON is a build input for SEO HTML generation, never a storefront
+  // runtime source. Do not publish it as an accidental fallback endpoint.
+  await rm(resolve(distDir, "data"), { recursive: true, force: true });
+}
+
 async function main() {
+  await readFreshLiveCatalogSnapshot(resolve(rootDir, "public", "data"), {
+    context: "web release catalog",
+  });
   await ensure(resolve(rootDir, "output", "product-knowledge.json"), "validated product knowledge artifact");
   await ensure(resolve(rootDir, "public", "data", "products.json"), "full product catalog manifest");
   await ensure(resolve(rootDir, "public", "data", "product-search.json"), "product search manifest");
@@ -225,6 +236,7 @@ async function main() {
     await syncDirectory(resolve(rootDir, "public"), resolve(rootDir, "dist"));
     await run(nodeBin, [resolve(rootDir, "scripts", "postbuild-compat.mjs")], process.env, rootDir);
     await run(nodeBin, [resolve(rootDir, "scripts", "generate-seo-static-pages.mjs")], process.env, rootDir);
+    await removeStaticCatalogFromReleaseOutput();
     return;
   }
 
@@ -237,6 +249,7 @@ async function main() {
     );
     await run(nodeBin, [resolve(rootDir, "scripts", "postbuild-compat.mjs")], process.env, rootDir);
     await run(nodeBin, [resolve(rootDir, "scripts", "generate-seo-static-pages.mjs")], process.env, rootDir);
+    await removeStaticCatalogFromReleaseOutput();
     return;
   }
 
@@ -306,6 +319,7 @@ async function main() {
     await run(nodeBin, [resolve(stageDir, "scripts", "postbuild-compat.mjs")], process.env, stageDir);
     await syncDirectory(resolve(stageDir, "dist"), resolve(rootDir, "dist"));
     await run(nodeBin, [resolve(rootDir, "scripts", "generate-seo-static-pages.mjs")], process.env, rootDir);
+    await removeStaticCatalogFromReleaseOutput();
   } finally {
     await rm(stageDir, { recursive: true, force: true });
   }

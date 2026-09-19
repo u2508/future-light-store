@@ -6,9 +6,13 @@ export const getRouter = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 5 * 60 * 1000,
+        // Shopify-backed queries must not treat a local or previous response
+        // as a five-minute catalog cache. Individual catalog screens also
+        // revalidate on an interval; these defaults cover any new live query.
+        staleTime: 0,
         gcTime: 30 * 60 * 1000,
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
         retry: 1,
       },
       mutations: {

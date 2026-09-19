@@ -90,7 +90,7 @@ function ProductPage() {
   } = useQuery({
     queryKey: ["product", handle],
     queryFn: () => fetchProduct(handle),
-    staleTime: 30 * 1000,
+    staleTime: 0,
     refetchInterval: 60 * 1000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

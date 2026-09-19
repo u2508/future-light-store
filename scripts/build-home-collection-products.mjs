@@ -1,10 +1,9 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readProductCatalogPayload } from "./product-catalog-files.mjs";
+import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const collectionProductsPath = path.join(projectRoot, "public/data/collection-products.json");
 const outputPath = path.join(projectRoot, "public/data/home-collection-products.json");
 const PRODUCT_LIMIT = 12;
 
@@ -166,10 +165,10 @@ function selectProducts(products, collectionMap, config) {
   return selected;
 }
 
-const [productsPayload, collectionProductsPayload] = await Promise.all([
-  readProductCatalogPayload(path.join(projectRoot, "public/data")),
-  readFile(collectionProductsPath, "utf8").then(JSON.parse),
-]);
+const { products: productsPayload, collectionProducts: collectionProductsPayload } =
+  await readFreshLiveCatalogSnapshot(path.join(projectRoot, "public/data"), {
+    context: "homepage collection build catalog",
+  });
 const products = Array.isArray(productsPayload?.products) ? productsPayload.products : [];
 const collectionMap = collectionProductsPayload?.collections || {};
 const sections = Object.fromEntries(
