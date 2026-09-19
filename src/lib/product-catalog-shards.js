@@ -1,6 +1,8 @@
 export const PRODUCT_CATALOG_MANIFEST_FORMAT = "salt-product-catalog-shards";
 export const PRODUCT_CATALOG_MANIFEST_VERSION = 1;
-export const DEFAULT_PRODUCT_SHARD_MAX_BYTES = 45 * 1024 * 1024;
+// Keep catalog assets below Shopify's 20 MB per-theme-file limit while
+// leaving headroom for JSON metadata and future catalog growth.
+export const DEFAULT_PRODUCT_SHARD_MAX_BYTES = 18 * 1024 * 1024;
 export const HARD_MAX_PRODUCT_SHARD_BYTES = 90 * 1024 * 1024;
 
 function serializeShard(payload, products, shardIndex = 0, shardCount = 1) {
