@@ -1,15 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Heart, Loader2, Minus, Plus, RotateCcw, ShieldCheck, Truck } from "lucide-react";
 import { toast } from "sonner";
-import { discountPercent, fetchProduct, formatMoney } from "@/lib/shopify";
+import { discountPercent, fetchProduct, fetchProductInventory, formatMoney } from "@/lib/shopify";
 import { requestCartOpen, useCartStore } from "@/stores/cartStore";
 import { useRecentStore, useWishlistStore } from "@/stores/wishlistStore";
 import { cn } from "@/lib/utils";
 import { canonicalUrl } from "@/lib/seo";
+import { normalizeMetaCatalogId, trackViewItem } from "@/lib/marketingAnalytics";
+import { US_SHIPPING_PROMISE } from "@/lib/shipping-promise";
 
 const PRODUCT_DESCRIPTION_TAGS = new Set(["h2", "h3", "p", "ul", "ol", "li", "strong", "em", "br"]);
+
+function matchesVariantParameter(variantId: string, requestedVariant: string | null) {
+  if (!requestedVariant) return false;
+  const requestedId = requestedVariant.split("/").pop() ?? requestedVariant;
+  const actualId = variantId.split("/").pop() ?? variantId;
+  return actualId === requestedId;
+}
 
 function sanitizeProductDescriptionHtml(value: string) {
   return String(value || "")
@@ -81,6 +90,10 @@ export const Route = createFileRoute("/products/$handle")({
 
 function ProductPage() {
   const { handle } = Route.useParams();
+  const requestedVariant =
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("variant");
   const {
     data: product,
     isLoading,
@@ -92,11 +105,25 @@ function ProductPage() {
     queryFn: () => fetchProduct(handle),
     staleTime: 0,
     refetchInterval: 60 * 1000,
-    refetchOnWindowFocus: true,
+    retry: 1,
+    // Keep a successfully loaded live product visible while a background
+    // revalidation is in flight. A focus event must never blank the PDP.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
+  });
+  const { data: productInventory } = useQuery({
+    queryKey: ["product-inventory", handle],
+    queryFn: () => fetchProductInventory(handle),
+    enabled: Boolean(product),
+    staleTime: 0,
+    retry: false,
+    refetchInterval: 60 * 1000,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hasSelectedVariant, setHasSelectedVariant] = useState(false);
   const [unavailableVariantIds, setUnavailableVariantIds] = useState<Set<string>>(new Set());
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
@@ -105,21 +132,41 @@ function ProductPage() {
   const toggleWishlist = useWishlistStore((s) => s.toggle);
   const wishlisted = useWishlistStore((s) => s.items.some((i) => i.node.handle === handle));
   const pushRecent = useRecentStore((s) => s.push);
+  const trackedProductView = useRef<string>("");
 
   useEffect(() => {
     setUnavailableVariantIds(new Set());
+    setHasSelectedVariant(false);
   }, [handle]);
 
   useEffect(() => {
     if (product) {
       pushRecent(product.handle);
       const variants = product.variants.edges.map((e) => e.node);
-      const preferred = variants.find((v) => v.availableForSale) ?? variants[0];
+      // Merchant Center and Shopify product feeds append the exact variant ID
+      // to the landing URL. Keep that advertised variant selected instead of
+      // silently switching to the first available option; otherwise price and
+      // availability can disagree with the listing Google sent the shopper to.
+      const feedVariant = variants.find((v) => matchesVariantParameter(v.id, requestedVariant));
+      const preferred = feedVariant ?? variants.find((v) => v.availableForSale) ?? variants[0];
       setSelectedId((current) =>
         current && variants.some((v) => v.id === current) ? current : (preferred?.id ?? null),
       );
     }
-  }, [product, pushRecent]);
+  }, [product, pushRecent, requestedVariant]);
+
+  useEffect(() => {
+    if (!product || !selectedId) return;
+    const selectedVariant = product.variants.edges
+      .map((edge) => edge.node)
+      .find((variant) => variant.id === selectedId);
+    const variantImageUrl = selectedVariant?.image?.url;
+    if (!variantImageUrl) return;
+    const matchingImageIndex = product.images.edges.findIndex(
+      (edge) => edge.node.url === variantImageUrl,
+    );
+    if (matchingImageIndex >= 0) setImageIndex(matchingImageIndex);
+  }, [product, selectedId]);
 
   useEffect(() => {
     if (!product || typeof document === "undefined") return;
@@ -155,7 +202,25 @@ function ProductPage() {
     upsertMeta('meta[property="og:description"]', "property", "og:description", pageDescription);
   }, [product]);
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!product || !selectedId || trackedProductView.current === product.id) return;
+    const selectedVariant = product.variants.edges
+      .map((edge) => edge.node)
+      .find((variant) => variant.id === selectedId);
+    if (!selectedVariant) return;
+
+    trackViewItem({
+      item_id: normalizeMetaCatalogId(selectedVariant.id),
+      item_name: product.title,
+      price: Number(selectedVariant.price.amount),
+      item_variant: selectedVariant.title,
+      item_brand: product.vendor || undefined,
+      item_category: product.productType || undefined,
+    });
+    trackedProductView.current = product.id;
+  }, [product, selectedId]);
+
+  if (isLoading && !product) {
     return (
       <div className="vs-wide-shell grid gap-8 py-10 md:grid-cols-2">
         <div className="aspect-square animate-pulse rounded-3xl bg-muted" />
@@ -168,7 +233,7 @@ function ProductPage() {
     );
   }
 
-  if (isError || !product) {
+  if (!product) {
     return (
       <div className="mx-auto max-w-xl px-4 py-24 text-center">
         <h1 className="font-display text-2xl font-bold">Product unavailable</h1>
@@ -185,11 +250,30 @@ function ProductPage() {
     );
   }
 
-  const images = product.images.edges.map((e) => e.node);
-  const variants = product.variants.edges.map((e) => e.node);
+  const inventoryById = new Map(
+    (productInventory?.variants?.edges ?? []).map((edge) => [edge.node.id, edge.node]),
+  );
+  const variants = product.variants.edges.map((e) => {
+    const inventoryVariant = inventoryById.get(e.node.id);
+    return inventoryVariant ? { ...e.node, ...inventoryVariant } : e.node;
+  });
+  const images = Array.from(
+    new Map(
+      [
+        ...product.images.edges.map((edge) => edge.node),
+        ...variants.flatMap((variant) => (variant.image ? [variant.image] : [])),
+      ].map((image) => [image.url, image] as const),
+    ).values(),
+  );
   const selected = variants.find((v) => v.id === selectedId) ?? null;
   const selectedAvailable =
     Boolean(selected?.availableForSale) && !unavailableVariantIds.has(selected?.id ?? "");
+  const selectedLowStock =
+    hasSelectedVariant &&
+    selectedAvailable &&
+    selected?.quantityAvailable != null &&
+    selected.quantityAvailable > 0 &&
+    selected.quantityAvailable <= 5;
   const price = selected?.price ?? product.priceRange.minVariantPrice;
   const compareAt = selected?.compareAtPrice?.amount ?? null;
   const off = discountPercent(price.amount, compareAt);
@@ -295,7 +379,7 @@ function ProductPage() {
         <span className="max-w-[18rem] truncate text-foreground">{product.title}</span>
       </nav>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-start">
-        <div className="space-y-3 lg:sticky lg:top-24">
+        <div className="min-w-0 space-y-3 lg:sticky lg:top-24">
           <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-border/70 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),rgba(241,245,249,0.98))] shadow-[var(--shadow-lift)]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.14),transparent_32%),radial-gradient(circle_at_80%_80%,rgba(14,165,233,0.12),transparent_28%)]" />
             {images[imageIndex] ? (
@@ -336,7 +420,7 @@ function ProductPage() {
           )}
         </div>
 
-        <div className="space-y-5 lg:pt-3">
+        <div className="min-w-0 space-y-5 lg:pt-3">
           <div className="space-y-3">
             <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">
               {product.vendor || product.productType}
@@ -387,7 +471,14 @@ function ProductPage() {
                   <button
                     key={v.id}
                     disabled={!v.availableForSale || unavailableVariantIds.has(v.id)}
-                    onClick={() => setSelectedId(v.id)}
+                    onClick={() => {
+                      setSelectedId(v.id);
+                      setHasSelectedVariant(true);
+                      const variantImageIndex = images.findIndex(
+                        (image) => image.url === v.image?.url,
+                      );
+                      if (variantImageIndex >= 0) setImageIndex(variantImageIndex);
+                    }}
                     className={cn(
                       "rounded-xl border px-4 py-2 text-sm transition-colors",
                       v.id === selectedId
@@ -427,6 +518,9 @@ function ProductPage() {
             >
               {selectedAvailable ? "In stock" : "Sold out"}
             </span>
+            {selectedLowStock && (
+              <span className="text-sm font-semibold text-signal">Low stock</span>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -438,7 +532,7 @@ function ProductPage() {
               {isAdding || isFetching ? (
                 <Loader2 className="mx-auto h-4 w-4 animate-spin" />
               ) : selectedAvailable ? (
-                "Add to bag"
+                "Add to cart"
               ) : (
                 "Sold out"
               )}
@@ -466,7 +560,11 @@ function ProductPage() {
 
           <div className="grid gap-2 rounded-[1.5rem] border border-border bg-card p-4 text-xs text-muted-foreground shadow-[var(--shadow-card)]">
             <p className="flex items-center gap-2">
-              <Truck className="h-3.5 w-3.5" /> Delivery estimate at checkout
+              <Truck className="h-3.5 w-3.5" /> {US_SHIPPING_PROMISE.summary}
+            </p>
+            <p className="pl-5 text-[11px] leading-5">
+              Shopify confirms the eligible delivery option, taxes and any address-specific
+              exceptions at checkout.
             </p>
             <p className="flex items-center gap-2">
               <RotateCcw className="h-3.5 w-3.5" /> 30-day returns

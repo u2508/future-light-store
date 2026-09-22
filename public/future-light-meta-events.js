@@ -80,7 +80,10 @@
         ];
     var productId = meta && meta.productId ? metaId(meta.productId) : "";
     var variantId = lines[0] && lines[0].merchandiseId ? metaId(lines[0].merchandiseId) : "";
-    var contentId = productId || variantId;
+    // Meta's Shopify catalogue stores the variant/content ID. The product
+    // group ID is useful as a fallback, but sending it first creates the
+    // catalogue-match warning even when the selected variant is valid.
+    var contentId = variantId || productId;
     if (!contentId) return null;
 
     var quantity = lines.reduce(function (total, line) {

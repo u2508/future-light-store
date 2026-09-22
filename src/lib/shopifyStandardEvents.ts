@@ -1,4 +1,5 @@
 import type { ShopifyProductNode, ShopifyVariant } from "@/lib/shopify";
+import { normalizeMetaCatalogId, trackAddToCart, trackViewItem } from "@/lib/marketingAnalytics";
 
 type EventPayload = Record<string, unknown>;
 
@@ -46,9 +47,8 @@ interface CartLinesUpdateConstructor extends StandardEventConstructor<CartLinesU
   createPromise: () => DeferredResult;
 }
 
-interface CartErrorConstructor extends StandardEventConstructor {
-  // The standard-events runtime uses the same constructor shape for errors.
-}
+// The standard-events runtime uses the same constructor shape for errors.
+type CartErrorConstructor = StandardEventConstructor;
 
 interface StandardEventsRuntime {
   ProductViewEvent?: StandardEventConstructor<ProductViewPayload>;
@@ -193,6 +193,18 @@ function dispatchProductView(
       },
     }),
   );
+  const analyticsVariant = selectedVariant ?? product.variants.edges[0]?.node ?? null;
+  trackViewItem(
+    {
+      item_id: normalizeMetaCatalogId(analyticsVariant?.id || product.id),
+      item_name: product.title,
+      price: Number(analyticsVariant?.price.amount ?? product.priceRange.minVariantPrice.amount),
+      item_variant: analyticsVariant?.title,
+      item_brand: product.vendor || undefined,
+      item_category: product.productType || undefined,
+    },
+    context,
+  );
   return true;
 }
 
@@ -327,6 +339,16 @@ export function dispatchFutureLightCartAdd(
   target: EventTarget | null = typeof window === "undefined" ? null : window,
 ): void {
   if (!target || typeof CustomEvent === "undefined") return;
+  trackAddToCart({
+    item: {
+      item_id: normalizeMetaCatalogId(payload.variantId),
+      item_name: payload.productTitle,
+      price: Number(payload.price.amount),
+      item_variant: payload.variantId,
+    },
+    quantity: payload.quantity,
+    currency: payload.price.currencyCode,
+  });
   target.dispatchEvent(new CustomEvent("future-light:cart-add-success", { detail: payload }));
 
   if (typeof window !== "undefined" && window.Shopify?.analytics?.publish) {
