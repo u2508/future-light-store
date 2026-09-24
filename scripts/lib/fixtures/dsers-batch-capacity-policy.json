@@ -1,0 +1,20 @@
+{
+  "planningSlots": 679,
+  "collectionLanes": [
+    { "id": "lane-a", "name": "Lane A", "slots": 400 },
+    { "id": "lane-b", "name": "Lane B", "slots": 279 }
+  ],
+  "searchFamilies": [
+    { "name": "Family A", "laneId": "lane-a" },
+    { "name": "Family B", "laneId": "lane-b" }
+  ],
+  "batches": [
+    { "id": 1, "families": ["Family A", "Family B"], "ceiling": 100, "laneAllocations": [{ "laneId": "lane-a", "slots": 60 }, { "laneId": "lane-b", "slots": 40 }] },
+    { "id": 2, "families": ["Family A", "Family B"], "ceiling": 100, "laneAllocations": [{ "laneId": "lane-a", "slots": 60 }, { "laneId": "lane-b", "slots": 40 }] },
+    { "id": 3, "families": ["Family A", "Family B"], "ceiling": 100, "laneAllocations": [{ "laneId": "lane-a", "slots": 60 }, { "laneId": "lane-b", "slots": 40 }] },
+    { "id": 4, "families": ["Family A", "Family B"], "ceiling": 100, "laneAllocations": [{ "laneId": "lane-a", "slots": 60 }, { "laneId": "lane-b", "slots": 40 }] },
+    { "id": 5, "families": ["Family A", "Family B"], "ceiling": 100, "laneAllocations": [{ "laneId": "lane-a", "slots": 60 }, { "laneId": "lane-b", "slots": 40 }] },
+    { "id": 6, "families": ["Family A", "Family B"], "ceiling": 100, "laneAllocations": [{ "laneId": "lane-a", "slots": 60 }, { "laneId": "lane-b", "slots": 40 }] },
+    { "id": 7, "families": ["Family A", "Family B"], "ceiling": 79, "laneAllocations": [{ "laneId": "lane-a", "slots": 40 }, { "laneId": "lane-b", "slots": 39 }] }
+  ]
+}

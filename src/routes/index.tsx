@@ -12,6 +12,7 @@ import {
 } from "@/lib/collection-artwork";
 import { canonicalUrl } from "@/lib/seo";
 import { HOME_ANSWER_BLOCKS } from "@/lib/seo-content";
+import { trackCollectionView } from "@/lib/marketingAnalytics";
 
 const WORLDS = [
   { handle: "portable-gadgets", title: "Everyday, upgraded.", label: "Tech & accessories" },
@@ -41,7 +42,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Unexpected finds and everyday upgrades. Explore New Arrivals, Best Sellers and Premium Picks at VS Store.",
+          "Unexpected finds and everyday upgrades. Explore New Arrivals, Curated Picks and Premium Picks at VS Store.",
       },
       { property: "og:title", content: "The future looks good on you — VS Store" },
       {
@@ -68,7 +69,10 @@ function CollectionShelf({
   const [ready, setReady] = useState(false);
   const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["collection", handle],
-    queryFn: () => fetchCollection(handle),
+    // The homepage renders eight cards per shelf. Keep the request live, but
+    // avoid fetching the remaining collection payload until the visitor opens
+    // the collection page.
+    queryFn: () => fetchCollection(handle, 8),
     enabled: ready,
     staleTime: 0,
     refetchInterval: 60 * 1000,
@@ -94,6 +98,15 @@ function CollectionShelf({
     observer.observe(section);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!data?.id) return;
+    trackCollectionView({
+      id: data.id,
+      name: title,
+      itemCount: data.products.length,
+    });
+  }, [data?.id, data?.products.length, title]);
 
   return (
     <section ref={sectionRef} className="vs-wide-shell py-10 sm:py-14" aria-label={title}>
@@ -285,7 +298,11 @@ function Index() {
         </div>
       </section>
 
-      <CollectionShelf handle="best-sellers" title="Worth the attention." subtitle="Best sellers" />
+      <CollectionShelf
+        handle="best-sellers"
+        title="Worth the attention."
+        subtitle="Curated picks"
+      />
 
       <section className="vs-wide-shell py-6" aria-labelledby="premium-edit">
         <Link

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { canonicalUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/orders")({
   head: () => ({
@@ -9,6 +10,7 @@ export const Route = createFileRoute("/orders")({
       { property: "og:description", content: "See your VS Store order history and delivery status." },
       { name: "robots", content: "noindex, nofollow" },
     ],
+    links: [{ rel: "canonical", href: canonicalUrl("/orders") }],
   }),
   component: OrdersPage,
 });

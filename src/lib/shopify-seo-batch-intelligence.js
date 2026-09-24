@@ -905,6 +905,27 @@ function buildStrictHandleTitle(signals) {
   if (!h) return "";
   const brand = strictHandleBrand(h);
 
+  if (/\b(?:busy[- ]board|busy[- ]book)\b/i.test(h)) {
+    return "Montessori Busy Board for Toddler Fine-Motor Play";
+  }
+  if (/\bwooden train\b/i.test(h)) {
+    return "Wooden Montessori Train Toy for Early Learning";
+  }
+  if (/\bmontessori\b/i.test(h) && /\b(?:puzzle|shape|matching|color|colour|cognition|beaded)\b/i.test(h)) {
+    return "Montessori Color-and-Shape Matching Toy";
+  }
+  if (/\bmontessori\b/i.test(h) && /\b(?:block|blocks|building|brick|bricks)\b/i.test(h)) {
+    return "Montessori Wooden Building Block Set";
+  }
+  if (/\bmontessori\b/i.test(h) && /\b(?:book|chess|checker|camera)\b/i.test(h)) {
+    return "Montessori Early-Learning Activity Toy";
+  }
+  if (/\b(?:silicone\s+beads?|beads?|spacer\s+beads?)\b/i.test(h) && /\b(?:jewelry\s+making|diy|pacifier\s+chain|pen\s+set)\b/i.test(h)) {
+    return "Silicone Beads for Jewelry Making and DIY Crafts";
+  }
+  if (/\b(?:teether|teething)\b/i.test(h) && !/\b(?:pet|dog|cat|puppy|kitten|beads?|jewelry|pacifier\s+chain)\b/i.test(h)) {
+    return "Silicone Baby Teether Toy for Toddler Sensory Play";
+  }
   if (/\b(?:fingertip gloves?|finger sleeves?|gaming finger sleeves?)\b/i.test(h)) {
     const count = strictPackCount(h) || "2";
     return `${count}-Piece Mobile Gaming Finger Sleeves, Sweatproof Touchscreen Covers`;
@@ -1151,13 +1172,20 @@ function buildStrictHandleTitle(signals) {
     const sizes = h.match(/\b\d+(?:-\d+)+\s*mm\b/i)?.[0] || "";
     return `Acrylic Spacer Beads for Jewelry Making${sizes ? `, ${sizes}` : ""}`;
   }
-  if (/\b(?:necklace|earrings?)\b/i.test(h) && /\b(?:jewelry set|earring set|necklace set|zircon|dangle earrings?|crystal.*necklace.*earring|necklace.*earring.*set)\b/i.test(h)) {
-    return "Pendant Necklace and Earring Jewelry Set";
-  }
-  if (/\b(?:necklace|earrings?|bracelet)\b/i.test(h) && /\b(?:jewelry set|3 piece set|3-piece set|brides?|weddings?)\b/i.test(h)) {
-    if (/\b(?:brides?|weddings?)\b/i.test(h)) return "Bridal Necklace, Earrings and Bracelet Set";
-    return "Crystal Necklace, Earrings and Bracelet Set";
-  }
+  const hasNecklace = /\bnecklace\b/i.test(h);
+  const hasEarrings = /\bearrings?\b/i.test(h);
+  const hasBracelet = /\b(?:bangles?|bracelets?)\b/i.test(h);
+  const jewelrySetEvidence = /\b(?:jewelry set|earring set|necklace set|3[- ]?piece set|zircon|dangle earrings?|crystal.*necklace.*earring|necklace.*earring.*set)\b/i.test(h);
+  if (jewelrySetEvidence && hasNecklace && hasEarrings) return "Pendant Necklace and Earring Jewelry Set";
+  if (jewelrySetEvidence && hasNecklace && hasBracelet) return "Necklace and Bracelet Jewelry Set";
+  if (jewelrySetEvidence && hasNecklace) return "Pendant Necklace Jewelry Set";
+  if (jewelrySetEvidence && hasEarrings) return "Earrings Jewelry Set";
+  if (jewelrySetEvidence && hasBracelet) return "Bracelet Jewelry Set";
+  if (/(?:brides?|weddings?)/i.test(h) && hasNecklace && hasEarrings && hasBracelet) return "Bridal Necklace, Earrings and Bracelet Set";
+  if (/(?:brides?|weddings?)/i.test(h) && hasNecklace && hasBracelet) return "Bridal Necklace and Bracelet Set";
+  if (/(?:brides?|weddings?)/i.test(h) && hasNecklace) return "Bridal Pendant Necklace";
+  if (/(?:brides?|weddings?)/i.test(h) && hasEarrings) return "Bridal Earrings";
+  if (/(?:brides?|weddings?)/i.test(h) && hasBracelet) return "Bridal Bracelet";
   if (/\b(?:italian charm|charm bracelet)\b/i.test(h) && /\bbracelet\b/i.test(h)) return `${/stainless steel/i.test(h) ? "Stainless-Steel " : ""}Italian Charm Bracelet`;
   if (/\b(?:iris|flower)\b.*\b(?:bangle|bracelet)\b|\b(?:bangle|bracelet)\b.*\b(?:iris|flower)\b/i.test(h)) return "Adjustable Iris Flower Bangle Bracelet";
   if (/(?:^|\s)fan(?:\s|$)/i.test(h) && !/fan cat.*t shirt|car cleaning|brush fan|air conditioning brush|anime.*keychain|keychain.*anime|anime.*bracelet|bracelet.*anime|fan gifts?|michael jackson.*t shirt|t shirt.*michael jackson/i.test(h)) {
@@ -1245,9 +1273,6 @@ function buildStrictHandleTitle(signals) {
     const count = h.match(/\b(\d+)\s*(?:pcs?|pieces?)\b/i)?.[1] || "";
     return `${count ? `${count}-Piece ` : ""}Amber Glass Travel Bottle Set with Sprayers and Droppers`.trim();
   }
-  if (/\b(?:necklace|earrings?)\b/i.test(h) && /\b(?:jewelry set|earring set|necklace set|zircon|dangle earrings?|crystal.*necklace.*earring|necklace.*earring.*set)\b/i.test(h)) {
-    return "Pendant Necklace and Earring Jewelry Set";
-  }
   if (/\b(?:t[- ]?shirt|tee)\b/i.test(h) && /\bdress\b/i.test(h)) {
     const audience = /\b(?:women|womens|woman|female|ladies)\b/i.test(h) ? "Women's " : /\b(?:men|mens|man|male)\b/i.test(h) ? "Men's " : "";
     const neckline = /v[- ]?neck/i.test(h) ? "V-Neck " : /round neck|o neck|crew neck/i.test(h) ? "Crew-Neck " : "";
@@ -1260,7 +1285,12 @@ function buildStrictHandleTitle(signals) {
     return `${audience}Handmade ${material} Bucket Handbag`.replace(/\s+/g, " ").trim();
   }
 
-  if (/\b(?:scarf|neckerchief|bandana|shawl|wrap)\b/i.test(h)) {
+  // `wrap` is also a legitimate bracelet construction (for example,
+  // "wrap bracelets"). Treating the bare token as a scarf signal can
+  // replace the product identity and produce a wrong title/description.
+  // Require an actual scarf-family noun; genuine wrap scarves still match
+  // through the `scarf` token.
+  if (/\b(?:scarf|neckerchief|bandana|shawl)\b/i.test(h)) {
     const size = h.match(/\b\d+\s*cm\b/i)?.[0] || "";
     const pattern = /paisley/i.test(h) ? "Paisley " : /floral|flower/i.test(h) ? "Floral " : /striped/i.test(h) ? "Striped " : "";
     const audience = /\b(?:women|womens|woman|female|ladies|girl|girls)\b/i.test(h) ? "Women's " : "";
@@ -1295,7 +1325,11 @@ function buildStrictHandleTitle(signals) {
     return `${audience}${material}${sleeve}Button-Down Shirt for Casual Wear`;
   }
   if (/\bdress\b/i.test(h) && /\b(?:lace up|printed|chinese style)\b/i.test(h)) return `${/\b(?:women|womens|woman|female|ladies)\b/i.test(h) ? "Women's " : ""}${/long sleeve/i.test(h) ? "Long-Sleeve " : ""}Lace-Up Printed Dress`;
-  if (/\b(?:pajamas?|pijamas?|sleepwear)\b/i.test(h)) return `${/pikachu|pokemon/i.test(h) ? "Pikachu " : "Kids' "}Pajama Set for Sleeping`;
+  if (/\b(?:pajamas?|pijamas?|sleepwear)\b/i.test(h)) {
+    if (/\b(?:pet|dog|cat|puppy|kitten)\b/i.test(h)) return "Pet Pajama Outfit for Small Dogs and Cats";
+    if (/\b(?:pants?|trousers?)\b/i.test(h) && !/\b(?:baby|toddler|kids?|children|boys?|girls?)\b/i.test(h)) return "Women's Lounge Pants for Casual Wear";
+    return `${/pikachu|pokemon/i.test(h) ? "Pikachu " : "Kids' "}Pajama Set for Sleeping`;
+  }
   if (/\bvest\b/i.test(h) && /\b(?:t shirt|tee|sports|fitness)\b/i.test(h)) return `${strictPackCount(h) ? `${strictPackCount(h)}-Pack ` : ""}Cotton Sleeveless Sports T-Shirt`;
   if (/\b(?:beauty and the beast|movie jewelry)\b/i.test(h) && /\bnecklace\b/i.test(h)) return "Beauty and the Beast Pendant Necklace for Women";
   if (/\banime\b.*\bkeychain\b|\bkeychain\b.*\banime\b/i.test(h)) return "Anime Lock Keychain with Jet Tag";
@@ -1333,6 +1367,56 @@ function buildStrictHumanSummary(titleText, signals, facts) {
   if (!h) return "";
   const size = firstFactValue(facts, ["Size or capacity", "Pack format"]);
   const sizeText = size ? ` The listed format is ${polishListingValue(size)}.` : "";
+  if (/\b(?:busy[- ]board|busy[- ]book)\b/i.test(h)) {
+    return "This Montessori busy board gives toddlers hands-on practice with fine-motor and everyday life-skill activities. Check the board size, included activities, and supervision guidance before ordering.";
+  }
+  if (/\bwooden train\b/i.test(h)) {
+    return "This wooden Montessori train toy combines a rolling train format with simple early-learning play for babies or young children. Check the piece size, finish, and supervision guidance before ordering.";
+  }
+  if (/\bmontessori\b/i.test(h) && /\b(?:wooden|educational|sensory|learning)\b/i.test(h) && !/\b(?:teether|teething|beads?|jewelry|pacifier\s+chain)\b/i.test(h)) {
+    return "This Montessori learning toy supports hands-on play around the educational, sensory, or color-and-shape activity listed for the product. Check the piece size, materials, and supervision guidance before ordering.";
+  }
+  if (/\b(?:pet|dog|cat)\b/i.test(h) && /\b(?:toy|ball|chew|fetch)\b/i.test(h)) {
+    return "This pet toy gives dogs or cats a ball-format option for supervised fetch, chewing, or boredom-relief play. Check the size, material, inflation, and your pet's play style before ordering.";
+  }
+  if (/\b(?:pet|dog|cat)\b/i.test(h) && /\b(?:grooming|brush|comb|bath|shedding)\b/i.test(h)) {
+    return "This pet grooming brush or comb helps lift loose hair while adding a soothing massage step for dogs or cats. Check the handle, bristle feel, and size before ordering.";
+  }
+  if (/\b(?:silicone\s+beads?|beads?|spacer\s+beads?)\b/i.test(h) && /\b(?:jewelry\s+making|diy|pacifier\s+chain|pen\s+set)\b/i.test(h)) {
+    return "These silicone beads are sized for DIY jewelry, pacifier-chain, or craft projects, with the selected color and quantity options. Check the bead diameter, hole size, and pack count before ordering.";
+  }
+  if (/\b(?:pet|dog|cat|puppy|kitten)\b/i.test(h) && /\b(?:collar|leash|lead|necklace)\b/i.test(h)) {
+    const material = /\b(?:pu\s+leather|leather|stainless steel|metal)\b/i.test(h) ? (h.match(/\b(?:pu\s+leather|leather|stainless steel|metal)\b/i)?.[0] || "") : "";
+    return `This ${material ? `${material} ` : ""}pet collar and lead keeps a dog or cat ready for supervised walks, with the padded, adjustable, or custom details listed for the style. Check the neck size, clasp, and lead length before ordering.`.replace(/\s+/g, " ");
+  }
+  const jewelryEvidence = /\b(?:jewelry|jewellery|necklace|earrings?|bracelet|bangle|ring|brooch)\b/i.test(h)
+    && !/\b(?:pet|dog|cat|grooming|brush|comb|shedding)\b/i.test(h);
+  if (jewelryEvidence) {
+    const hasNecklace = /\bnecklace\b/i.test(h);
+    const hasEarrings = /\bearrings?\b/i.test(h);
+    const hasBracelet = /\b(?:bracelets?|bangles?)\b/i.test(h);
+    const hasRing = /\bring\b/i.test(h);
+    const material = h.match(/\b(?:stainless steel|gold[- ]?plated|gold|silver|copper|metal|leather|pearl|zircon|crystal|amethyst)\b/i)?.[0] || "";
+    const style = h.match(/\b(?:wire|chain|cross|round|statement|punk|skeleton|starfish|flower|floral|geometric|cuff|bead|dangle|drop|hoop|stud|charm|pendant|bohemian|engraved|retro)\b/i)?.[0] || "";
+    const detail = [material, style].filter(Boolean).join(" ").toLowerCase();
+    if (hasNecklace && hasEarrings && hasBracelet) return "This coordinated jewelry set brings together a necklace, earrings, and bracelet for everyday or occasion styling. Check the piece count, fastening, and finish before ordering.";
+    if (hasNecklace && hasBracelet && hasRing) return `This ${detail ? `${detail} ` : ""}jewelry set pairs a necklace, bracelet, and ring for coordinated everyday or occasion styling. Check the chain length, ring size, fastening, and finish before ordering.`.replace(/\s+/g, " ");
+    if (hasNecklace && hasEarrings) return `This ${detail ? `${detail} ` : ""}jewelry set pairs a necklace with coordinated earrings for everyday or occasion styling. Check the chain length, fastening, and finish before ordering.`.replace(/\s+/g, " ");
+    if (hasNecklace && hasBracelet) return `This ${detail ? `${detail} ` : ""}jewelry set pairs a necklace with a bracelet for coordinated everyday or occasion styling. Check the chain length, fastening, and finish before ordering.`.replace(/\s+/g, " ");
+    if (hasNecklace && hasRing) return `This ${detail ? `${detail} ` : ""}jewelry set pairs a necklace with a ring for coordinated everyday or occasion styling. Check the chain length, ring size, and finish before ordering.`.replace(/\s+/g, " ");
+    if (hasNecklace) return `This ${detail ? `${detail} ` : "decorative "}necklace adds the listed pendant, chain, or motif to everyday or occasion styling. Check the chain length, fastening, and finish before ordering.`.replace(/\s+/g, " ");
+    if (hasEarrings) return `These ${detail ? `${detail} ` : "decorative "}earrings add a considered detail to an outfit. Check the pair or set format, fastening, size, and finish before ordering.`.replace(/\s+/g, " ");
+    if (hasBracelet) return `This ${detail ? `${detail} ` : "decorative "}bracelet adds a wearable accent to everyday or occasion styling. Check the fit, fastening, and finish before ordering.`.replace(/\s+/g, " ");
+    if (hasRing) return `This ${detail ? `${detail} ` : "decorative "}ring adds a wearable accent to everyday or occasion styling. Check the ring size, material, and finish before ordering.`.replace(/\s+/g, " ");
+  }
+  if (/\b(?:teether|teething)\b/i.test(h) && !/\b(?:pet|dog|cat|puppy|kitten|beads?|jewelry|pacifier\s+chain)\b/i.test(h)) {
+    return "This silicone baby teether gives a toddler a soft, easy-to-hold sensory toy for supervised teething play. Check the size, material, and cleaning instructions before ordering.";
+  }
+  if (/\bhair\s+(?:claw|clip)|\bbarrette\b/i.test(h)) {
+    const material = /\b(?:metal|stainless steel)\b/i.test(h) ? "metal " : "";
+    const design = /\b(?:flower|floral)\b/i.test(h) ? "floral " : "";
+    return `This ${design}${material}hair claw clip secures sections of hair with the selected shape, finish, and size options. Check the clip dimensions and fastening before ordering.`;
+  }
   if (/\btrue wireless earbuds?\b/i.test(h) && /\b(?:noise reduction|touch control|power display|waterproof|microphone|mic)\b/i.test(h)) {
     return "These true-wireless Bluetooth earbuds combine touch control, a built-in microphone, a charging display, and the listed water-resistant design for calls and everyday listening. Check the ear fit, charging case, and phone compatibility before ordering.";
   }
@@ -1719,7 +1803,11 @@ function buildStrictHumanSummary(titleText, signals, facts) {
   if (/\b(?:thermos|tumbler|water bottle)\b/i.test(h)) return `This insulated drink bottle keeps a hot or cold drink in the listed capacity and straw or handle format. Check the lid seal, opening, and cleaning instructions before use.${sizeText}`;
   if (/\b(?:button down shirts?|button-down shirts?)\b/i.test(h) && /\bshirts?\b/i.test(h)) return `This button-down shirt combines the ${/linen/i.test(h) ? "lightweight linen-blend" : /cotton/i.test(h) ? "cotton" : "casual"} fabric and sleeve cut for everyday or beach wear. Check the size, buttons, and care instructions before ordering.`;
   if (/\bdress\b/i.test(h) && /\b(?:lace up|printed|chinese style)\b/i.test(h)) return "This printed dress combines a lace-up detail with a long-sleeve silhouette for casual or occasion wear. Check the size, fabric, and care instructions before ordering.";
-  if (/\b(?:pajamas?|pijamas?|sleepwear)\b/i.test(h)) return `This ${/pikachu|pokemon/i.test(h) ? "Pikachu " : "kids' "}pajama set combines a soft sleeping outfit with the long-sleeve, age, or character details listed for the style. Check the size and care instructions before ordering.`;
+  if (/\b(?:pajamas?|pijamas?|sleepwear)\b/i.test(h)) {
+    if (/\b(?:pet|dog|cat|puppy|kitten)\b/i.test(h)) return "This pet pajama outfit adds a soft, easy-to-wear layer for small dogs or cats. Check the selected size, fabric, closures, and care instructions before ordering.";
+    if (/\b(?:pants?|trousers?)\b/i.test(h) && !/\b(?:baby|toddler|kids?|children|boys?|girls?)\b/i.test(h)) return "These women's lounge pants use a relaxed, wide-leg cut for casual home or warm-weather wear. Check the selected size, waist, fabric, and care instructions before ordering.";
+    return `This ${/pikachu|pokemon/i.test(h) ? "Pikachu " : "kids' "}pajama set combines a soft sleeping outfit with the long-sleeve, age, or character details listed for the style. Check the size and care instructions before ordering.`;
+  }
   if (/\bvest\b/i.test(h) && /\b(?:t shirt|tee|sports|fitness)\b/i.test(h)) return "This cotton sleeveless sports t-shirt works as a lightweight casual or fitness layer, with the pack and size options listed for the style. Check the fit and care instructions before ordering.";
   if (/\b(?:beauty and the beast|movie jewelry)\b/i.test(h) && /\bnecklace\b/i.test(h)) return "This Beauty and the Beast pendant necklace adds a storybook charm to a gift or occasion outfit. Check the chain length, pendant finish, and fastening before ordering.";
   if (/\banime\b.*\bkeychain\b|\bkeychain\b.*\banime\b/i.test(h)) return "This anime lock keychain adds a Jet character tag to keys, bags, or a car accessory set. Check the clasp, tag size, and finish before ordering.";
@@ -1728,7 +1816,10 @@ function buildStrictHumanSummary(titleText, signals, facts) {
   if (/\byoshimura\b/i.test(h) && /\b(?:t shirt|tee)\b/i.test(h)) return "This Yoshimura cotton t-shirt brings the named motorsport brand graphic to a casual wardrobe. Check the selected size, fabric, and care instructions before ordering.";
   if (/\b(?:bangle|bracelet)\b/i.test(h)) {
     const audience = /\b(?:women|womens|woman|female|ladies|men|mens|man|male|unisex)\b/i.test(h) ? " for men and women" : "";
-    return `This ${/leather/i.test(h) ? "leather " : /stainless steel|metal/i.test(h) ? "metal " : ""}bracelet adds a wearable accent${audience}, with a retro or casual finish. Check the fit and fastening before ordering.`;
+    const style = /\bbohemian\b/i.test(h) ? "bohemian " : "";
+    const material = /\bnatural stones?\b|\bsemi[- ]precious stone\b/i.test(h) ? "natural-stone " : /leather/i.test(h) ? "leather " : /stainless steel|metal/i.test(h) ? "metal " : "";
+    const charm = /\bcharm\b/i.test(h) ? " with a charm detail" : "";
+    return `This ${style}${material}bracelet${charm} adds a wearable accent${audience}, with a retro or casual finish. Check the fit and fastening before ordering.`;
   }
   if (/\b(?:fan cat|cat and women).*\b(?:t shirt|tee)\b/i.test(h)) return "This cat graphic t-shirt brings its printed design to casual outfits for men and women. Check the selected size, fabric, and care instructions before ordering.";
   if (/\b(?:t[- ]?shirt|tee)\b/i.test(h)) {
@@ -1743,7 +1834,11 @@ function buildStrictHumanSummary(titleText, signals, facts) {
     const sleeve = /\bshort[- ]?sleeve\b/i.test(h) ? "short-sleeve " : /\blong[- ]?sleeve\b/i.test(h) ? "long-sleeve " : "";
     return `This ${audience}${design}${material}${sleeve}T-shirt brings the listed cut and design to casual everyday wear. Check the selected size, fabric, and care instructions before ordering.`.replace(/\s+/g, " ");
   }
-  if (/\b(?:pajamas?|pijamas?|sleepwear)\b/i.test(h)) return `This ${/pikachu|pokemon/i.test(h) ? "Pikachu " : "kids' "}pajama set combines a soft sleeping outfit with the long-sleeve, age, or character details listed for the style. Check the size and care instructions before ordering.`;
+  if (/\b(?:pajamas?|pijamas?|sleepwear)\b/i.test(h)) {
+    if (/\b(?:pet|dog|cat|puppy|kitten)\b/i.test(h)) return "This pet pajama outfit adds a soft, easy-to-wear layer for small dogs or cats. Check the selected size, fabric, closures, and care instructions before ordering.";
+    if (/\b(?:pants?|trousers?)\b/i.test(h) && !/\b(?:baby|toddler|kids?|children|boys?|girls?)\b/i.test(h)) return "These women's lounge pants use a relaxed, wide-leg cut for casual home or warm-weather wear. Check the selected size, waist, fabric, and care instructions before ordering.";
+    return `This ${/pikachu|pokemon/i.test(h) ? "Pikachu " : "kids' "}pajama set combines a soft sleeping outfit with the long-sleeve, age, or character details listed for the style. Check the size and care instructions before ordering.`;
+  }
   if (/\bvest\b/i.test(h) && /\b(?:t shirt|tee|sports|fitness)\b/i.test(h)) return "This cotton sleeveless sports t-shirt works as a lightweight casual or fitness layer, with the pack and size options listed for the style. Check the fit and care instructions before ordering.";
   if (/\b(?:beauty and the beast|movie jewelry)\b/i.test(h) && /\bnecklace\b/i.test(h)) return "This Beauty and the Beast pendant necklace adds a storybook charm to a gift or occasion outfit. Check the chain length, pendant finish, and fastening before ordering.";
   if (/\b(?:bangle|bracelet)\b/i.test(h)) return `This ${/leather/i.test(h) ? "leather " : /stainless steel|metal/i.test(h) ? "metal " : ""}bracelet adds a simple wearable accent for men and women, with a retro or casual finish. Check the fit and fastening before ordering.`;
@@ -1813,7 +1908,7 @@ export function buildHandleAlignedTitle(signals) {
   if (/painting-board|projector-art|kids-painting/i.test(handle)) {
     return "LED Projector Painting Board for Kids";
   }
-  if (/disposable-bed-sheets?|bed-sheets?/i.test(handle)) {
+  if (/(?:disposable-bed-sheets?|salon-table|massage-table)/i.test(handle)) {
     const size = handle.match(/(?:^|-)(\d+)-(\d+)(?:cm|cm-)/i);
     return `${size ? `${size[1]}-${size[2]}cm ` : ""}Disposable Bed Sheet Set for Salon Tables`;
   }
@@ -1924,8 +2019,14 @@ export function buildHandleAlignedTitle(signals) {
         : "";
     return `${audience}Casual Blouse`;
   }
-  if (/(?:shirt|t-shirt|tee)/i.test(handle)) {
-    return /t-shirt|tee/i.test(handle) ? "Casual Graphic T-Shirt" : "Casual Button-Down Shirt";
+  // Match garment tokens, not substrings inside material words such as
+  // "stainless-steel" (which contains the letters "tee"). A substring
+  // match here previously reclassified rings, tools, and other steel items
+  // as graphic T-shirts.
+  if (/\b(?:shirts?|t[- ]?shirts?|tees?)\b/i.test(handle)) {
+    return /\b(?:t[- ]?shirts?|tees?)\b/i.test(handle)
+      ? "Casual Graphic T-Shirt"
+      : "Casual Button-Down Shirt";
   }
   if (/dress/i.test(handle)) {
     const audience = /(?:women|womens|woman|female|ladies)/i.test(handle)
@@ -2795,6 +2896,12 @@ function polishListingValue(value) {
     .replace(/\busb\b/gi, "USB");
 }
 
+function isSupplierOriginOption(value) {
+  const normalized = normalizePlainText(value).toLowerCase();
+  return /^(?:china|mainland china|china mainland|cn(?:\s*\(\s*origin\s*\))?|origin|made in china)$/i.test(normalized)
+    || /\b(?:mainland\s+china|china\s+mainland|made\s+in\s+china|cn\s*\(\s*origin\s*\))\b/i.test(normalized);
+}
+
 function humanProductType(signals, titleText, knowledge) {
   const strictType = strictProductTypeForSignals(signals);
   if (strictType) return strictType;
@@ -2849,7 +2956,7 @@ function humanProductType(signals, titleText, knowledge) {
     [/(?:storage rack|storage cabinet|cosmetic organizer|desk organizer|desktop storage)/i, "storage organizer"],
     [/(?:table game|puzzle game|electronic game|montessori).*?(?:toy|game)|(?:toy|game).*?(?:table game|puzzle game|electronic game|montessori)/i, "electronic puzzle toy"],
     [/(?:painting board|projector art|kids painting)/i, "children's painting board"],
-    [/(?:disposable bed sheets?|bed sheets?)/i, "disposable bed sheets"],
+    [/(?:disposable bed sheets?|salon table.*(?:sheet|bed)|massage table.*(?:sheet|bed))/i, "disposable bed sheets"],
     [/(?:bottle opener|corkscrew)/i, "bottle opener and corkscrew"],
     [/(?:cable organizer|wire organizer|cord management|cable bag|cable tie|cable routing)/i, "cable organizer"],
     [/(?:diamond painting|rhinestone painting|mosaic painting|diamond mosaic)/i, "diamond painting kit"],
@@ -3174,7 +3281,7 @@ function buildHumanProductSummary(titleText, signals, knowledge, facts) {
   if (/(?:painting-board|projector-art|kids-painting)/i.test(signals.handle || "")) {
     return "This LED projector painting board gives children a guided surface for drawing and tracing, with the included light and art accessories to check before ordering.";
   }
-  if (/(?:disposable-bed-sheets?|bed-sheets?)/i.test(signals.handle || "")) {
+  if (/(?:disposable-bed-sheets?|salon-table|massage-table)/i.test(signals.handle || "")) {
     return "This disposable non-woven bed-sheet set provides a clean cover for salon tables or temporary travel use. Check the sheet dimensions, pack count, and fit before ordering.";
   }
   if (/(?:bottle-opener|corkscrew)/i.test(signals.handle || "")) {
@@ -3895,7 +4002,11 @@ function extractSupportedProductFacts(signals) {
     value &&
     !/^default title$/i.test(value) &&
     !/^(?:set|option|style)$/i.test(value) &&
-    !/\b(?:buy\s*\d+|get\s*\d+)\b/i.test(value),
+    !/^[a-z]$/i.test(value) &&
+    !/^[a-z]{1,3}[:#_-]?\d{2,}$/i.test(value) &&
+    !/[:#]\d{2,}/i.test(value) &&
+    !/\b(?:buy\s*\d+|get\s*\d+)\b/i.test(value) &&
+    !isSupplierOriginOption(value),
   );
   add("Available options", optionValues);
   const labeledFacts = extractLabeledSpecificationFacts(getRawSpecificationSource(signals));
@@ -4783,6 +4894,76 @@ function selectCanonicalTitle(signals) {
   return selectBestTitleCandidate(candidates, signals, signals.sourceTitle);
 }
 
+// A family rule may be useful for a genuinely matching handle but still be
+// unsafe when a supplier title contains an adjacent word. Keep generated
+// copy tied to the product evidence before allowing it to replace the source
+// identity. This catches regressions such as a stainless-steel ring becoming
+// a T-shirt or a silicone teether becoming a puzzle game.
+function isCustomerTitleSupported(title, signals) {
+  const candidate = normalizePlainText(title);
+  const evidence = normalizePlainText([
+    signals?.handle,
+    signals?.sourceTitle,
+    signals?.catalogTitle,
+    signals?.sourceProductType,
+    signals?.catalogProductType,
+  ].filter(Boolean).join(" "))
+    .toLowerCase()
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (!candidate || !evidence) return Boolean(candidate);
+
+  const rules = [
+    { title: /\b(?:t[- ]?shirts?|tees?)\b/i, evidence: /\b(?:t[- ]?shirts?|tees?)\b/i },
+    { title: /\bbutton[- ]down\b/i, evidence: /\bbutton[- ]down\b/i },
+    { title: /\btrench\b/i, evidence: /\btrench\b/i },
+    { title: /\bdress\b/i, evidence: /\bdress\b/i },
+    { title: /\bblouse\b/i, evidence: /\bblouse\b/i },
+    { title: /\bjacket\b/i, evidence: /\bjacket\b/i },
+    { title: /\bcoat\b/i, evidence: /\bcoat\b/i },
+    { title: /\bjeans?\b/i, evidence: /\bjeans?\b/i },
+    { title: /\bpants?\b/i, evidence: /\bpants?\b/i },
+    { title: /\bskirt\b/i, evidence: /\bskirt\b/i },
+    { title: /\bhoodie\b/i, evidence: /\bhoodie\b/i },
+    { title: /\bring\b/i, evidence: /\bring\b/i },
+    { title: /\bbracelet\b/i, evidence: /\bbracelet\b/i },
+    { title: /\bnecklace\b/i, evidence: /\bnecklace\b/i },
+    { title: /\bearrings?\b/i, evidence: /\bearrings?\b/i },
+    { title: /\bbrooch\b/i, evidence: /\bbrooch\b/i },
+    { title: /\b(?:pendant|charm)\b/i, evidence: /\b(?:pendant|charm)\b/i },
+    { title: /\b(?:puzzle|game)\b/i, evidence: /\b(?:puzzle|game)\b/i },
+    { title: /\b(?:hair\s+claw|hair\s+clip)\b/i, evidence: /\bhair\s+(?:claw|clip)|\bbarrette\b/i },
+    { title: /\b(?:furry|plush)\b/i, evidence: /\b(?:furry|plush)\b/i },
+    { title: /\bflower\b/i, evidence: /\b(?:flower|floral)\b/i },
+    { title: /\bbridal\b/i, evidence: /\b(?:bridal|bride|wedding)\b/i },
+    { title: /\b(?:backpack|rucksack|daypack)\b/i, evidence: /\b(?:backpack|rucksack|daypack)\b/i },
+    { title: /\b(?:squeegee|mattress|tumbler|thermos|water bottle)\b/i, evidence: /\b(?:squeegee|mattress|tumbler|thermos|water bottle)\b/i },
+    { title: /\b(?:cable|adapter|converter|charger)\b/i, evidence: /\b(?:cable|adapter|converter|charger)\b/i },
+    { title: /\b(?:mascara|lipstick|lip gloss|foundation|eyeliner|serum|shampoo|conditioner)\b/i, evidence: /\b(?:mascara|lipstick|lip gloss|foundation|eyeliner|serum|shampoo|conditioner)\b/i },
+    { title: /\b(?:dog|cat|pet)\b/i, evidence: /\b(?:dog|cat|pet)\b/i },
+    { title: /\b(?:watch|smart watch)\b/i, evidence: /\b(?:watch|smart watch)\b/i },
+    { title: /\b(?:phone|iphone|ipad)\b.*\b(?:case|cover|holder|stand)\b|\b(?:case|cover|holder|stand)\b.*\b(?:phone|iphone|ipad)\b/i, evidence: /\b(?:phone|iphone|ipad)\b.*\b(?:case|cover|holder|stand)\b|\b(?:case|cover|holder|stand)\b.*\b(?:phone|iphone|ipad)\b/i },
+  ];
+
+  if (/\bwomen'?s\b|\bfor women\b/i.test(candidate) && !/\b(?:women|womens|woman|female|ladies|girls?)\b/i.test(evidence)) return false;
+  if (/\bmen'?s\b|\bfor men\b/i.test(candidate) && !/\b(?:men|mens|man|male|boys?)\b/i.test(evidence)) return false;
+  return rules.every((rule) => !rule.title.test(candidate) || rule.evidence.test(evidence));
+}
+
+function buildSourceFaithfulTitle(signals) {
+  const raw = firstNonEmpty(signals?.sourceTitle, signals?.catalogTitle, signals?.handlePhrase);
+  if (!raw) return "";
+  const cleaned = sanitizeMarketplaceClaims(normalizePlainText(raw))
+    .replace(/\b(?:mainland\s+china|made\s+in\s+china|cn\s*origin|china)\b/gi, " ")
+    .replace(/\b(?:new|latest|high\s+quality|best\s+selling|wholesale|factory\s+direct|free\s+shipping)\b/gi, " ")
+    .replace(/\b([a-z0-9][a-z0-9'/-]*)(?:\s+\1\b)+/gi, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+  const title = enforceMarketplaceTitle(cleaned, 68);
+  return title.length >= 12 ? title : enforceMarketplaceTitle(buildSafeHandleTitle(signals), 68);
+}
+
 function buildCanonicalAltText(signals, canonicalTitle) {
   const titleText = normalizePlainText(canonicalTitle || signals.sourceTitle || signals.catalogTitle);
   if (!titleText) {
@@ -4819,8 +5000,8 @@ function buildProductProfile(signals) {
       : confidence >= 70
         ? "high"
         : confidence >= 45
-          ? "medium"
-          : "low";
+        ? "medium"
+        : "low";
   const selectedTitle = normalizePlainText(selectCanonicalTitle(signals).candidate || signals.sourceTitle || signals.catalogTitle);
   const directHandleTitle = buildHandleAlignedTitle(signals);
   const directHandleTitleCandidate = directHandleTitle
@@ -4829,13 +5010,21 @@ function buildProductProfile(signals) {
       : titleCase(directHandleTitle)
     : "";
   const safeHandleTitle = buildSafeHandleTitle(signals);
+  const sourceFaithfulTitle = buildSourceFaithfulTitle(signals);
+  const directTitleSupported = isCustomerTitleSupported(directHandleTitleCandidate, signals);
+  const selectedTitleSupported = isCustomerTitleSupported(selectedTitle, signals);
   const selectedTitleIsWeak =
     selectedTitle.length < 20 ||
     GENERIC_TITLE_PHRASES.some((pattern) => pattern.test(selectedTitle));
-  const titleCandidate = explicitTitle || directHandleTitleCandidate ||
-    ((selectedTitleIsWeak || !isTitleAlignedWithKnowledge(selectedTitle, knowledge)) && safeHandleTitle
-      ? safeHandleTitle
-      : selectedTitle || modelTypeText);
+  const titleCandidate = (explicitTitle && isCustomerTitleSupported(explicitTitle, signals))
+    || (directTitleSupported && directHandleTitleCandidate)
+    || ((!selectedTitleIsWeak && selectedTitleSupported && isTitleAlignedWithKnowledge(selectedTitle, knowledge))
+      ? selectedTitle
+      : "")
+    || (sourceFaithfulTitle && isCustomerTitleSupported(sourceFaithfulTitle, signals) ? sourceFaithfulTitle : "")
+    || safeHandleTitle
+    || selectedTitle
+    || modelTypeText;
   const guardedTitle = enforceMarketplaceTitle(
     normalizePlainText(titleCandidate),
     68,

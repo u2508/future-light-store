@@ -696,7 +696,7 @@ async function readJson(relativePath, { required = false } = {}) {
   }
 }
 
-async function loadProductSeoArtifact({ required = false } = {}) {
+async function loadProductSeoArtifact({ required = false, handles = null } = {}) {
   let payload;
   try {
     payload = JSON.parse(await readFile(productSeoArtifactPath, "utf8"));
@@ -707,7 +707,14 @@ async function loadProductSeoArtifact({ required = false } = {}) {
   if (!Array.isArray(payload?.products) || !payload.products.length) {
     throw new Error(`Product SEO artifact contains no products: ${productSeoArtifactPath}`);
   }
-  const audit = auditProductSeoRecords(payload.products);
+  const scopedProducts = handles
+    ? payload.products.filter((record) => handles.has(normalizeHandleValue(record?.handle)))
+    : payload.products;
+  // The checked-in artifact can legitimately lag a frozen new-product cohort.
+  // In that case the verified frozen catalog/knowledge plan is authoritative;
+  // do not let unrelated legacy artifact issues block the scoped release.
+  if (handles && scopedProducts.length === 0) return null;
+  const audit = auditProductSeoRecords(scopedProducts);
   if (audit.issues.length || audit.duplicateTitles || audit.duplicateDescriptions || audit.duplicateDescriptionHtml) {
     throw new Error(
       `Product SEO artifact failed its audit: ${audit.issues.length} issue(s), ` +
@@ -715,7 +722,7 @@ async function loadProductSeoArtifact({ required = false } = {}) {
       `${audit.duplicateDescriptionHtml} duplicate HTML description group(s).`,
     );
   }
-  return payload;
+  return handles ? { ...payload, products: scopedProducts, total: scopedProducts.length } : payload;
 }
 
 function explicitProductSeoTitle(title, requested, uniqueReference = "") {
@@ -1566,7 +1573,9 @@ function auditLiveSeoPlan(plan, manifest) {
       issues.push(`duplicate-${field}`);
     }
     if (body) {
-      if (!/<h2>About /i.test(body) || !/Key Details/i.test(body) || !/Use &amp; Care|Use & Care/i.test(body) || !/FAQs/i.test(body)) issues.push("invalid-description-structure");
+      const hasDetailsSection = /Key Details|At a glance/i.test(body);
+      const hasCareSection = /Use &amp; Care|Use & Care|Before you order/i.test(body);
+      if (!/<h2>About /i.test(body) || !hasDetailsSection || !hasCareSection || !/FAQs/i.test(body)) issues.push("invalid-description-structure");
       if ((body.match(/<h[23]>/gi) || []).length > 5) issues.push("cluttered-description-structure");
       const bodyAssessment = assessProductContentSpecificity(body, evidence, {
         field: "description-html",
@@ -2135,19 +2144,22 @@ export async function runShopifySeoRelease({
 } = {}) {
   const priorManifest = await readPriorManifest(output);
   const localSnapshot = await loadCatalogSnapshot();
-  const productSeoArtifact = await loadProductSeoArtifact({ required: fullCatalog });
   const snapshot = await loadFrozenCatalogSnapshot(frozenCatalog, localSnapshot);
   const knowledgeModel = await readCatalogKnowledgeModel({
     required: process.env.SALT_REQUIRE_KNOWLEDGE_MODEL === "1",
   });
   const explicitNewProductHandles = newProductsOnly ? await readProductHandles(productHandlesFile) : null;
+  const productSeoArtifact = await loadProductSeoArtifact({
+    required: fullCatalog,
+    handles: explicitNewProductHandles,
+  });
   const generatedLocalPlan = await buildShopifySeoReleasePlan(snapshot, {
     forceExplicitSeo: true,
     repairVariantPricing,
     knowledgeModel,
   });
   const localPlan = applyProductSeoArtifact(generatedLocalPlan, productSeoArtifact, {
-    requireComplete: Boolean(productSeoArtifact),
+    requireComplete: Boolean(productSeoArtifact && !newProductsOnly),
   });
   const selectedProducts = explicitNewProductHandles
     ? localPlan.products.filter((product) => explicitNewProductHandles.has(product.handle))

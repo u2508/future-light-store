@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
@@ -6,6 +7,8 @@ import { fetchSearchProducts } from "@/lib/shopify";
 import { searchProducts } from "@/lib/vs-search";
 import { ProductGridSkeleton } from "@/components/vs/ProductCard";
 import { ProgressiveProductGrid } from "@/components/vs/CatalogGridState";
+import { trackSearch } from "@/lib/marketingAnalytics";
+import { canonicalUrl } from "@/lib/seo";
 
 const searchSchema = z.object({ q: fallback(z.string(), "").default("") });
 
@@ -25,6 +28,7 @@ export const Route = createFileRoute("/search")({
       },
       { name: "robots", content: "noindex, follow" },
     ],
+    links: [{ rel: "canonical", href: canonicalUrl("/search") }],
   }),
   component: SearchPage,
 });
@@ -45,6 +49,10 @@ function SearchPage() {
   const results = normalizedQuery
     ? searchProducts(products, normalizedQuery).map((m) => m.product)
     : [];
+
+  useEffect(() => {
+    if (normalizedQuery && !isLoading) trackSearch(normalizedQuery, results.length);
+  }, [normalizedQuery, isLoading, results.length]);
 
   return (
     <div className="vs-wide-shell py-8">

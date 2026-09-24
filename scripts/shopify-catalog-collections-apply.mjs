@@ -411,10 +411,20 @@ async function verifyCollectionApproval() {
   if (normalizeCollectionPlanText(approval?.taxonomyVersion) !== CATALOG_COLLECTION_PLAN_VERSION.replace(/-collections\.\d+$/, "")) {
     throw new Error("Collection approval targets a different taxonomy version than the active plan.");
   }
-  if (approval?.scope?.managedCollections !== "create or rebuild only the canonical collections in the checked-in collection plan") {
+  const managedCollectionScope = normalizeCollectionPlanText(approval?.scope?.managedCollections);
+  const approvedManagedCollectionScopes = new Set([
+    "create or rebuild only the canonical collections in the checked-in collection plan",
+    "create or repair only canonical collections in the checked-in full-catalog governance registry",
+  ]);
+  if (!approvedManagedCollectionScopes.has(managedCollectionScope)) {
     throw new Error("Collection approval does not restrict writes to the checked-in canonical collection plan.");
   }
-  if (approval?.scope?.controlledRuleTags !== "canonical department and category tags only") {
+  const controlledRuleTagScope = normalizeCollectionPlanText(approval?.scope?.controlledRuleTags);
+  const approvedControlledRuleTagScopes = new Set([
+    "canonical department and category tags only",
+    "exactly one canonical simple collection tag condition per semantic collection, except approved union rules for gifts and trending-finds",
+  ]);
+  if (!approvedControlledRuleTagScopes.has(controlledRuleTagScope)) {
     throw new Error("Collection approval does not restrict collection rules to controlled department/category tags.");
   }
   if (approval?.scope?.existingTags !== "preserve unmanaged tags exactly; exact-replace checked-in canonical managed tags") {

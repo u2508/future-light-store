@@ -6,7 +6,7 @@ import { dirname, resolve } from "node:path";
 const rootDir = process.cwd();
 const distDir = resolve(rootDir, "dist");
 const publicDir = resolve(rootDir, "public");
-const siteUrl = String(process.env.VITE_SITE_URL || "https://vss-store.vercel.app")
+const siteUrl = String(process.env.VITE_SITE_URL || "https://future-light-store.vercel.app")
   .trim()
   .replace(/\/+$/, "");
 const productIndexPath = resolve(publicDir, "data", "products.json");
@@ -541,6 +541,7 @@ function collectionBody(collection) {
 
 function renderDocument(template, { path, title, description, body, structuredData, ogType = "website" }) {
   const canonical = canonicalUrl(path);
+  const staticHeadAttr = ' data-vs-static-head="true"';
   // Preserve the closing tag on Vite's external module script. Matching only
   // through the first `>` turns `<script ...></script>` into an unclosed
   // script, causing every following stylesheet link to be parsed as script
@@ -558,22 +559,22 @@ function renderDocument(template, { path, title, description, body, structuredDa
     })
     .filter((tag) => /rel=["'](?:stylesheet|modulepreload)["']|type=["']module["']/i.test(tag));
   const head = [
-    "<meta charset=\"UTF-8\" />",
-    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />",
-    "<meta name=\"google-site-verification\" content=\"T5OO6im9_fwXtSjarVqkZvx-JHYudcUe_B6jhJH-BeY\" />",
-    `<meta name="description" content="${escapeHtml(description)}" />`,
-    `<meta name="robots" content="index,follow,max-image-preview:large" />`,
-    `<link rel="canonical" href="${escapeHtml(canonical)}" />`,
-    `<meta property="og:title" content="${escapeHtml(title)}" />`,
-    `<meta property="og:description" content="${escapeHtml(description)}" />`,
-    `<meta property="og:type" content="${escapeHtml(ogType)}" />`,
-    `<meta property="og:url" content="${escapeHtml(canonical)}" />`,
-    `<meta property="og:site_name" content="VS Store" />`,
-    `<meta name="twitter:card" content="summary_large_image" />`,
-    `<title>${escapeHtml(title)}</title>`,
+    `<meta charset="UTF-8"${staticHeadAttr} />`,
+    `<meta name="viewport" content="width=device-width, initial-scale=1.0"${staticHeadAttr} />`,
+    `<meta name="google-site-verification" content="T5OO6im9_fwXtSjarVqkZvx-JHYudcUe_B6jhJH-BeY"${staticHeadAttr} />`,
+    `<meta name="description" content="${escapeHtml(description)}"${staticHeadAttr} />`,
+    `<meta name="robots" content="index,follow,max-image-preview:large"${staticHeadAttr} />`,
+    `<link rel="canonical" href="${escapeHtml(canonical)}"${staticHeadAttr} />`,
+    `<meta property="og:title" content="${escapeHtml(title)}"${staticHeadAttr} />`,
+    `<meta property="og:description" content="${escapeHtml(description)}"${staticHeadAttr} />`,
+    `<meta property="og:type" content="${escapeHtml(ogType)}"${staticHeadAttr} />`,
+    `<meta property="og:url" content="${escapeHtml(canonical)}"${staticHeadAttr} />`,
+    `<meta property="og:site_name" content="VS Store"${staticHeadAttr} />`,
+    `<meta name="twitter:card" content="summary_large_image"${staticHeadAttr} />`,
+    `<title${staticHeadAttr}>${escapeHtml(title)}</title>`,
     `<link rel="icon" href="/favicon.svg" type="image/svg+xml" />`,
     ...assetTags,
-    `<script type="application/ld+json">${escapeJson(structuredData)}</script>`,
+    `<script type="application/ld+json"${staticHeadAttr}>${escapeJson(structuredData)}</script>`,
   ].join("\n    ");
   return template
     .replace(/<head>[\s\S]*?<\/head>/i, `<head>\n    ${head}\n  </head>`)

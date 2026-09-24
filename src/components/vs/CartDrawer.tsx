@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { CART_OPEN_EVENT, useCartStore } from "@/stores/cartStore";
 import { formatMoney } from "@/lib/shopify";
+import { trackBeginCheckout } from "@/lib/marketingAnalytics";
 
 export function CartDrawer() {
   const [isOpen, setIsOpen] = useState(false);
@@ -35,6 +36,19 @@ export function CartDrawer() {
   const handleCheckout = () => {
     const checkoutUrl = getCheckoutUrl();
     if (checkoutUrl) {
+      trackBeginCheckout({
+        currency,
+        value: totalPrice,
+        items: items.map((item) => ({
+          item_id: item.product.node.handle || item.product.node.id,
+          item_name: item.product.node.title,
+          price: Number(item.price.amount),
+          quantity: item.quantity,
+          item_variant: item.variantTitle,
+          item_brand: item.product.node.vendor || undefined,
+          item_category: item.product.node.productType || undefined,
+        })),
+      });
       window.open(checkoutUrl, "_blank");
       setIsOpen(false);
     }

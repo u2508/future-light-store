@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { VsLogo } from "@/components/vs/VsLogo";
+import { SHOPIFY_POLICY_SLUGS } from "@/lib/policies";
 import { STORE_CONTACT } from "@/lib/store-contact";
 
 const COLUMNS = [
@@ -18,7 +19,11 @@ const COLUMNS = [
     links: [
       { label: "Home", to: "/" as const },
       { label: "About us", to: "/about" as const },
-      { label: "Contact us", to: "/policies/$slug" as const, params: { slug: "contact" } },
+      {
+        label: "Contact us",
+        to: "/policies/$slug" as const,
+        params: { slug: SHOPIFY_POLICY_SLUGS.contact },
+      },
       { label: "Track order", to: "/track-order" as const },
       { label: "Help centre", to: "/help" as const },
     ],
@@ -34,7 +39,7 @@ const COLUMNS = [
         params: { handle: "new-arrivals" },
       },
       {
-        label: "Best Sellers",
+        label: "Curated Picks",
         to: "/collections/$handle" as const,
         params: { handle: "best-sellers" },
       },
@@ -48,11 +53,31 @@ const COLUMNS = [
   {
     title: "Policies",
     links: [
-      { label: "Shipping", to: "/policies/$slug" as const, params: { slug: "shipping" } },
-      { label: "Returns", to: "/policies/$slug" as const, params: { slug: "returns" } },
-      { label: "Privacy", to: "/policies/$slug" as const, params: { slug: "privacy" } },
-      { label: "Terms", to: "/policies/$slug" as const, params: { slug: "terms" } },
-      { label: "Legal notice", to: "/policies/$slug" as const, params: { slug: "legal-notice" } },
+      {
+        label: "Shipping",
+        to: "/policies/$slug" as const,
+        params: { slug: SHOPIFY_POLICY_SLUGS.shipping },
+      },
+      {
+        label: "Returns",
+        to: "/policies/$slug" as const,
+        params: { slug: SHOPIFY_POLICY_SLUGS.returns },
+      },
+      {
+        label: "Privacy",
+        to: "/policies/$slug" as const,
+        params: { slug: SHOPIFY_POLICY_SLUGS.privacy },
+      },
+      {
+        label: "Terms",
+        to: "/policies/$slug" as const,
+        params: { slug: SHOPIFY_POLICY_SLUGS.terms },
+      },
+      {
+        label: "Legal notice",
+        to: "/policies/$slug" as const,
+        params: { slug: SHOPIFY_POLICY_SLUGS["legal-notice"] },
+      },
     ],
   },
 ];
@@ -156,12 +181,16 @@ export function Footer() {
             <p>© {new Date().getFullYear()} VS Store. All rights reserved.</p>
             <PaymentMethods />
             <div className="flex flex-wrap gap-x-5 gap-y-2 uppercase tracking-[0.18em]">
-              <Link to="/policies" className="transition-colors hover:text-background">
+              <Link
+                to="/policies/$slug"
+                params={{ slug: SHOPIFY_POLICY_SLUGS.shipping }}
+                className="transition-colors hover:text-background"
+              >
                 Policies
               </Link>
               <Link
                 to="/policies/$slug"
-                params={{ slug: "contact" }}
+                params={{ slug: SHOPIFY_POLICY_SLUGS.contact }}
                 className="transition-colors hover:text-background"
               >
                 Contact us

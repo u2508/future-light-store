@@ -89,6 +89,7 @@ export const ORDER_FIELDS = `
   id
   name
   email
+  customAttributes { key value }
   createdAt
   processedAt
   cancelledAt
@@ -128,6 +129,7 @@ export interface AdminOrder {
   id: string;
   name: string;
   email: string | null;
+  customAttributes: Array<{ key: string; value: string }>;
   createdAt: string;
   processedAt: string | null;
   cancelledAt: string | null;
@@ -178,11 +180,18 @@ export const num = (v: unknown) => {
 };
 
 export function orderRow(o: AdminOrder) {
+  const marketingAttribution = Object.fromEntries(
+    (o.customAttributes ?? [])
+      .filter((attribute) => attribute.key.startsWith("marketing_") && attribute.value)
+      .map((attribute) => [attribute.key.slice("marketing_".length), attribute.value]),
+  );
+
   return {
     id: o.id,
     order_number: o.name?.replace("#", "") ?? null,
     name: o.name,
     email: o.email,
+    marketing_attribution: marketingAttribution,
     currency: o.currentTotalPriceSet?.shopMoney?.currencyCode ?? "USD",
     processed_at: o.processedAt ?? o.createdAt,
     total_price: num(o.currentTotalPriceSet?.shopMoney?.amount),

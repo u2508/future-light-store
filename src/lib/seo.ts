@@ -1,6 +1,17 @@
-const DEFAULT_SITE_URL = "https://vss-store.vercel.app";
+const DEFAULT_SITE_URL = "https://future-light-store.vercel.app";
 
-export const SITE_URL = (import.meta.env?.VITE_SITE_URL || DEFAULT_SITE_URL)
+function resolveSiteUrl() {
+  if (typeof window !== "undefined") {
+    const runtimeWindow = window as Window & { Shopify?: { theme?: unknown } };
+    const hostname = window.location.hostname.toLowerCase();
+    const isShopifyTheme = hostname.endsWith(".myshopify.com") || Boolean(runtimeWindow.Shopify?.theme);
+    if (isShopifyTheme) return window.location.origin;
+  }
+
+  return import.meta.env?.VITE_SITE_URL || DEFAULT_SITE_URL;
+}
+
+export const SITE_URL = resolveSiteUrl()
   .trim()
   .replace(/\/+$/, "");
 export const GOOGLE_SITE_VERIFICATION =

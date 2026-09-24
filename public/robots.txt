@@ -42,4 +42,4 @@ Allow: /
 Disallow: /admin/
 Disallow: /auth
 
-Sitemap: https://vss-store.vercel.app/sitemap.xml
+Sitemap: https://future-light-store.vercel.app/sitemap.xml

@@ -338,6 +338,7 @@ function parseArgs(argv) {
     deterministicOnly: false,
     supervisedVision: false,
     reviewOnly: false,
+    productHandlesFile: "",
     reusePriorManifest: false,
     batchSize: defaultCatalogBatchSize,
   };
@@ -353,6 +354,11 @@ function parseArgs(argv) {
     else if (token === "--deterministic-only") args.deterministicOnly = true;
     else if (token === "--supervised-vision") args.supervisedVision = true;
     else if (token === "--review-only") args.reviewOnly = true;
+    else if (token === "--product-handles-file") {
+      if (!next) throw new Error("Missing value for --product-handles-file");
+      args.productHandlesFile = resolve(rootDir, next);
+      index += 1;
+    }
     else if (token === "--reuse-prior-manifest") args.reusePriorManifest = true;
     else if (token === "--batch-size") {
       const batchSize = Number(next);
@@ -1882,13 +1888,25 @@ async function run(args) {
   assertCompleteCollectionGovernance(collections);
   const localByHandle = localProductByHandle(catalog);
   const products = liveProducts.map((liveProduct) => mergeProduct(localByHandle.get(normalizeCollectionHandle(liveProduct.handle)) || {}, liveProduct));
-  const reviewHandles = new Set(
+  let reviewHandles = new Set(
     priorSnapshot
       ? [...priorSnapshot.byHandle.entries()]
         .filter(([, entry]) => entry.classification?.source === "review")
         .map(([handle]) => handle)
       : [],
   );
+  if (args.reviewOnly && args.productHandlesFile) {
+    const scopedHandles = new Set(
+      (await readJson(args.productHandlesFile, []))
+        .filter((handle) => typeof handle === "string")
+        .map((handle) => normalizeCollectionHandle(handle))
+        .filter(Boolean),
+    );
+    reviewHandles = new Set([...reviewHandles].filter((handle) => scopedHandles.has(handle)));
+    process.stdout.write(
+      `Review-only retry scope: ${reviewHandles.size} prior fallback product(s) from ${args.productHandlesFile}.\n`,
+    );
+  }
   if (args.reviewOnly && !reviewHandles.size) {
     throw new Error("--review-only requires a completed prior manifest with review-held products.");
   }
@@ -1952,7 +1970,25 @@ async function run(args) {
         : priorSnapshot?.byHandle.get(normalizeCollectionHandle(product.handle));
       if (args.reviewOnly && !reviewHandles.has(handle)) {
         if (!prior?.tagTask || !prior.classification?.ruleId) {
-          throw new Error(`Review-only retry cannot preserve ${product.handle}: prior classification is missing.`);
+          // A scoped retry must remain a true no-op for every product outside
+          // the requested handle file. If an older checkpoint predates a
+          // live product, preserve its current tags and keep its deterministic
+          // taxonomy only as manifest metadata; do not synthesize collection
+          // tags or reopen visual classification for it.
+          const preservedTaxonomy = classifyCatalogTaxonomyWithoutOverrides(product);
+          resolvedProducts[index] = {
+            knowledge: null,
+            source: "preserved-live",
+            priorClassification: {
+              ...preservedTaxonomy,
+              ruleId: preservedTaxonomy?.ruleId || "unclassified",
+              collectionHandles: [],
+            },
+            priorManagedTags: uniqueTags(asArray(product.tags)),
+            priorCollectionTags: [],
+            reused: true,
+          };
+          continue;
         }
         resolvedProducts[index] = {
           knowledge: null,
@@ -2099,6 +2135,7 @@ async function run(args) {
 
   for (const [index, product] of products.entries()) {
     const resolved = resolvedProducts[index];
+    const handle = normalizeCollectionHandle(product.handle);
     const dynamicHandles = dynamicAssignments.get(normalizeCollectionHandle(product.handle)) || new Set();
     const merchandisingHandles = new Set(["new-arrivals", "best-sellers"]);
     const recomputedCollectionTags = resolved.knowledge
@@ -2120,7 +2157,10 @@ async function run(args) {
     // them into a reused prior plan so a stale checkpoint cannot erase the
     // latest 500 or the current top-250 bestseller cohort.
     const refreshedDynamicTags = uniqueTags([...dynamicHandles]
-      .filter((handle) => merchandisingHandles.has(normalizeCollectionHandle(handle)))
+      // A handle-scoped review retry must not recalculate global merchandising
+      // cohorts for products outside the requested new-product scope.
+      .filter(() => !(args.reviewOnly && args.productHandlesFile && !reviewHandles.has(handle)))
+      .filter((dynamicHandle) => merchandisingHandles.has(normalizeCollectionHandle(dynamicHandle)))
       .map((handle) => collectionTagForHandle(handle)));
     const collectionTags = uniqueTags([
       ...priorOrResolvedCollectionTags,

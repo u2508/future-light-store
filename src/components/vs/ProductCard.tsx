@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Heart, Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -98,7 +97,7 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
         className="group relative flex flex-col overflow-hidden vs-card hover:-translate-y-0.5 hover:shadow-[var(--shadow-lift)]"
       >
         <div className="relative aspect-square overflow-hidden bg-secondary">
-          <Link to="/products/$handle" params={{ handle: n.handle }} aria-label={n.title}>
+          <a href={`/products/${n.handle}`} aria-label={n.title}>
             {image ? (
               <img
                 src={imageDelivery?.src ?? image.url}
@@ -117,7 +116,7 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
                 No image
               </div>
             )}
-          </Link>
+          </a>
 
           <button
             onClick={() => {
@@ -159,13 +158,12 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
         </div>
 
         <div className="flex flex-1 flex-col gap-2 p-3">
-          <Link
-            to="/products/$handle"
-            params={{ handle: n.handle }}
+          <a
+            href={`/products/${n.handle}`}
             className="line-clamp-2 text-[13px] font-medium leading-5 hover:text-primary"
           >
             {n.title}
-          </Link>
+          </a>
           <div className="mt-auto flex items-end justify-between gap-2">
             <div>
               <p className="font-display text-[17px] font-bold">
@@ -191,13 +189,12 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
             </button>
           </div>
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            <Link
-              to="/products/$handle"
-              params={{ handle: n.handle }}
+            <a
+              href={`/products/${n.handle}`}
               className="ml-auto inline-flex items-center gap-1 font-semibold text-primary transition-colors hover:text-foreground"
             >
               View details <ArrowUpRight className="h-2.5 w-2.5" aria-hidden="true" />
-            </Link>
+            </a>
           </div>
         </div>
       </article>

@@ -23,6 +23,230 @@ const themeBrandName = (process.env.SALT_THEME_BRAND_NAME || "Future Light Store
 const judgemePublicToken = (process.env.SALT_JUDGEME_PUBLIC_TOKEN || "").trim();
 const legacyBrandLogoPath = resolve(publicDir, "brand", "salt-logo.png");
 
+const judgemePdpTabsLiquid = `<script>
+  (function () {
+    if (window.__vsStoreProductNavigationGuard) return;
+    window.__vsStoreProductNavigationGuard = true;
+    var productPath = new RegExp("^/(?:[a-z]{2}(?:-[a-z]{2})?/)?products/[^/]+/?$", "i");
+    ["pushState", "replaceState"].forEach(function (method) {
+      var original = window.history[method];
+      window.history[method] = function () {
+        var targetUrl = arguments[2];
+        if (targetUrl !== undefined && targetUrl !== null) {
+          try {
+            var target = new URL(targetUrl, window.location.href);
+            if (target.pathname !== window.location.pathname &&
+                (productPath.test(window.location.pathname) || productPath.test(target.pathname))) {
+              window.location.assign(target.href);
+              return;
+            }
+          } catch (_error) {
+            // Preserve ordinary navigation for non-URL history values.
+          }
+        }
+        return original.apply(this, arguments);
+      };
+    });
+  })();
+</script>
+{% if request.page_type == 'product' and product %}
+<style>
+  #vs-judgeme-widget-staging {
+    position: absolute !important;
+    left: -10000px !important;
+    top: 0 !important;
+    width: min(100%, 1200px) !important;
+    max-width: 1200px !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+  .vs-pdp-info-tabs { min-width: 0; }
+  .vs-pdp-info-tablist {
+    display: flex;
+    gap: 1.5rem;
+    border-bottom: 1px solid #dbe2ec;
+  }
+  .vs-pdp-info-tab {
+    min-height: 3rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    padding: .75rem .1rem;
+    background: transparent;
+    color: #667085;
+    font: inherit;
+    font-size: .875rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .vs-pdp-info-tab[aria-selected="true"] { border-bottom-color: #1749b8; color: #111827; }
+  .vs-pdp-info-tab:hover { color: #111827; }
+  .vs-pdp-info-tab:focus-visible { outline: 2px solid #1749b8; outline-offset: 3px; border-radius: .25rem; }
+  .vs-pdp-info-panel { min-width: 0; padding-top: 1.25rem; }
+  #vs-pdp-details-panel[hidden], .vs-pdp-info-panel[hidden] { display: none !important; }
+</style>
+<div id="vs-judgeme-widget-staging" aria-hidden="true" inert>
+  <!-- Start of Judge.me code -->
+  {% assign has_legacy = false %}
+  {% if product.metafields.judgeme.widget.size > 20 %}{% assign has_legacy = true %}{% endif %}
+  <div style="clear:both"></div>
+  <div id="judgeme_product_reviews" class="jdgm-widget jdgm-review-widget" data-product-title="{{ product.title | escape }}" data-id="{{ product.id }}" data-product-id="{{ product.id }}" data-widget="review" data-auto-install="false" data-shop-reviews-count="{{ shop.metafields.judgeme.shop_reviews_count | default: 0 | escape }}" data-entry-point="review_widget.js" data-entry-key="review-widget/main.js">
+    {% if has_legacy %}<div class="jdgm-legacy-widget-content" style="display:none">{{ product.metafields.judgeme.widget }}</div>{% endif %}
+  </div>
+  {% if product.metafields.judgeme.review_widget_data %}
+    <script>
+      window.jdgm = window.jdgm || {};
+      window.jdgm.data = window.jdgm.data || {};
+      window.jdgm.data.reviewWidget = window.jdgm.data.reviewWidget || {};
+      window.jdgm.data.reviewWidget[{{ product.id }}] = {{ product.metafields.judgeme.review_widget_data }}
+    </script>
+  {% endif %}
+  <!-- End of Judge.me code -->
+</div>
+<script>
+  (function () {
+    var root = document.getElementById("root");
+    if (!root) return;
+
+    function installReviewTabs() {
+      if (root.querySelector("#vs-pdp-info-tabs")) return true;
+      var description = root.querySelector('[aria-label="Product description"]');
+      var addButton = Array.prototype.slice.call(root.querySelectorAll("button")).find(function (button) {
+        return /^(Add to cart|Sold out)$/.test((button.textContent || "").trim());
+      });
+      var actionRow = addButton && addButton.parentElement;
+      var productColumn = description
+        ? description.parentElement
+        : actionRow && actionRow.parentElement;
+      if (!productColumn) return false;
+
+      var before = description || (actionRow && actionRow.nextElementSibling);
+      if (before && before.parentElement !== productColumn) before = null;
+
+      var tabs = document.createElement("div");
+      tabs.id = "vs-pdp-info-tabs";
+      tabs.className = "vs-pdp-info-tabs";
+      tabs.setAttribute("aria-label", "Product information and reviews");
+      var tabList = document.createElement("div");
+      tabList.className = "vs-pdp-info-tablist";
+      tabList.setAttribute("role", "tablist");
+      tabList.setAttribute("aria-label", "Product information");
+
+      function createTab(id, label) {
+        var tab = document.createElement("button");
+        tab.type = "button";
+        tab.id = id;
+        tab.className = "vs-pdp-info-tab";
+        tab.setAttribute("role", "tab");
+        tab.setAttribute("aria-controls", id === "vs-pdp-details-tab"
+          ? "vs-pdp-details-panel"
+          : "vs-pdp-reviews-panel");
+        tab.textContent = label;
+        return tab;
+      }
+
+      var detailsTab = createTab("vs-pdp-details-tab", "Details");
+      var reviewsTab = createTab("vs-pdp-reviews-tab", "Reviews");
+      tabList.append(detailsTab, reviewsTab);
+      tabs.appendChild(tabList);
+
+      var detailsPanel = description;
+      if (detailsPanel) {
+        detailsPanel.id = "vs-pdp-details-panel";
+        detailsPanel.setAttribute("role", "tabpanel");
+        detailsPanel.setAttribute("aria-labelledby", detailsTab.id);
+        detailsPanel.tabIndex = 0;
+        detailsPanel.style.paddingTop = "1.25rem";
+      } else {
+        detailsPanel = document.createElement("div");
+        detailsPanel.id = "vs-pdp-details-panel";
+        detailsPanel.className = "vs-pdp-info-panel";
+        detailsPanel.setAttribute("role", "tabpanel");
+        detailsPanel.setAttribute("aria-labelledby", detailsTab.id);
+        detailsPanel.tabIndex = 0;
+        detailsPanel.textContent = "Product details are not available yet.";
+      }
+
+      var reviewsPanel = document.createElement("div");
+      reviewsPanel.id = "vs-pdp-reviews-panel";
+      reviewsPanel.className = "vs-pdp-info-panel";
+      reviewsPanel.setAttribute("role", "tabpanel");
+      reviewsPanel.setAttribute("aria-labelledby", reviewsTab.id);
+      reviewsPanel.tabIndex = 0;
+      reviewsPanel.hidden = true;
+
+      productColumn.insertBefore(tabs, before || null);
+      if (!description) productColumn.insertBefore(detailsPanel, before || null);
+      productColumn.insertBefore(reviewsPanel, detailsPanel.nextSibling);
+
+      function activate(index, moveFocus) {
+        var showReviews = index === 1;
+        detailsTab.setAttribute("aria-selected", String(!showReviews));
+        reviewsTab.setAttribute("aria-selected", String(showReviews));
+        detailsTab.tabIndex = showReviews ? -1 : 0;
+        reviewsTab.tabIndex = showReviews ? 0 : -1;
+        detailsPanel.hidden = showReviews;
+        reviewsPanel.hidden = !showReviews;
+        if (moveFocus) (showReviews ? reviewsTab : detailsTab).focus();
+        if (!showReviews) return;
+
+        var staging = document.getElementById("vs-judgeme-widget-staging");
+        var widget = staging && staging.querySelector("#judgeme_product_reviews");
+        if (widget) {
+          reviewsPanel.appendChild(widget);
+          staging.remove();
+          window.dispatchEvent(new Event("resize"));
+        }
+      }
+
+      detailsTab.setAttribute("aria-selected", "true");
+      reviewsTab.setAttribute("aria-selected", "false");
+      detailsTab.tabIndex = 0;
+      reviewsTab.tabIndex = -1;
+      detailsTab.addEventListener("click", function () { activate(0, false); });
+      reviewsTab.addEventListener("click", function () { activate(1, false); });
+      tabList.addEventListener("keydown", function (event) {
+        var nextIndex = null;
+        if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+          nextIndex = reviewsTab.getAttribute("aria-selected") === "true" ? 0 : 1;
+        }
+        if (event.key === "Home") nextIndex = 0;
+        if (event.key === "End") nextIndex = 1;
+        if (nextIndex === null) return;
+        event.preventDefault();
+        activate(nextIndex, true);
+      });
+      return true;
+    }
+
+    if (installReviewTabs()) return;
+    var observer = new MutationObserver(function () {
+      if (installReviewTabs()) observer.disconnect();
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    window.setTimeout(function () { observer.disconnect(); }, 15000);
+  })();
+</script>
+{% endif %}`;
+
+// Shopify serves application routes through native pages. Keep these aliases
+// aligned with the page shells created elsewhere in the theme build.
+const SHOPIFY_APP_ROUTE_PAGE_ALIASES = Object.freeze({
+  "vs-store-about": "/about",
+  "vs-store-offers": "/offers",
+  "vs-store-auth": "/auth",
+  "vs-store-wishlist": "/wishlist",
+  "vs-store-orders": "/orders",
+  "vs-store-track-order": "/track-order",
+  "vs-store-help": "/help",
+  "vs-store-policies": "/policies",
+  "vs-store-policy-shipping": "/policies/shipping",
+  "vs-store-policy-returns": "/policies/returns",
+  "vs-store-policy-privacy": "/policies/privacy",
+  "vs-store-policy-terms": "/policies/terms",
+  "vs-store-policy-contact": "/policies/contact",
+});
+
 // macOS can expose OneDrive cloud placeholders as regular files with zero
 // allocated blocks. `fs.cp` can then wait indefinitely while trying to hydrate
 // an optional asset. Treat those files as unavailable so a theme bundle stays
@@ -155,6 +379,7 @@ async function writeThemeScaffold(
   await mkdir(resolve(themeDir, "layout"), { recursive: true });
   await mkdir(resolve(themeDir, "sections"), { recursive: true });
   await mkdir(resolve(themeDir, "templates"), { recursive: true });
+  await mkdir(resolve(themeDir, "snippets"), { recursive: true });
   await mkdir(resolve(themeDir, "config"), { recursive: true });
   await mkdir(resolve(themeDir, "locales"), { recursive: true });
   await mkdir(themeAssetsDir, { recursive: true });
@@ -372,6 +597,41 @@ async function writeThemeScaffold(
                 "priceCurrency": {{ shop.currency | json }},
                 "availability": "{% if salt_selected_variant.available %}https://schema.org/InStock{% else %}https://schema.org/OutOfStock{% endif %}",
                 "itemCondition": "https://schema.org/NewCondition"
+              },
+              "shippingDetails": {
+                "@type": "OfferShippingDetails",
+                "shippingDestination": {
+                  "@type": "DefinedRegion",
+                  "addressCountry": "US"
+                },
+                "shippingRate": {
+                  "@type": "MonetaryAmount",
+                  "value": "0",
+                  "currency": {{ shop.currency | json }}
+                },
+                "deliveryTime": {
+                  "@type": "ShippingDeliveryTime",
+                  "handlingTime": {
+                    "@type": "QuantitativeValue",
+                    "minValue": 1,
+                    "maxValue": 2,
+                    "unitCode": "DAY"
+                  },
+                  "transitTime": {
+                    "@type": "QuantitativeValue",
+                    "minValue": 5,
+                    "maxValue": 8,
+                    "unitCode": "DAY"
+                  }
+                }
+              },
+              "hasMerchantReturnPolicy": {
+                "@type": "MerchantReturnPolicy",
+                "applicableCountry": "US",
+                "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+                "merchantReturnDays": 30,
+                "returnMethod": "https://schema.org/ReturnByMail",
+                "returnFees": "https://schema.org/FreeReturn"
               }
             },
             {
@@ -825,7 +1085,18 @@ async function writeThemeScaffold(
 </html>
 `;
 
-  const sectionLiquid = `{% if request.page_type == 'product' and product %}
+  const sectionLiquid = `{% if request.page_type == 'page' and page.handle %}
+<script>
+  (function () {
+    var routeAliases = ${JSON.stringify(SHOPIFY_APP_ROUTE_PAGE_ALIASES)};
+    var pageHandle = {{ page.handle | json }};
+    var cleanPath = routeAliases[pageHandle];
+    if (!cleanPath || window.location.pathname !== "/pages/" + pageHandle) return;
+    window.history.replaceState(null, document.title, cleanPath + window.location.search + window.location.hash);
+  })();
+</script>
+{% endif %}
+{% if request.page_type == 'product' and product %}
 <s-view-event
   view-event-trigger="connect"
   view-event-payload='{{ product | standard_event_data: "view", context: "page" | escape }}'
@@ -839,7 +1110,83 @@ async function writeThemeScaffold(
   data-judgeme-shop-domain="{{ shop.permanent_domain | escape }}"
   data-judgeme-public-token="${judgemePublicToken}"
   data-currency="{{ cart.currency.iso_code | default: shop.currency | escape }}"
-></div>
+>
+{% if request.page_type == 'product' and product %}
+  {%- comment -%}
+    Keep a request-time, no-JavaScript product surface inside the React root.
+    React replaces this markup on a normal visit; crawlers and customers whose
+    scripts are delayed still receive a real title, price, availability, and
+    native Shopify cart form instead of an empty application shell.
+  {%- endcomment -%}
+  {% assign salt_fallback_variant = product.selected_or_first_available_variant %}
+  <article class="salt-product-fallback" aria-label="{{ product.title | escape }}" style="max-width:72rem;margin:0 auto;padding:2rem 1.25rem;font-family:Arial,sans-serif;color:#101522">
+    <nav aria-label="Breadcrumb" style="font-size:.8rem;margin-bottom:1.5rem">
+      <a href="{{ routes.root_url }}" style="color:#1e4fb8">VS Store</a>
+      <span aria-hidden="true"> / </span>
+      <span>{{ product.title | escape }}</span>
+    </nav>
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2rem;align-items:start">
+      {% if product.featured_image %}
+        <img src="{{ product.featured_image | image_url: width: 900 | prepend: 'https:' }}" alt="{{ product.featured_image.alt | default: product.title | escape }}" width="900" height="900" loading="eager" style="width:100%;height:auto;border-radius:1rem" />
+      {% endif %}
+      <div>
+        <p style="font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:#5d6675">{{ product.vendor | default: shop.name | escape }}</p>
+        <h1 style="font-size:clamp(1.75rem,4vw,3rem);line-height:1.05;margin:.5rem 0 1rem">{{ product.title | escape }}</h1>
+        <p style="font-size:1.5rem;font-weight:700;margin:0 0 .75rem">{{ salt_fallback_variant.price | money }}</p>
+        <p style="font-size:.95rem;color:#5d6675">{% if salt_fallback_variant.available %}In stock{% else %}Sold out{% endif %} · Configured Shopify estimate: 5–8 business days in the United States; final estimate at checkout</p>
+        {% if product.description != blank %}
+          <div style="margin:1.25rem 0;line-height:1.6">{{ product.description | strip_html | truncate: 600 | escape }}</div>
+        {% endif %}
+        <form method="post" action="{{ routes.cart_add_url }}" accept-charset="UTF-8" style="display:grid;gap:.75rem;max-width:28rem">
+          <input type="hidden" name="form_type" value="product" />
+          <input type="hidden" name="utf8" value="✓" />
+          {% if product.has_only_default_variant %}
+            <input type="hidden" name="id" value="{{ salt_fallback_variant.id }}" />
+          {% else %}
+            <label for="salt-fallback-variant" style="font-size:.85rem;font-weight:600">Choose an option</label>
+            <select id="salt-fallback-variant" name="id" style="min-height:2.75rem;padding:.5rem;border:1px solid #c9ced8;border-radius:.65rem">
+              {% for variant in product.variants %}
+                <option value="{{ variant.id }}"{% unless variant.available %} disabled{% endunless %}{% if variant.id == salt_fallback_variant.id %} selected{% endif %}>{{ variant.title | escape }} — {{ variant.price | money }}{% unless variant.available %} — Sold out{% endunless %}</option>
+              {% endfor %}
+            </select>
+          {% endif %}
+          <label for="salt-fallback-quantity" style="font-size:.85rem;font-weight:600">Quantity</label>
+          <input id="salt-fallback-quantity" type="number" name="quantity" min="1" value="1" style="min-height:2.75rem;padding:.5rem;border:1px solid #c9ced8;border-radius:.65rem" />
+          <button type="submit"{% unless salt_fallback_variant.available %} disabled{% endunless %} style="min-height:3rem;border:0;border-radius:.75rem;background:#123f9c;color:#fff;font-weight:700;cursor:pointer">{% if salt_fallback_variant.available %}Add to cart{% else %}Sold out{% endif %}</button>
+        </form>
+        <p style="font-size:.8rem;color:#5d6675;margin-top:1rem">Secure Shopify checkout · 30-day returns</p>
+      </div>
+    </div>
+  </article>
+{% endif %}
+{% unless request.page_type == 'policy' or request.page_type == 'product' %}
+  {%- comment -%}
+    Keep a small request-time shell visible while the React entry downloads.
+    The app replaces this markup immediately after mounting, but without it
+    Safari can show a completely blank viewport during a slow first load.
+    Native Shopify policy templates and the product fallback intentionally
+    keep their own server-rendered surfaces instead.
+  {%- endcomment -%}
+  <div
+    class="salt-app-loading"
+    role="status"
+    aria-live="polite"
+    style="display:grid;min-height:42vh;place-items:center;padding:3rem 1.25rem;background:#f6f9fc;color:#101522;font-family:Arial,sans-serif;text-align:center"
+  >
+    <div style="display:grid;justify-items:center;gap:.8rem;max-width:28rem">
+      <div style="font-size:.75rem;letter-spacing:.22em;font-weight:700">VS STORE</div>
+      <div style="width:2.5rem;height:2.5rem;border:3px solid #d9e1ec;border-top-color:#1e4fb8;border-radius:999px;animation:salt-app-loading-spin .9s linear infinite" aria-hidden="true"></div>
+      <p style="margin:0;font-size:.95rem;color:#5d6675">Loading your live storefront…</p>
+    </div>
+  </div>
+  <style>
+    @keyframes salt-app-loading-spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+{% endunless %}
+</div>
+{% render 'vs-judgeme-pdp-tabs' %}
 <script>
   window.SALT_THEME_BUILD = ${JSON.stringify(themeBuildStamp)};
   window.SALT_FINANCE_API_ORIGIN = ${JSON.stringify(financeApiOrigin)};
@@ -861,6 +1208,7 @@ async function writeThemeScaffold(
     .replaceAll("SALT storefront", `${themeBrandName} storefront`);
   await writeFile(resolve(themeDir, "layout", "theme.liquid"), storeThemeLiquid);
   await writeFile(resolve(themeDir, "sections", "salt-app.liquid"), sectionLiquid);
+  await writeFile(resolve(themeDir, "snippets", "vs-judgeme-pdp-tabs.liquid"), judgemePdpTabsLiquid);
 
   await writeFile(resolve(themeDir, "templates", "index.json"), templateJson());
   await writeFile(resolve(themeDir, "templates", "product.json"), templateJson());

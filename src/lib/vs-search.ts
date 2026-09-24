@@ -40,7 +40,6 @@ export function editDistance(a: string, b: string) {
   return prev[b.length] ?? 3;
 }
 
-
 function scoreText(haystack: string, terms: string[]) {
   const hay = normalize(haystack);
   let score = 0;
@@ -91,7 +90,10 @@ export function searchCollections(collections: ShopifyCollection[], query: strin
   const terms = normalize(query).split(" ").filter(Boolean);
   if (terms.length === 0) return [];
   return collections
-    .map((c) => ({ collection: c, score: scoreText(c.title, terms) * 2 + scoreText(c.description ?? "", terms) }))
+    .map((c) => ({
+      collection: c,
+      score: scoreText(c.title, terms) * 2 + scoreText(c.description ?? "", terms),
+    }))
     .filter((m) => m.score > 0)
     .sort((a, b) => b.score - a.score)
     .map((m) => m.collection);
@@ -105,9 +107,14 @@ export function suggestedCategories(products: ShopifyProduct[], query: string) {
 }
 
 export function highlight(text: string, query: string) {
-  const terms = normalize(query).split(" ").filter((t) => t.length > 1);
+  const terms = normalize(query)
+    .split(" ")
+    .filter((t) => t.length > 1);
   if (terms.length === 0) return [{ text, match: false }];
-  const pattern = new RegExp(`(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "ig");
+  const pattern = new RegExp(
+    `(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
+    "ig",
+  );
   return text
     .split(pattern)
     .filter(Boolean)
@@ -131,4 +138,10 @@ export function pushRecentSearch(term: string) {
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
 }
 
-export const POPULAR_SEARCHES = ["new arrivals", "under 50", "best sellers", "travel", "everyday carry"];
+export const POPULAR_SEARCHES = [
+  "new arrivals",
+  "under 50",
+  "curated picks",
+  "travel",
+  "everyday carry",
+];

@@ -10,6 +10,8 @@ import { cn } from "@/lib/utils";
 import { canonicalUrl } from "@/lib/seo";
 import { normalizeMetaCatalogId, trackViewItem } from "@/lib/marketingAnalytics";
 import { US_SHIPPING_PROMISE } from "@/lib/shipping-promise";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { JudgeMeReviews } from "@/components/vs/JudgeMeReviews";
 
 const PRODUCT_DESCRIPTION_TAGS = new Set(["h2", "h3", "p", "ul", "ol", "li", "strong", "em", "br"]);
 
@@ -64,6 +66,40 @@ function ProductDescription({
         <p className="whitespace-pre-line text-sm leading-7 text-muted-foreground">{description}</p>
       )}
     </section>
+  );
+}
+
+function ProductInformationTabs({
+  product,
+}: {
+  product: { id: string; title: string; description: string; descriptionHtml?: string | undefined };
+}) {
+  return (
+    <Tabs key={product.id} defaultValue="details" className="w-full">
+      <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border bg-muted/70 p-1">
+        <TabsTrigger value="details" className="min-h-10 rounded-lg">
+          Details
+        </TabsTrigger>
+        <TabsTrigger value="reviews" className="min-h-10 rounded-lg">
+          Reviews
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="details">
+        {product.description ? (
+          <ProductDescription
+            description={product.description}
+            descriptionHtml={product.descriptionHtml}
+          />
+        ) : (
+          <section className="rounded-[2rem] border border-border bg-card p-5 text-sm leading-7 text-muted-foreground shadow-[var(--shadow-card)] sm:p-6">
+            Product details are not available yet.
+          </section>
+        )}
+      </TabsContent>
+      <TabsContent value="reviews">
+        <JudgeMeReviews productId={product.id} productTitle={product.title} />
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -551,12 +587,7 @@ function ProductPage() {
             </button>
           </div>
 
-          {product.description && (
-            <ProductDescription
-              description={product.description}
-              descriptionHtml={product.descriptionHtml}
-            />
-          )}
+          <ProductInformationTabs product={product} />
 
           <div className="grid gap-2 rounded-[1.5rem] border border-border bg-card p-4 text-xs text-muted-foreground shadow-[var(--shadow-card)]">
             <p className="flex items-center gap-2">

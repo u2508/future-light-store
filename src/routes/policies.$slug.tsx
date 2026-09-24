@@ -1,13 +1,35 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ArrowLeft, Mail, Phone } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { POLICIES } from "@/lib/policies";
+import { POLICIES, SHOPIFY_POLICY_SLUGS } from "@/lib/policies";
 import { canonicalUrl } from "@/lib/seo";
 import { STORE_CONTACT } from "@/lib/store-contact";
 
+const POLICY_ALIASES: Record<string, string> = {
+  [SHOPIFY_POLICY_SLUGS.shipping]: "shipping",
+  [SHOPIFY_POLICY_SLUGS.returns]: "returns",
+  [SHOPIFY_POLICY_SLUGS.privacy]: "privacy",
+  [SHOPIFY_POLICY_SLUGS.terms]: "terms",
+  [SHOPIFY_POLICY_SLUGS.contact]: "contact",
+};
+
+const POLICY_CANONICAL_SLUGS: Record<string, string> = {
+  shipping: SHOPIFY_POLICY_SLUGS.shipping,
+  returns: SHOPIFY_POLICY_SLUGS.returns,
+  privacy: SHOPIFY_POLICY_SLUGS.privacy,
+  terms: SHOPIFY_POLICY_SLUGS.terms,
+  contact: SHOPIFY_POLICY_SLUGS.contact,
+  "legal-notice": SHOPIFY_POLICY_SLUGS["legal-notice"],
+};
+
+function resolvePolicySlug(slug: string) {
+  return POLICY_ALIASES[slug] ?? slug;
+}
+
 export const Route = createFileRoute("/policies/$slug")({
   head: ({ params }) => {
-    const policy = POLICIES[params.slug];
+    const resolvedSlug = resolvePolicySlug(params.slug);
+    const policy = POLICIES[resolvedSlug];
     const title = policy?.title ?? "Policy";
     return {
       meta: [
@@ -19,7 +41,12 @@ export const Route = createFileRoute("/policies/$slug")({
         { property: "og:title", content: `${title} — VS Store` },
         { property: "og:description", content: `${title} for VS Store orders and customers.` },
       ],
-      links: [{ rel: "canonical", href: canonicalUrl(`/policies/${params.slug}`) }],
+      links: [
+        {
+          rel: "canonical",
+          href: canonicalUrl(`/policies/${POLICY_CANONICAL_SLUGS[resolvedSlug] ?? resolvedSlug}`),
+        },
+      ],
     };
   },
   component: PolicyPage,
@@ -27,7 +54,7 @@ export const Route = createFileRoute("/policies/$slug")({
 
 function PolicyPage() {
   const { slug } = Route.useParams();
-  const policy = POLICIES[slug];
+  const policy = POLICIES[resolvePolicySlug(slug)];
 
   return (
     <div className="vs-wide-shell py-10 sm:py-14">

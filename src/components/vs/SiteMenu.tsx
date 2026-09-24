@@ -18,7 +18,7 @@ const CATEGORIES = [
 
 const FEATURED_EDITS = [
   ["new-arrivals", "New arrivals"],
-  ["best-sellers", "Best sellers"],
+  ["best-sellers", "Curated picks"],
   ["premium-picks", "Premium picks"],
 ] as const;
 

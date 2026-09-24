@@ -25,9 +25,14 @@ export async function loadVsStoreSocialEnv(rootDir) {
       const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
       if (!match || process.env[match[1]] !== undefined) continue;
       const key = match[1];
-      // This loader intentionally accepts only Future Light social variables.
+      // This loader intentionally accepts only the standalone social variables.
       // It never imports release or SALT environment entries.
-      if (!key.startsWith("FUTURE_LIGHT_") && key !== "OPENAI_API_KEY") continue;
+      if (
+        !key.startsWith("FUTURE_LIGHT_") &&
+        !key.startsWith("VS_STORE_") &&
+        key !== "OPENAI_API_KEY"
+      )
+        continue;
       process.env[key] = parseEnvValue(match[2]);
     }
   }
@@ -53,13 +58,37 @@ function normalizeStoreDomain(value) {
   }
 }
 
+function boolEnv(value, fallback = false) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  return /^(1|true|yes|on)$/i.test(raw);
+}
+
+function firstEnv(...keys) {
+  for (const key of keys) {
+    const value = String(process.env[key] || "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function normalizeSessionName(value) {
+  return (
+    String(value || "vs-store-social")
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 64) || "vs-store-social"
+  );
+}
+
 export function readVsStoreSocialConfig(rootDir) {
   const storeDomain = normalizeStoreDomain(process.env.FUTURE_LIGHT_SHOPIFY_STORE_DOMAIN);
   const shopifyUseCli = /^(1|true|yes|on)$/i.test(
     String(process.env.FUTURE_LIGHT_SHOPIFY_USE_CLI || ""),
   );
   const siteUrl = String(
-    process.env.FUTURE_LIGHT_SOCIAL_SITE_URL || "https://vss-store.vercel.app",
+    process.env.FUTURE_LIGHT_SOCIAL_SITE_URL || "https://vs-store-us.myshopify.com",
   ).replace(/\/$/, "");
   const timezone =
     String(process.env.FUTURE_LIGHT_SOCIAL_TIMEZONE || "America/New_York").trim() ||
@@ -68,25 +97,49 @@ export function readVsStoreSocialConfig(rootDir) {
     min: 0,
     max: 6,
   });
+  const socialOutputDir = resolve(
+    firstEnv("VS_STORE_SOCIAL_OUTPUT_DIR") || resolve(rootDir, "output", "social"),
+  );
+  const browserProfileDir = resolve(
+    firstEnv("VS_STORE_BROWSER_PROFILE_DIR") || resolve(rootDir, "..", ".vs-store-social-browser"),
+  );
+  const facebookPageId = firstEnv("VS_STORE_FACEBOOK_PAGE_ID", "FUTURE_LIGHT_META_PAGE_ID");
+  const instagramHandle =
+    firstEnv("VS_STORE_INSTAGRAM_HANDLE", "FUTURE_LIGHT_META_INSTAGRAM_USERNAME") || "vs.store2608";
+  const metaImageSource = firstEnv("FUTURE_LIGHT_META_IMAGE_SOURCE") || "facebook-post";
 
   return {
     rootDir,
     storeDomain,
     siteUrl,
-    metaPageId: String(process.env.FUTURE_LIGHT_META_PAGE_ID || "").trim(),
+    socialPublisher: firstEnv("VS_STORE_SOCIAL_PUBLISHER") || "business-suite-browser",
+    socialTimezone: timezone,
+    socialPublishMode: firstEnv("VS_STORE_SOCIAL_PUBLISH_MODE") || "now",
+    socialPostTimeEt: firstEnv("VS_STORE_SOCIAL_POST_TIME_ET"),
+    socialLiveEnabled: boolEnv(process.env.VS_STORE_SOCIAL_LIVE_ENABLED, false),
+    socialOutputDir,
+    browserSession: normalizeSessionName(firstEnv("VS_STORE_BROWSER_SESSION") || "vs-store-social"),
+    browserProfileDir,
+    businessSuiteUrl: firstEnv("VS_STORE_BUSINESS_SUITE_URL") || "https://business.facebook.com/",
+    facebookPageName: firstEnv("VS_STORE_FACEBOOK_PAGE_NAME") || "VS Store",
+    facebookPageId,
+    facebookPageUrl: firstEnv("VS_STORE_FACEBOOK_PAGE_URL"),
+    instagramHandle,
+    metaPageId: facebookPageId,
     metaPageAccessToken: String(process.env.FUTURE_LIGHT_META_PAGE_ACCESS_TOKEN || "").trim(),
-    // The connected Instagram Business account is discovered from the Page
-    // readback when possible. These optional values make API publishing
-    // deterministic without putting another secret in the repo.
+    metaInstagramAccessToken: String(
+      process.env.FUTURE_LIGHT_META_INSTAGRAM_ACCESS_TOKEN || "",
+    ).trim(),
+    // The linked Instagram identity is shared by API preflight and the browser
+    // fallback; Page Login can use the Page token for both destinations.
     metaInstagramAccountId: String(process.env.FUTURE_LIGHT_META_INSTAGRAM_ACCOUNT_ID || "").trim(),
-    metaInstagramUsername:
-      String(process.env.FUTURE_LIGHT_META_INSTAGRAM_USERNAME || "vs.store2608").trim() ||
-      "vs.store2608",
-    // Instagram Graph publishing needs a publicly reachable image URL. The
-    // Image Gen handoff therefore completes before the API publishing step.
+    metaInstagramUsername: instagramHandle,
+    // API mode can opt into a verified public URL; the default Facebook
+    // readback path avoids requiring one. Browser mode never needs this value.
     metaInstagramPublicImageUrl: String(
       process.env.FUTURE_LIGHT_META_INSTAGRAM_PUBLIC_IMAGE_URL || "",
     ).trim(),
+    metaImageSource,
     metaGraphVersion: String(process.env.FUTURE_LIGHT_META_GRAPH_VERSION || "v23.0").trim(),
     shopifyAdminAccessToken: String(
       process.env.FUTURE_LIGHT_SHOPIFY_ADMIN_ACCESS_TOKEN || "",
@@ -159,10 +212,26 @@ export function readVsStoreSocialConfig(rootDir) {
 export function configMissing(config, { includeMeta = true, includeShopify = true } = {}) {
   const missing = [];
   if (includeMeta) {
-    if (!config.metaPageId) missing.push("FUTURE_LIGHT_META_PAGE_ID");
-    if (!config.metaPageAccessToken) missing.push("FUTURE_LIGHT_META_PAGE_ACCESS_TOKEN");
-    if (!config.metaInstagramPublicImageUrl)
-      missing.push("FUTURE_LIGHT_META_INSTAGRAM_PUBLIC_IMAGE_URL");
+    const apiPrimary = ["meta-api-primary", "meta-api", "auto"].includes(config.socialPublisher);
+    if (!apiPrimary && config.socialPublisher !== "business-suite-browser") {
+      missing.push("VS_STORE_SOCIAL_PUBLISHER=meta-api-primary or business-suite-browser");
+    } else if (apiPrimary) {
+      if (!config.facebookPageName) missing.push("VS_STORE_FACEBOOK_PAGE_NAME");
+      if (!config.facebookPageId) missing.push("VS_STORE_FACEBOOK_PAGE_ID");
+      if (!config.facebookPageUrl) missing.push("VS_STORE_FACEBOOK_PAGE_URL");
+      if (!config.instagramHandle) missing.push("VS_STORE_INSTAGRAM_HANDLE");
+      if (!config.businessSuiteUrl) missing.push("VS_STORE_BUSINESS_SUITE_URL");
+      if (!config.browserSession) missing.push("VS_STORE_BROWSER_SESSION");
+      if (!config.browserProfileDir) missing.push("VS_STORE_BROWSER_PROFILE_DIR");
+    } else {
+      if (!config.facebookPageName) missing.push("VS_STORE_FACEBOOK_PAGE_NAME");
+      if (!config.facebookPageId) missing.push("VS_STORE_FACEBOOK_PAGE_ID");
+      if (!config.facebookPageUrl) missing.push("VS_STORE_FACEBOOK_PAGE_URL");
+      if (!config.instagramHandle) missing.push("VS_STORE_INSTAGRAM_HANDLE");
+      if (!config.businessSuiteUrl) missing.push("VS_STORE_BUSINESS_SUITE_URL");
+      if (!config.browserSession) missing.push("VS_STORE_BROWSER_SESSION");
+      if (!config.browserProfileDir) missing.push("VS_STORE_BROWSER_PROFILE_DIR");
+    }
   }
   if (includeShopify) {
     if (!config.storeDomain) missing.push("FUTURE_LIGHT_SHOPIFY_STORE_DOMAIN");
@@ -173,13 +242,31 @@ export function configMissing(config, { includeMeta = true, includeShopify = tru
 }
 
 export function redactedConfig(config) {
+  const apiPrimary = ["meta-api-primary", "meta-api", "auto"].includes(config.socialPublisher);
   return {
     storeDomain: config.storeDomain || null,
     siteUrl: config.siteUrl,
+    publisher: config.socialPublisher,
+    liveEnabled: Boolean(config.socialLiveEnabled),
+    publishMode: config.socialPublishMode,
+    postTimeEt: config.socialPostTimeEt || null,
+    outputDir: config.socialOutputDir,
+    browserSession: config.browserSession,
+    browserProfileConfigured: Boolean(config.browserProfileDir),
+    businessSuiteUrl: config.businessSuiteUrl,
+    facebookPageName: config.facebookPageName || null,
+    facebookPageId: config.facebookPageId || null,
+    facebookPageUrl: config.facebookPageUrl || null,
+    instagramHandle: config.instagramHandle || null,
     metaPageId: config.metaPageId || null,
     metaInstagramAccountId: config.metaInstagramAccountId || null,
     metaInstagramUsername: config.metaInstagramUsername || null,
+    metaImageSource: config.metaImageSource || null,
     metaInstagramPublicImageConfigured: Boolean(config.metaInstagramPublicImageUrl),
+    metaApiPublishingDisabled: !apiPrimary,
+    metaApiFallbackEnabled: false,
+    metaApiCredentialsReady: Boolean(config.metaPageAccessToken && config.metaInstagramAccountId),
+    metaInstagramPublicImageIgnored: config.metaImageSource !== "public-url",
     metaGraphVersion: config.metaGraphVersion,
     shopifyApiVersion: config.shopifyApiVersion,
     shopifyAuthMode: config.shopifyUseCli
@@ -203,6 +290,8 @@ export function redactedConfig(config) {
     requestConcurrency: config.requestConcurrency,
     credentials: {
       metaPageAccessToken: Boolean(config.metaPageAccessToken),
+      metaInstagramAccessToken: Boolean(config.metaInstagramAccessToken),
+      metaInstagramAccountId: Boolean(config.metaInstagramAccountId),
       shopifyAdminAccessToken: Boolean(config.shopifyAdminAccessToken),
       shopifyCli: Boolean(config.shopifyUseCli),
       openAiKey: Boolean(process.env.OPENAI_API_KEY),

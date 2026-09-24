@@ -1,0 +1,39 @@
+{
+  "approved": false,
+  "updatedAt": null,
+  "updatedBy": null,
+  "shippingPaymentReturns": {
+    "shippingVerified": false,
+    "paymentVerified": false,
+    "usReturnsVerified": false
+  },
+  "shopifyCommerce": {
+    "usMarketVerified": false,
+    "paymentProviderVerified": false,
+    "taxesVerified": false,
+    "payoutsVerified": false
+  },
+  "dsersFulfillment": {
+    "supplierMappingVerified": false,
+    "routingVerified": false,
+    "shippingRateTestVerified": false
+  },
+  "testOrder": {
+    "checkoutCompleted": false,
+    "confirmationEmailVerified": false,
+    "webhookReadback": false,
+    "dsersHandoffVerified": false,
+    "trackingVerified": false,
+    "refundVerified": false
+  },
+  "purchaseTracking": {
+    "metaPurchaseReadback": false,
+    "googlePurchaseReadback": false
+  },
+  "merchantCenter": {
+    "feedUploaded": false,
+    "feedApproved": false,
+    "liveProductTest": false
+  },
+  "notes": "Record evidence links or dates in project-safe documents. Never add credentials, card data, or customer PII here."
+}

@@ -12,8 +12,8 @@ import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 const execFileAsync = promisify(execFile);
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = resolve(rootDir, "public/data/recently-ordered-products.json");
-const shopBase = process.env.SALT_SHOP_URL;
-if (!shopBase) throw new Error("SALT_SHOP_URL is required to sync Future Light Store orders.");
+const shopBase =
+  process.env.SALT_SHOP_URL || "https://vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
 const shopDomain = new URL(shopBase).hostname;
 const apiVersion = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
 const adminToken =

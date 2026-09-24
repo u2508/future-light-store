@@ -1,0 +1,26 @@
+[
+  {
+    "supplierProductId": "supplier-101",
+    "searchFamily": "Family A",
+    "collectionLane": "Lane A",
+    "batchId": 1
+  },
+  {
+    "supplierProductId": "supplier-202",
+    "searchFamily": "Family B",
+    "collectionLane": "Lane B",
+    "batchId": 7
+  },
+  {
+    "supplierProductId": "supplier-303",
+    "searchFamily": "Family A",
+    "collectionLane": "lane-a",
+    "batchId": 2
+  },
+  {
+    "supplierProductId": "supplier-404",
+    "searchFamily": "Family B",
+    "collectionLane": "Lane B",
+    "batchId": 6
+  }
+]

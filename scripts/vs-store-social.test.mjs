@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { configMissing, redactedConfig } from "./lib/vs-store-social-config.mjs";
 import {
   assessDiscountMargin,
   buildDiscountInput,
@@ -29,6 +30,23 @@ import {
 } from "./lib/vs-store-social-copy.mjs";
 import { isSocialNetworkError } from "./lib/vs-store-social-network.mjs";
 import {
+  browserPendingMigrationBlocker,
+  isMetaApiPublishWindowPending,
+  resolveMetaPagePostId,
+} from "./lib/vs-store-social-api-publisher.mjs";
+import { createFallbackLogoPng } from "./lib/vs-store-social-image.mjs";
+import {
+  buildBrowserIntent,
+  buildBrowserRequest,
+  deriveBrowserResultStatus,
+  resolveBrowserPublishMode,
+  validateBrowserIntent,
+  validateBrowserRequest,
+  validateBrowserResult,
+} from "./lib/vs-store-social-browser-result-schema.mjs";
+import { reconcileBrowserResult } from "./lib/vs-store-social-publish-reconciler.mjs";
+import { inspectBusinessSuiteSnapshot } from "./lib/vs-store-social-business-suite-browser.mjs";
+import {
   readImageGenRequest,
   readImageGenResult,
   readSocialState,
@@ -52,6 +70,21 @@ const config = {
   overheadUsd: 16,
   minimumContributionUsd: 10,
 };
+
+function browserConfig(rootDir) {
+  return {
+    rootDir,
+    socialOutputDir: join(rootDir, "output", "social"),
+    socialPublisher: "business-suite-browser",
+    socialLiveEnabled: false,
+    socialPublishMode: "now",
+    timezone: "America/New_York",
+    facebookPageName: "VS Store",
+    facebookPageId: "page-123",
+    facebookPageUrl: "https://www.facebook.com/vs-store",
+    instagramHandle: "vs.store2608",
+  };
+}
 
 function product(overrides = {}) {
   return {
@@ -438,7 +471,7 @@ test("Image Gen handoff stays durable and token-free", async () => {
   }
 });
 
-test("legacy browser-wait state is failed safely after fallback removal", async () => {
+test("legacy browser-wait state migrates to the durable browser handoff", async () => {
   const rootDir = await mkdtemp(join(tmpdir(), "vs-store-social-state-test-"));
   try {
     await mkdir(join(rootDir, "output", "social"), { recursive: true });
@@ -452,11 +485,380 @@ test("legacy browser-wait state is failed safely after fallback removal", async 
       "utf8",
     );
     const state = await readSocialState(rootDir);
-    assert.equal(state.schemaVersion, 4);
-    assert.equal(state.status, "failed");
-    assert.equal(state.pending, null);
-    assert.match(state.error, /API-only/i);
+    assert.equal(state.schemaVersion, 5);
+    assert.equal(state.status, "waiting_for_browser");
+    assert.equal(state.pending.runKey, "2026-09-18");
+    assert.equal(state.error, null);
   } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test("legacy API-only failure resumes the preserved Image Gen handoff", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "vs-store-social-legacy-failure-test-"));
+  try {
+    await mkdir(join(rootDir, "output", "social"), { recursive: true });
+    await writeFile(
+      socialPaths(rootDir).state,
+      JSON.stringify({
+        schemaVersion: 4,
+        status: "failed",
+        error: "Meta API credentials are missing; browser fallback has been removed.",
+        pending: {
+          runKey: "2026-09-20",
+          content: { kind: "collection", handle: "kids-footwear" },
+          imageGenRequest: { fingerprint: "preserved-imagegen-request" },
+        },
+      }),
+      "utf8",
+    );
+    const state = await readSocialState(rootDir);
+    assert.equal(state.schemaVersion, 5);
+    assert.equal(state.status, "waiting_for_imagegen");
+    assert.equal(state.error, null);
+    assert.equal(state.pending.imageGenRequest.fingerprint, "preserved-imagegen-request");
+  } finally {
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test("browser mode has no Meta token or public-image-URL dependency", () => {
+  const browserMode = {
+    ...browserConfig("/tmp/vs-store-social"),
+    storeDomain: "vs-store-us.myshopify.com",
+    shopifyUseCli: true,
+    browserSession: "vs-store-social",
+    browserProfileDir: "/tmp/vs-store-social-browser",
+    businessSuiteUrl: "https://business.facebook.com/",
+  };
+  const missing = configMissing(browserMode);
+  assert.equal(
+    missing.some((item) => /META_PAGE_ACCESS_TOKEN|PUBLIC_IMAGE_URL/i.test(item)),
+    false,
+  );
+  assert.equal(redactedConfig(browserMode).metaApiPublishingDisabled, true);
+  assert.equal(redactedConfig(browserMode).metaInstagramPublicImageIgnored, true);
+});
+
+test("Meta API primary accepts the linked Page without implicit browser fallback", () => {
+  const metaMode = {
+    ...browserConfig("/tmp/vs-store-social"),
+    socialPublisher: "meta-api-primary",
+    metaPageId: "page-123",
+    metaPageAccessToken: "redacted-token",
+    metaInstagramAccountId: "ig-123",
+    metaImageSource: "facebook-post",
+    businessSuiteUrl: "https://business.facebook.com/",
+    browserSession: "vs-store-social",
+    browserProfileDir: "/tmp/vs-store-social-browser",
+    storeDomain: "vs-store-us.myshopify.com",
+    shopifyUseCli: true,
+  };
+  assert.deepEqual(configMissing(metaMode, { includeShopify: false }), []);
+  assert.equal(redactedConfig(metaMode).metaApiPublishingDisabled, false);
+  assert.equal(redactedConfig(metaMode).metaApiFallbackEnabled, false);
+  assert.equal(redactedConfig(metaMode).metaInstagramPublicImageIgnored, true);
+});
+
+test("Meta API waits for a future publish slot instead of creating a browser schedule", () => {
+  const now = new Date("2026-09-23T09:00:00.000Z");
+  assert.equal(isMetaApiPublishWindowPending("2026-09-23T16:00:00.000Z", { now }), true);
+  assert.equal(isMetaApiPublishWindowPending("2026-09-23T09:01:00.000Z", { now }), false);
+  assert.equal(isMetaApiPublishWindowPending("invalid", { now }), false);
+});
+
+test("Meta photo upload readback prefers the Page post ID over the uploaded photo ID", () => {
+  assert.equal(
+    resolveMetaPagePostId({ id: "uploaded-photo-id", post_id: "page-id_post-id" }),
+    "page-id_post-id",
+  );
+  assert.equal(resolveMetaPagePostId({ id: "page-post-id" }), "page-post-id");
+  assert.equal(resolveMetaPagePostId({}), "");
+});
+
+test("moving an untouched browser handoff to API is guarded against duplicate submission", () => {
+  const pending = {
+    runKey: "2026-09-23",
+    browserRequestPath: "/output/social/browser-request.json",
+    browserRequestFingerprint: "request-fingerprint",
+    platformStates: {
+      facebook: { status: "not_started" },
+      instagram: { status: "not_started" },
+    },
+  };
+  const request = {
+    runKey: pending.runKey,
+    fingerprint: pending.browserRequestFingerprint,
+    facebookPageId: "page-123",
+    instagramHandle: "vs.store2608",
+  };
+  const migration = {
+    stateStatus: "waiting_for_browser",
+    pending,
+    request,
+    intent: null,
+    result: null,
+    hasExternalAttempt: false,
+    facebookPageId: "page-123",
+    instagramHandle: "vs.store2608",
+  };
+  assert.equal(browserPendingMigrationBlocker(migration), null);
+  assert.match(
+    browserPendingMigrationBlocker({ ...migration, intent: { attemptId: "submitted" } }),
+    /browser submit intent or result/i,
+  );
+  assert.match(
+    browserPendingMigrationBlocker({ ...migration, hasExternalAttempt: true }),
+    /external submit/i,
+  );
+  assert.match(
+    browserPendingMigrationBlocker({
+      ...migration,
+      pending: {
+        ...pending,
+        platformStates: { facebook: { status: "published" } },
+      },
+    }),
+    /not untouched/i,
+  );
+});
+
+test("browser mode schedules a future best-time slot and posts directly after it", () => {
+  const now = new Date("2026-09-20T18:45:00.000Z");
+  assert.equal(
+    resolveBrowserPublishMode(new Date("2026-09-20T20:00:00.000Z"), { now }),
+    "scheduled",
+  );
+  assert.equal(resolveBrowserPublishMode(new Date("2026-09-20T16:00:00.000Z"), { now }), "now");
+  assert.equal(resolveBrowserPublishMode(new Date("2026-09-20T18:46:00.000Z"), { now }), "now");
+});
+
+test("Business Suite preflight requires the exact Page and connected Instagram", () => {
+  const browserMode = browserConfig("/tmp/vs-store-social");
+  const ready = inspectBusinessSuiteSnapshot({
+    url: "https://business.facebook.com/latest/home",
+    title: "Meta Business Suite",
+    snapshot: "VS Store page-123 @vs.store2608 Create Post",
+    config: browserMode,
+  });
+  assert.equal(ready.status, "ready");
+  const mismatch = inspectBusinessSuiteSnapshot({
+    url: "https://business.facebook.com/latest/home",
+    title: "Meta Business Suite",
+    snapshot: "Other Page @other-account Create Post",
+    config: browserMode,
+  });
+  assert.equal(mismatch.status, "identity_mismatch");
+});
+
+test("browser request freezes one local asset and caption for both destinations", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "vs-store-browser-request-test-"));
+  const previousOutputDir = process.env.VS_STORE_SOCIAL_OUTPUT_DIR;
+  try {
+    const config = browserConfig(rootDir);
+    process.env.VS_STORE_SOCIAL_OUTPUT_DIR = config.socialOutputDir;
+    const imagePath = join(config.socialOutputDir, "assets", "2026-09-20", "creative.png");
+    await mkdir(join(config.socialOutputDir, "assets", "2026-09-20"), { recursive: true });
+    await writeFile(imagePath, createFallbackLogoPng());
+    const { request, image } = await buildBrowserRequest({
+      config,
+      runKey: "2026-09-20",
+      imagePath,
+      caption: "VS Store verified browser caption",
+      content: { kind: "product", handle: "sample-product", title: "Sample Product" },
+      scheduledAt: new Date(Date.now() + 60_000),
+      expiresAt: new Date(Date.now() + 3_600_000),
+      offerPlan: { status: "not-requested" },
+    });
+    assert.equal(request.allowedPlatforms.join(","), "facebook,instagram");
+    assert.equal(request.imageSha256, image.sha256);
+    assert.equal(request.captionSha256.length, 64);
+    assert.doesNotThrow(() => validateBrowserRequest(request, config));
+    assert.equal(request.imagePath.startsWith(config.socialOutputDir), true);
+    assert.equal(request.captionPath.startsWith(config.socialOutputDir), true);
+    const intent = buildBrowserIntent({
+      request,
+      attemptId: "attempt-1",
+      platforms: ["instagram"],
+    });
+    assert.doesNotThrow(() => validateBrowserIntent(intent, request));
+    assert.throws(
+      () => buildBrowserIntent({ request, attemptId: "attempt-2", platforms: ["tiktok"] }),
+      /allowed platforms/i,
+    );
+    const { request: instagramRetry } = await buildBrowserRequest({
+      config,
+      runKey: "2026-09-20",
+      revision: 2,
+      imagePath,
+      caption: "VS Store verified browser caption",
+      content: { kind: "product", handle: "sample-product", title: "Sample Product" },
+      scheduledAt: new Date(Date.now() + 60_000),
+      expiresAt: new Date(Date.now() + 3_600_000),
+      offerPlan: { status: "not-requested" },
+      allowedPlatforms: ["instagram"],
+    });
+    assert.deepEqual(instagramRetry.allowedPlatforms, ["instagram"]);
+    assert.doesNotThrow(() => validateBrowserRequest(instagramRetry, config));
+  } finally {
+    if (previousOutputDir === undefined) delete process.env.VS_STORE_SOCIAL_OUTPUT_DIR;
+    else process.env.VS_STORE_SOCIAL_OUTPUT_DIR = previousOutputDir;
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test("browser results require independent receipts and classify partial or ambiguous submits", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "vs-store-browser-result-test-"));
+  const previousOutputDir = process.env.VS_STORE_SOCIAL_OUTPUT_DIR;
+  try {
+    const config = browserConfig(rootDir);
+    process.env.VS_STORE_SOCIAL_OUTPUT_DIR = config.socialOutputDir;
+    const imagePath = join(config.socialOutputDir, "assets", "2026-09-20", "creative.png");
+    const evidenceDir = join(config.socialOutputDir, "evidence");
+    await mkdir(join(config.socialOutputDir, "assets", "2026-09-20"), { recursive: true });
+    await mkdir(evidenceDir, { recursive: true });
+    await writeFile(imagePath, createFallbackLogoPng());
+    const { request } = await buildBrowserRequest({
+      config,
+      runKey: "2026-09-20",
+      imagePath,
+      caption: "Same caption on both platforms",
+      content: { kind: "banner", variant: "heartfelt", title: "Friday" },
+      scheduledAt: new Date(Date.now() + 60_000),
+      expiresAt: new Date(Date.now() + 3_600_000),
+      offerPlan: { status: "not-requested" },
+    });
+    const evidencePath = join(evidenceDir, "attempt-1.json");
+    await writeFile(evidencePath, "redacted browser evidence\n", "utf8");
+    const result = {
+      schemaVersion: 1,
+      runKey: request.runKey,
+      requestFingerprint: request.fingerprint,
+      attemptId: "attempt-1",
+      recordedAt: new Date().toISOString(),
+      verifiedAt: new Date().toISOString(),
+      status: "success",
+      platforms: {
+        facebook: {
+          status: "published",
+          id: "fb-post-1",
+          url: "https://www.facebook.com/vs-store/posts/fb-post-1",
+          pageId: request.facebookPageId,
+          captionSha256: request.captionSha256,
+          imageSha256: request.imageSha256,
+          evidencePath,
+        },
+        instagram: {
+          status: "published",
+          id: "ig-post-1",
+          url: "https://www.instagram.com/p/ig-post-1/",
+          handle: request.instagramHandle,
+          captionSha256: request.captionSha256,
+          imageSha256: request.imageSha256,
+          evidencePath,
+        },
+      },
+    };
+    assert.doesNotThrow(() => validateBrowserResult(result, request, config));
+    assert.equal(
+      deriveBrowserResultStatus({
+        facebook: { status: "published" },
+        instagram: { status: "known_failed" },
+      }),
+      "partial",
+    );
+    assert.equal(
+      deriveBrowserResultStatus({
+        facebook: { status: "unknown" },
+        instagram: { status: "not_started" },
+      }),
+      "needs_review",
+    );
+    await assert.rejects(
+      () => validateBrowserResult({ ...result, status: "partial" }, request, config),
+      /does not match platform receipts/i,
+    );
+  } finally {
+    if (previousOutputDir === undefined) delete process.env.VS_STORE_SOCIAL_OUTPUT_DIR;
+    else process.env.VS_STORE_SOCIAL_OUTPUT_DIR = previousOutputDir;
+    await rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test("browser reconciliation completes only after both receipts are independently verified", async () => {
+  const rootDir = await mkdtemp(join(tmpdir(), "vs-store-browser-reconcile-test-"));
+  const previousOutputDir = process.env.VS_STORE_SOCIAL_OUTPUT_DIR;
+  try {
+    const config = browserConfig(rootDir);
+    process.env.VS_STORE_SOCIAL_OUTPUT_DIR = config.socialOutputDir;
+    const imagePath = join(config.socialOutputDir, "assets", "2026-09-20", "creative.png");
+    const evidenceDir = join(config.socialOutputDir, "evidence");
+    await mkdir(join(config.socialOutputDir, "assets", "2026-09-20"), { recursive: true });
+    await mkdir(evidenceDir, { recursive: true });
+    await writeFile(imagePath, createFallbackLogoPng());
+    const { request } = await buildBrowserRequest({
+      config,
+      runKey: "2026-09-20",
+      imagePath,
+      caption: "Verified caption",
+      content: { kind: "product", handle: "sample-product", title: "Sample Product" },
+      scheduledAt: new Date(Date.now() + 60_000),
+      expiresAt: new Date(Date.now() + 3_600_000),
+      offerPlan: { status: "not-requested" },
+    });
+    const evidencePath = join(evidenceDir, "attempt-1.json");
+    await writeFile(evidencePath, "redacted evidence\n", "utf8");
+    const receipt = (status, extra = {}) => ({
+      status,
+      ...extra,
+      captionSha256: request.captionSha256,
+      imageSha256: request.imageSha256,
+      evidencePath,
+    });
+    const result = {
+      schemaVersion: 1,
+      runKey: request.runKey,
+      requestFingerprint: request.fingerprint,
+      attemptId: "attempt-1",
+      recordedAt: new Date().toISOString(),
+      verifiedAt: new Date().toISOString(),
+      status: "success",
+      platforms: {
+        facebook: receipt("published", {
+          id: "fb-1",
+          url: "https://facebook.com/fb-1",
+          pageId: request.facebookPageId,
+        }),
+        instagram: receipt("published", {
+          id: "ig-1",
+          url: "https://instagram.com/p/ig-1",
+          handle: request.instagramHandle,
+        }),
+      },
+    };
+    const state = {
+      schemaVersion: 5,
+      status: "waiting_for_browser",
+      usageLedger: { product: {}, collection: {} },
+      history: [],
+      destinations: { facebook: { required: true }, instagram: { required: true } },
+      pending: {
+        runKey: request.runKey,
+        browserRequestFingerprint: request.fingerprint,
+        content: { kind: "product", handle: "sample-product", title: "Sample Product" },
+        selectedAt: new Date().toISOString(),
+        imageMode: "imagegen",
+        offerPlan: { status: "not-requested" },
+      },
+    };
+    const reconciled = await reconcileBrowserResult({ rootDir, config, state, request, result });
+    assert.equal(reconciled.state.status, "completed");
+    assert.equal(reconciled.state.pending, null);
+    assert.equal(reconciled.state.history[0].executionPath, "business-suite-browser");
+    assert.equal(reconciled.state.usageLedger.product["sample-product"].uses, 1);
+  } finally {
+    if (previousOutputDir === undefined) delete process.env.VS_STORE_SOCIAL_OUTPUT_DIR;
+    else process.env.VS_STORE_SOCIAL_OUTPUT_DIR = previousOutputDir;
     await rm(rootDir, { recursive: true, force: true });
   }
 });

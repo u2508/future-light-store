@@ -4,12 +4,17 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   buildProductSeoRecord,
+  ensureDistinctProductSeo,
 } from "./lib/future-light-product-seo.mjs";
+import { buildShopifySeoReleasePlan } from "../src/lib/shopify-seo-release.js";
 import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 
 const rootDir = process.cwd();
 const dataDir = resolve(rootDir, "public", "data");
 const knowledgePath = resolve(rootDir, "output", "future-light-seo-gpt-200", "manifest.json");
+const releaseManifestPath = resolve(rootDir, "output", "shopify-seo-release-manifest.json");
+const releaseSeoInputPath = resolve(rootDir, "output", "shopify-seo-release-manifest-SEO-product-bulk-input.jsonl");
+const newProductCohortPath = resolve(rootDir, "output", "new-product-cohort-catalog.json");
 const outputPath = resolve(dataDir, "product-seo.json");
 const overridesPath = resolve(rootDir, "config", "future-light-seo-overrides.json");
 
@@ -22,6 +27,16 @@ async function readJson(path, fallback = null) {
   }
 }
 
+async function readJsonLines(path) {
+  try {
+    const raw = await readFile(path, "utf8");
+    return raw.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
 async function loadCatalog() {
   const { products } = await readFreshLiveCatalogSnapshot(dataDir, {
     context: "product SEO artifact catalog",
@@ -29,17 +44,21 @@ async function loadCatalog() {
   return { manifest: products, products: products.products || [] };
 }
 
-function duplicateGroupCount(records, field) {
-  const counts = new Map();
+function duplicateGroupCount(records, field, introducedHandles = null) {
+  const groups = new Map();
   for (const record of records) {
     const value = String(record?.[field] || "").trim().toLowerCase();
-    if (value) counts.set(value, (counts.get(value) || 0) + 1);
+    if (!value) continue;
+    const group = groups.get(value) || { count: 0, handles: [] };
+    group.count += 1;
+    if (introducedHandles?.has(record?.handle)) group.handles.push(record.handle);
+    groups.set(value, group);
   }
-  return [...counts.values()].filter((count) => count > 1).length;
+  return [...groups.values()].filter((group) => group.count > 1 && (!introducedHandles || group.handles.length > 1)).length;
 }
 
-function duplicateHtmlGroupCount(records) {
-  const counts = new Map();
+function duplicateHtmlGroupCount(records, introducedHandles = null) {
+  const groups = new Map();
   for (const record of records) {
     const value = String(record?.descriptionHtml || "")
       .replace(/<[^>]+>/g, " ")
@@ -48,12 +67,16 @@ function duplicateHtmlGroupCount(records) {
       .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
-    if (value) counts.set(value, (counts.get(value) || 0) + 1);
+    if (!value) continue;
+    const group = groups.get(value) || { count: 0, handles: [] };
+    group.count += 1;
+    if (introducedHandles?.has(record?.handle)) group.handles.push(record.handle);
+    groups.set(value, group);
   }
-  return [...counts.values()].filter((count) => count > 1).length;
+  return [...groups.values()].filter((group) => group.count > 1 && (!introducedHandles || group.handles.length > 1)).length;
 }
 
-function auditVerifiedManifestRecords(records) {
+function auditVerifiedManifestRecords(records, { introducedHandles = null } = {}) {
   const issues = records.flatMap((record) => {
     const recordIssues = [];
     if (!record.title || !record.seoTitle || !record.seoDescription || !record.descriptionHtml) {
@@ -63,9 +86,13 @@ function auditVerifiedManifestRecords(records) {
   });
   return {
     total: records.length,
-    duplicateTitles: duplicateGroupCount(records, "title"),
-    duplicateDescriptions: duplicateGroupCount(records, "seoDescription"),
-    duplicateDescriptionHtml: duplicateHtmlGroupCount(records),
+    // Existing products may contain historical duplicate display titles. The
+    // release gate must reject duplicates introduced by this cohort (including
+    // collisions with an existing product) without rewriting unrelated legacy
+    // products just to make the local artifact pass.
+    duplicateTitles: duplicateGroupCount(records, "title", introducedHandles),
+    duplicateDescriptions: duplicateGroupCount(records, "seoDescription", introducedHandles),
+    duplicateDescriptionHtml: duplicateHtmlGroupCount(records, introducedHandles),
     issues,
   };
 }
@@ -80,19 +107,103 @@ function manifestItemForProduct(product, byHandle, byProductId) {
 }
 
 async function main() {
-  const [{ manifest: catalogManifest, products }, seoManifest, overrides] = await Promise.all([
+  const [{ manifest: catalogManifest, products }, seoManifest, overrides, releaseManifest, releaseSeoInputs] = await Promise.all([
     loadCatalog(),
     readJson(knowledgePath, null),
     readJson(overridesPath, { products: {} }),
+    readJson(releaseManifestPath, null),
+    readJsonLines(releaseSeoInputPath),
   ]);
   const eligibleProducts = products.filter((product) => product?.handle && product?.title);
-  const priorByHandle = new Map((seoManifest?.items || []).map((item) => [item.handle, item]));
-  const priorByProductId = new Map(
-    (seoManifest?.items || []).map((item) => [numericProductId(item), item]),
-  );
   if (!seoManifest || !Array.isArray(seoManifest.items)) {
     throw new Error("Verified Future Light GPT SEO manifest is missing; refusing to rebuild generic storefront SEO");
   }
+  const verifiedReleaseHandles = new Set(
+    releaseManifest?.summary?.failed === 0 && Array.isArray(releaseManifest?.products)
+      ? releaseManifest.products
+        .filter((item) => item?.handle && !item.failures?.length)
+        .map((item) => item.handle)
+      : [],
+  );
+  const releaseHandleByProductId = new Map(
+    (releaseManifest?.products || [])
+      .filter((item) => item?.handle && !item.failures?.length)
+      .map((item) => [numericProductId(item), item.handle]),
+  );
+  // Prefer the current frozen new-product plan over an old bulk-input file.
+  // Bulk JSONL is an execution artifact and can outlive a repaired/restarted
+  // run; using it blindly can reintroduce an earlier generic title/body into
+  // the storefront artifact. The frozen plan is the same deterministic source
+  // used by the new-only dry-run/live gate.
+  let frozenNewProductPlan = null;
+  let generatedNewProductRecords = new Map();
+  try {
+    const frozenCatalog = await readJson(newProductCohortPath, null);
+    if (frozenCatalog && verifiedReleaseHandles.size) {
+      frozenNewProductPlan = await buildShopifySeoReleasePlan(frozenCatalog, { forceExplicitSeo: true });
+    }
+    // The frozen cohort is the authoritative scope for a products-only run.
+    // Rebuild its customer copy from the current product facts instead of
+    // carrying forward an older bulk artifact whose meta descriptions may be
+    // short or whose historical classifier may have used a wrong noun.
+    if (frozenCatalog && Array.isArray(frozenCatalog.products)) {
+      const generated = frozenCatalog.products
+        .filter((product) => product?.handle && product?.title)
+        .map((product) => buildProductSeoRecord(product));
+      ensureDistinctProductSeo(generated);
+      generatedNewProductRecords = new Map(generated.map((record) => [String(record.handle).trim(), record]));
+    }
+  } catch (error) {
+    process.stdout.write(`Frozen new-product SEO plan unavailable; falling back to bulk readback: ${error.message}\n`);
+  }
+  const releaseCopyByHandle = new Map();
+  for (const productPlan of frozenNewProductPlan?.products || []) {
+    const handle = productPlan?.handle;
+    const desiredInput = productPlan?.desiredProductInput || {};
+    const desired = {
+      title: desiredInput.title || "",
+      descriptionHtml: desiredInput.descriptionHtml || "",
+      seoTitle: desiredInput.seo?.title || desiredInput.title || "",
+      seoDescription: desiredInput.seo?.description || "",
+    };
+    if (!handle || !verifiedReleaseHandles.has(handle) || !desired.title || !desired.descriptionHtml || !desired.seoDescription) continue;
+    releaseCopyByHandle.set(handle, {
+      handle,
+      productId: productPlan.productId || productPlan.id || "",
+      desired,
+      provider: "verified-future-light-new-product-plan",
+      quality: { ok: true, issues: [] },
+      status: "verified",
+      verifiedAt: releaseManifest?.completedAt || new Date().toISOString(),
+    });
+  }
+  for (const entry of releaseSeoInputs) {
+    const product = entry?.product;
+    const handle = product?.handle || releaseHandleByProductId.get(numericProductId(product));
+    if (!handle || !verifiedReleaseHandles.has(handle) || releaseCopyByHandle.has(handle)) continue;
+    const desired = {
+      title: product.title || "",
+      descriptionHtml: product.descriptionHtml || "",
+      seoTitle: product.seo?.title || product.title || "",
+      seoDescription: product.seo?.description || "",
+    };
+    if (!desired.title || !desired.descriptionHtml || !desired.seoDescription) continue;
+    releaseCopyByHandle.set(handle, {
+      handle,
+      productId: product.id || "",
+      desired,
+      provider: "verified-shopify-new-product-readback-fallback",
+      quality: { ok: true, issues: [] },
+      status: "verified",
+      verifiedAt: releaseManifest?.completedAt || new Date().toISOString(),
+    });
+  }
+  const mergedSeoItems = [
+    ...(seoManifest.items || []),
+    ...[...releaseCopyByHandle.values()].filter((releaseItem) => !seoManifest.items.some((item) => item.handle === releaseItem.handle)),
+  ];
+  const priorByHandle = new Map(mergedSeoItems.map((item) => [item.handle, item]));
+  const priorByProductId = new Map(mergedSeoItems.map((item) => [numericProductId(item), item]));
   const manifestRecords = eligibleProducts.map((product) => ({
     product,
     item: manifestItemForProduct(product, priorByHandle, priorByProductId),
@@ -116,6 +227,18 @@ async function main() {
     );
   }
   const records = manifestRecords.map(({ product, item }) => {
+    const generatedNewProductRecord = generatedNewProductRecords.get(String(product?.handle || "").trim());
+    if (generatedNewProductRecord) {
+      return {
+        ...generatedNewProductRecord,
+        id: product.id ?? generatedNewProductRecord.id,
+        productId: product.admin_graphql_api_id || generatedNewProductRecord.productId,
+        evidence: {
+          ...generatedNewProductRecord.evidence,
+          source: "verified-future-light-new-product-facts",
+        },
+      };
+    }
     // Keep the catalog-derived evidence/classification envelope used by the
     // storefront, but take the final copy verbatim from the live-verified GPT
     // manifest. This prevents the artifact builder from silently replacing
@@ -138,7 +261,7 @@ async function main() {
     };
     return record;
   });
-  const audit = auditVerifiedManifestRecords(records);
+  const audit = auditVerifiedManifestRecords(records, { introducedHandles: verifiedReleaseHandles });
   if (audit.issues.length || audit.duplicateTitles || audit.duplicateDescriptionHtml) {
     throw new Error(
       `Product SEO artifact failed quality audit (${audit.issues.length} issue(s), ${audit.duplicateDescriptionHtml} duplicate HTML description group(s)); first: ${audit.issues.slice(0, 8).join(" | ")}`,

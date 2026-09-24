@@ -117,7 +117,14 @@ export async function freezeNewProductCohort(options) {
         })
         .slice(0, options.latestCount)
     : rawNewProducts;
-  const handles = newProducts.map((product) => normalizeHandleValue(product.handle)).sort();
+  // Keep the live Shopify handle verbatim in the cohort file. The SEO layer
+  // may normalize handles for comparison, but publication/delete workflows
+  // must receive the exact live value or underscores and non-Latin handles
+  // can silently fall out of the selected cohort.
+  const handles = newProducts
+    .map((product) => String(product?.handle || "").trim())
+    .filter(Boolean)
+    .sort();
 
   const generatedAt = new Date().toISOString();
   const currentMetadata = {

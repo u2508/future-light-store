@@ -8,6 +8,7 @@ const SHOPIFY_URL = SHOP_DOMAIN ? `https://${SHOP_DOMAIN}/api/${API_VERSION}/gra
 const ALLOWED_OPERATIONS = new Set([
   "GetProducts",
   "GetProduct",
+  "GetProductInventory",
   "GetCollections",
   "GetCollection",
   "cart",

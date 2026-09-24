@@ -1,0 +1,24 @@
+{
+  "source": "verified Meta/Google export or platform readback",
+  "period": {
+    "from": "YYYY-MM-DD",
+    "to": "YYYY-MM-DD"
+  },
+  "currency": "USD",
+  "products": [
+    {
+      "handle": "replace-with-live-shopify-handle",
+      "clicks": 0,
+      "productViews": 0,
+      "addToCart": 0,
+      "beginCheckout": 0,
+      "purchases": 0,
+      "adSpend": 0,
+      "revenue": 0,
+      "refunds": 0,
+      "landedCost": 0,
+      "allowableCpa": null
+    }
+  ],
+  "notes": "Replace every value with verified 14-day Meta/Google and Shopify order evidence before generating a decision report."
+}

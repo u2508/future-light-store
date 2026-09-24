@@ -71,6 +71,23 @@ test("catalog release audits and verifies low-stock removal before other catalog
   ]);
 });
 
+test("product release is limited to the frozen new-product cohort", () => {
+  const steps = buildReleaseSteps({ rootDir: "/tmp/future-light-store-test", includeMobile: false, profile: "products" });
+  const labels = steps.map((step) => step.label);
+  assert.deepEqual(labels, [
+    "Run frozen new-product SEO, metafield, and mapping pipeline",
+    "Delete verified zero-image products in the new cohort",
+    "Publish new-cohort products to all sales channels",
+    "Build web app",
+    "Generate Shopify theme bundle",
+  ]);
+
+  const serialized = steps.map((step) => `${step.command} ${step.args.join(" ")}`).join("\n");
+  assert.match(serialized, /new-product-cohort-catalog\.json/);
+  assert.match(serialized, /new-product-cohort-handles\.json/);
+  assert.doesNotMatch(serialized, /low-stock|missing-cost|catalog-integrity|all-active|full-catalog|collection-merges|collections:shuffle/);
+});
+
 test("catalog release removes missing-cost products before pricing", () => {
   const steps = buildReleaseSteps({ rootDir: "/tmp/future-light-store-test", includeMobile: false, profile: "daily" });
   const labels = steps.map((step) => step.label);

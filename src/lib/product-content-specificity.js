@@ -20,6 +20,20 @@ const GENERIC_FILLER_PATTERNS = [
   /\bmust[- ]?have\b/i,
   /^product details$/i,
   /^featured product$/i,
+  /\bspecific function identified by (?:its|the) handle\b/i,
+  /\bserves the specific function identified by\b/i,
+  /\bspecific product type named\b/i,
+  /\bconfirmed product facts and available options help shoppers compare\b/i,
+  /\bbuyers comparing confirmed features and options\b/i,
+  /\buse it only for the stated task\b/i,
+  /\bfollow all supplied setup, handling, and care instructions\b/i,
+  /\bcare or usage instructions provided with the item\b/i,
+  /\bkeep it in a clean, dry place when not in use\b/i,
+  /\bbrand name:\s*/i,
+  /\bbrand or supplier:\s*/i,
+  /\bcatalog tag:\s*/i,
+  /\bsource specifications\b/i,
+  /\bhigh concerned chemical:\s*/i,
 ];
 
 function decodeEntities(value) {

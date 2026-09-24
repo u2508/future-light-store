@@ -19,6 +19,8 @@ dist-ssr
 
 # Generated catalog, release manifests, and local Shopify readbacks
 output/*
+docs/marketing-cohort-approval.json
+docs/marketing-launch-evidence.json
 !output/.gitkeep
 public/data/*
 !public/data/product-seo.json

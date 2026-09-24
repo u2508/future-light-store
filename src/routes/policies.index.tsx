@@ -1,37 +1,37 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowUpRight, Mail, Phone, ShieldCheck } from "lucide-react";
-import { POLICIES } from "@/lib/policies";
+import { POLICIES, SHOPIFY_POLICY_SLUGS } from "@/lib/policies";
 import { canonicalUrl } from "@/lib/seo";
 import { STORE_CONTACT } from "@/lib/store-contact";
 
 const POLICY_LINKS = [
   {
-    slug: "shipping" as const,
+    slug: SHOPIFY_POLICY_SLUGS.shipping,
     label: "Shipping policy",
     detail: "Processing, delivery estimates and tracking.",
   },
   {
-    slug: "returns" as const,
+    slug: SHOPIFY_POLICY_SLUGS.returns,
     label: "Return and refund policy",
     detail: "Eligibility, approvals and refunds.",
   },
   {
-    slug: "privacy" as const,
+    slug: SHOPIFY_POLICY_SLUGS.privacy,
     label: "Privacy policy",
     detail: "How store and order information is used.",
   },
   {
-    slug: "terms" as const,
+    slug: SHOPIFY_POLICY_SLUGS.terms,
     label: "Terms of service",
     detail: "The terms for browsing and shopping with VS Store.",
   },
   {
-    slug: "contact" as const,
+    slug: SHOPIFY_POLICY_SLUGS.contact,
     label: "Contact information",
     detail: "Verified support and business details.",
   },
   {
-    slug: "legal-notice" as const,
+    slug: SHOPIFY_POLICY_SLUGS["legal-notice"],
     label: "Legal notice",
     detail: "Store operator and platform information.",
   },

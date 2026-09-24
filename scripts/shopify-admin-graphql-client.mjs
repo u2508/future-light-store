@@ -11,6 +11,7 @@ import {
   stableJson,
 } from "./lib/performance-runtime.mjs";
 import { FUTURE_LIGHT_SHOP_DOMAIN } from "./lib/product-image-health.mjs";
+import { futureLightChildEnv } from "./lib/future-light-env.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -60,7 +61,7 @@ export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
     throw new Error(`Refused Shopify target ${storeDomain}; Future Light Store requires ${FUTURE_LIGHT_SHOP_DOMAIN}.`);
   }
   const apiVersion = process.env.FUTURE_LIGHT_SHOPIFY_API_VERSION || process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
-  const accessToken = (process.env.FUTURE_LIGHT_SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim();
+  const accessToken = (process.env.FUTURE_LIGHT_SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim();
   const graphqlUrl = `${new URL(shopBase).origin}/admin/api/${apiVersion}/graphql.json`;
   const cliBinary = process.env.SHOPIFY_CLI_BINARY || "shopify";
   const requestDelayMs = Math.max(0, Number(process.env.FUTURE_LIGHT_SHOPIFY_REQUEST_DELAY_MS || 125));
@@ -78,7 +79,7 @@ export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
     `s:${process.env.CONVERSATION_ID || "local"}|r:${process.pid}|i:${agentName}`;
   const requestScheduler = createRequestScheduler({ concurrency: requestConcurrency, minIntervalMs: requestDelayMs });
   const inFlightReads = createInFlightCache();
-  const safeChildEnv = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^SALT_/i.test(key)));
+  const safeChildEnv = () => futureLightChildEnv(process.env);
 
   async function run(query, variables = {}, { allowMutations = false, operation = "Shopify request", retryInfo = [] } = {}) {
     const cacheKey = allowMutations ? "" : `${query}\n${stableJson(variables)}`;
@@ -104,7 +105,7 @@ export function createShopifyAdminGraphQLClient({ rootDir, agentName }) {
             return parseGraphQlPayload(raw);
           }
 
-          const tempDir = await mkdtemp(join(tmpdir(), "salt-shopify-admin-"));
+          const tempDir = await mkdtemp(join(tmpdir(), "future-light-shopify-admin-"));
           const queryPath = join(tempDir, "operation.graphql");
           const variablesPath = join(tempDir, "variables.json");
           const outputPath = join(tempDir, "result.json");

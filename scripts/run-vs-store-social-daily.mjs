@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -14,11 +14,14 @@ import {
 import {
   acquireSocialLock,
   appendSocialEvent,
+  appendSocialJournal,
+  clearBrowserIntent,
+  clearBrowserRequest,
+  clearBrowserResult,
   clearImageGenResult,
   clearImageGenFiles,
   readImageGenResult,
   readSocialState,
-  recordUsage,
   socialPaths,
   writeImageGenRequest,
   writeSocialState,
@@ -50,12 +53,22 @@ import {
   updateDiscount,
   verifyDiscountReadback,
 } from "./lib/vs-store-social-shopify.mjs";
+import { nextScheduledDateForWeekday } from "./lib/vs-store-social-meta.mjs";
 import {
-  choosePeakHour,
-  createVsStoreMetaClient,
-  nextScheduledDateForWeekday,
-} from "./lib/vs-store-social-meta.mjs";
+  browserPendingMigrationBlocker,
+  isMetaApiPublishWindowPending,
+  metaApiRetryPlan,
+  publishWithMetaApi,
+} from "./lib/vs-store-social-api-publisher.mjs";
 import { isSocialNetworkError as isNetworkError } from "./lib/vs-store-social-network.mjs";
+import { inspectSocialImage } from "./lib/vs-store-social-image-validation.mjs";
+import {
+  BROWSER_PLATFORMS,
+  buildBrowserRequest,
+  readBrowserIntent,
+  readBrowserRequest,
+  readBrowserResult,
+} from "./lib/vs-store-social-browser-result-schema.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 
@@ -64,6 +77,7 @@ function parseArgs(argv) {
     checkConfig: false,
     dryRun: false,
     resume: false,
+    resumeApi: false,
     resumeImageGen: false,
     skipOffer: false,
   };
@@ -72,6 +86,7 @@ function parseArgs(argv) {
     if (token === "--check-config") args.checkConfig = true;
     else if (token === "--dry-run") args.dryRun = true;
     else if (token === "--resume") args.resume = true;
+    else if (token === "--resume-api") args.resumeApi = true;
     else if (token === "--resume-imagegen") args.resumeImageGen = true;
     else if (token === "--skip-offer") args.skipOffer = true;
     else throw new Error(`Unknown argument: ${token}`);
@@ -89,6 +104,192 @@ function sleep(ms) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
+function postingSlot(config) {
+  const configured = String(config.socialPostTimeEt || "").trim();
+  if (configured) {
+    const match = configured.match(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
+    if (!match) throw new Error("VS_STORE_SOCIAL_POST_TIME_ET must use HH:mm in America/New_York.");
+    return {
+      hour: Number(configured.slice(0, 2)),
+      minute: Number(configured.slice(3, 5)),
+      source: "configured-post-time-et",
+    };
+  }
+  return { hour: config.fallbackHour, minute: 0, source: "configured-fallback-hour" };
+}
+
+function browserRetryPlan(pending, status) {
+  if (!pending?.platformStates) return { platforms: [...BROWSER_PLATFORMS] };
+  if (status === "failed") return { blocked: true, reason: "previous browser attempt failed" };
+  const entries = BROWSER_PLATFORMS.map((platform) => [
+    platform,
+    pending.platformStates?.[platform]?.status || "not_started",
+  ]);
+  const uncertain = entries.filter(([, platformStatus]) =>
+    ["submit_intent", "unknown"].includes(platformStatus),
+  );
+  if (uncertain.length) {
+    return {
+      blocked: true,
+      reason: `platform outcome requires reconciliation: ${uncertain
+        .map(([platform, platformStatus]) => `${platform}=${platformStatus}`)
+        .join(", ")}`,
+    };
+  }
+  const platforms = entries
+    .filter(([, platformStatus]) => platformStatus !== "published")
+    .map(([platform]) => platform);
+  return platforms.length
+    ? { platforms }
+    : { blocked: true, reason: "all destinations are already published" };
+}
+
+function isMetaApiPrimary(config) {
+  return ["meta-api-primary", "meta-api", "auto"].includes(config.socialPublisher);
+}
+
+function redactedMetaError(error, config) {
+  let message = normalizeText(error?.message || error || "Meta API setup is not ready.");
+  for (const secret of [config.metaPageAccessToken, config.metaInstagramAccessToken]) {
+    if (secret) message = message.replaceAll(secret, "[redacted]");
+  }
+  return message.replace(/([?&](?:access_token|client_secret)=)[^&\s]+/gi, "$1[redacted]");
+}
+
+async function hasExternalAttemptForRun(rootDir, runKey) {
+  const paths = socialPaths(rootDir);
+  const attemptedTypes = new Set([
+    "browser_submit_intent",
+    "browser_result_reconciled",
+    "meta_api_publish_started",
+    "meta_api_result",
+  ]);
+  for (const filePath of [paths.eventLog, paths.journal]) {
+    let contents;
+    try {
+      contents = await readFile(filePath, "utf8");
+    } catch (error) {
+      if (error?.code === "ENOENT") continue;
+      throw error;
+    }
+    for (const line of contents.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      let entry;
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (entry.runKey === runKey && attemptedTypes.has(entry.type)) return true;
+    }
+  }
+  return false;
+}
+
+async function migrateBrowserPendingToApi({ rootDir, config, state, pending, runKey }) {
+  const [request, intent, result] = await Promise.all([
+    readBrowserRequest(config),
+    readBrowserIntent(config),
+    readBrowserResult(config),
+  ]);
+  const hasExternalAttempt = await hasExternalAttemptForRun(rootDir, runKey);
+  const blocker = browserPendingMigrationBlocker({
+    stateStatus: state.status,
+    pending,
+    request,
+    intent,
+    result,
+    platformStates: state.platformStates,
+    hasExternalAttempt,
+    facebookPageId: config.facebookPageId,
+    instagramHandle: config.instagramHandle,
+  });
+  if (blocker) throw new Error(`Cannot move the pending browser run: ${blocker}.`);
+  const states = pending.platformStates || state.platformStates || {};
+  const imagePath = resolve(pending.imagePath || "");
+  if (!imagePath.startsWith(`${resolve(config.socialOutputDir)}/`)) {
+    throw new Error(
+      "Cannot move the pending run because its frozen image is outside the social output directory.",
+    );
+  }
+  const verifiedImage = await inspectSocialImage(imagePath);
+  if (pending.imageSha256 && verifiedImage.sha256 !== pending.imageSha256) {
+    throw new Error("Cannot move the pending run because its frozen image hash has changed.");
+  }
+
+  const pendingWithoutBrowser = { ...pending };
+  delete pendingWithoutBrowser.browserRequestPath;
+  delete pendingWithoutBrowser.browserRequestFingerprint;
+  delete pendingWithoutBrowser.browserRevision;
+  delete pendingWithoutBrowser.allowedPlatforms;
+  const platformStates = {
+    facebook: { ...(states.facebook || {}), status: "not_started" },
+    instagram: {
+      ...(states.instagram || {}),
+      status: "not_started",
+      username: config.instagramHandle,
+    },
+  };
+  const apiPending = {
+    ...pendingWithoutBrowser,
+    publisher: "meta-api-primary",
+    imageSha256: verifiedImage.sha256,
+    platformStates,
+  };
+  const migrated = await writeSocialState(rootDir, {
+    ...state,
+    publisher: "meta-api-primary",
+    status: "waiting_for_publish_window",
+    error: null,
+    pending: apiPending,
+    platformStates,
+  });
+  await Promise.all([
+    clearBrowserRequest(rootDir),
+    clearBrowserIntent(rootDir),
+    clearBrowserResult(rootDir),
+  ]);
+  await appendSocialEvent(rootDir, {
+    type: "browser_transport_migrated_to_meta_api",
+    runKey,
+    from: "business-suite-browser",
+    to: "meta-api-primary",
+  });
+  await appendSocialJournal(rootDir, {
+    type: "browser_transport_migrated_to_meta_api",
+    runKey,
+    status: "waiting_for_publish_window",
+  });
+  return migrated;
+}
+
+function buildApiPending({ pendingBase, pendingForRun, image, caption, instagramHandle }) {
+  const previousStates = pendingForRun?.platformStates || {};
+  const platformStates = {
+    facebook: {
+      ...(previousStates.facebook || {}),
+      status: previousStates.facebook?.status || "not_started",
+    },
+    instagram: {
+      ...(previousStates.instagram || {}),
+      status: previousStates.instagram?.status || "not_started",
+      username: instagramHandle,
+    },
+  };
+  const pending = {
+    ...pendingBase,
+    publisher: "meta-api-primary",
+    imageSha256: image.sha256,
+    captionTemplate: caption,
+    platformStates,
+  };
+  delete pending.browserRequestPath;
+  delete pending.browserRequestFingerprint;
+  delete pending.browserRevision;
+  delete pending.allowedPlatforms;
+  return pending;
+}
+
 async function loadCatalog(config, retryInfo) {
   if (!config.shopifyAdminAccessToken && !config.shopifyUseCli) {
     throw new Error("Shopify API credentials are required; local catalog fallback is disabled.");
@@ -96,7 +297,9 @@ async function loadCatalog(config, retryInfo) {
   const client = createVsStoreShopifyClient(config);
   const remote = await fetchSocialCatalog(client, { retryInfo });
   if (!remote.products.length || !remote.collections.length) {
-    throw new Error("Shopify social catalog response is incomplete; refusing to use local catalog data.");
+    throw new Error(
+      "Shopify social catalog response is incomplete; refusing to use local catalog data.",
+    );
   }
   return { ...remote, source: "shopify-admin-graphql" };
 }
@@ -361,20 +564,31 @@ async function usableImageGenResult({ state, runKey }) {
   if (result.status !== "success")
     throw new Error(`Image Gen bridge reported ${result.status || "failure"}.`);
   const imagePath = resolve(String(result.image?.path || ""));
-  const socialRoot = resolve(rootDir, "output", "social");
+  const socialRoot = resolve(
+    String(process.env.VS_STORE_SOCIAL_OUTPUT_DIR || resolve(rootDir, "output", "social")),
+  );
   if (!imagePath.startsWith(`${socialRoot}/`))
     throw new Error("Image Gen result must point to an image inside output/social.");
   if (!/\.(?:png|jpe?g|webp)$/i.test(imagePath))
     throw new Error("Image Gen result must be a PNG, JPEG, or WebP file.");
+  let imageInfo;
   try {
-    const imageStats = await stat(imagePath);
-    if (!imageStats.isFile() || imageStats.size < 512)
-      throw new Error("Image Gen result is unexpectedly small or is not a file.");
+    imageInfo = await inspectSocialImage(imagePath);
   } catch (error) {
     if (error?.code === "ENOENT") throw new Error("Image Gen result file is missing.");
     throw error;
   }
-  return { path: imagePath, mode: result.image?.mode || "imagegen" };
+  if (result.image?.sha256 && result.image.sha256 !== imageInfo.sha256)
+    throw new Error("Image Gen result hash does not match the recorded handoff hash.");
+  return {
+    path: imagePath,
+    mode: result.image?.mode || "imagegen",
+    sha256: imageInfo.sha256,
+    bytes: imageInfo.bytes,
+    mimeType: imageInfo.mimeType,
+    width: imageInfo.width,
+    height: imageInfo.height,
+  };
 }
 
 async function requestImageGen({
@@ -458,10 +672,6 @@ async function requestImageGen({
   );
 }
 
-async function writePending(rootDir, state, pending, status) {
-  await writeSocialState(rootDir, { ...state, status, pending });
-}
-
 async function waitForNetwork({ config, state, runKey, error }) {
   const startedAt = Date.now();
   let intervalMs = config.networkPollMs;
@@ -481,7 +691,7 @@ async function waitForNetwork({ config, state, runKey, error }) {
   while (Date.now() - startedAt < config.networkMaxWaitMs) {
     const probes = [
       config.storeDomain ? `https://${config.storeDomain}` : "",
-      "https://graph.facebook.com",
+      config.businessSuiteUrl || "",
     ].filter(Boolean);
     for (const url of probes) {
       try {
@@ -546,19 +756,93 @@ async function migrateStalePendingState({ state, runKey, now }) {
 }
 
 async function runDaily(args, config) {
-  const releaseLock = await acquireSocialLock(rootDir);
+  const releaseLock = await acquireSocialLock(rootDir, { publisher: config.socialPublisher });
   try {
+    const apiPrimary = isMetaApiPrimary(config);
     let state = await readSocialState(rootDir);
     const now = new Date();
     const runKey = buildRunKey(now, config.timezone);
     state = await migrateStalePendingState({ state, runKey, now });
-    const pendingForRun =
+    let pendingForRun =
       state.pending?.runKey === runKey && state.pending?.content?.kind ? state.pending : null;
+
+    if (args.resumeApi) {
+      if (!apiPrimary)
+        throw new Error("--resume-api requires VS_STORE_SOCIAL_PUBLISHER=meta-api-primary.");
+      if (!pendingForRun)
+        throw new Error("--resume-api requires an active pending social run for today.");
+      if (state.status === "waiting_for_browser" || pendingForRun.browserRequestPath) {
+        state = await migrateBrowserPendingToApi({
+          rootDir,
+          config,
+          state,
+          pending: pendingForRun,
+          runKey,
+        });
+        pendingForRun = state.pending;
+        process.stdout.write(
+          `VS Store social run ${runKey} moved to Meta API. No browser or Meta post was submitted; the saved due slot remains ${pendingForRun.scheduledAt}.\n`,
+        );
+      }
+    }
+
+    const compatiblePublisher =
+      !pendingForRun ||
+      !state.publisher ||
+      state.publisher === config.socialPublisher ||
+      (apiPrimary &&
+        ["meta-api", "meta-api-primary", "business-suite-browser"].includes(state.publisher));
+    if (pendingForRun && !compatiblePublisher) {
+      process.stdout.write(
+        `VS Store social run ${runKey} belongs to the ${state.publisher} transport and cannot be switched while a submission is pending. Reconcile it first.\n`,
+      );
+      return;
+    }
 
     if (state.status === "completed" && state.lastRunKey === runKey) {
       process.stdout.write(
         `VS Store social post for ${runKey} is already completed; skipping duplicate work.\n`,
       );
+      return;
+    }
+    if (state.status === "waiting_for_browser" && pendingForRun?.browserRequestPath) {
+      process.stdout.write(
+        `VS Store social run ${runKey} is waiting for the read-only-verified Business Suite browser handoff at ${pendingForRun.browserRequestPath}.\n`,
+      );
+      return;
+    }
+    if (state.status === "waiting_for_publish_window" && pendingForRun?.scheduledAt) {
+      if (isMetaApiPublishWindowPending(pendingForRun.scheduledAt, { now })) {
+        process.stdout.write(
+          `VS Store social run ${runKey} is waiting for its API publish window at ${pendingForRun.scheduledAt}.\n`,
+        );
+        return;
+      }
+    }
+    if (["needs_review", "failed"].includes(state.status) && pendingForRun) {
+      process.stdout.write(
+        `VS Store social run ${runKey} is paused for review (${state.error || state.status}); reconcile it before retrying.\n`,
+      );
+      return;
+    }
+    if (pendingForRun?.nextRetryAt) {
+      const nextRetryAt = Date.parse(String(pendingForRun.nextRetryAt));
+      if (Number.isFinite(nextRetryAt) && nextRetryAt > now.getTime()) {
+        process.stdout.write(
+          `VS Store social retry for ${runKey} is due at ${pendingForRun.nextRetryAt}; no new submission was created.\n`,
+        );
+        return;
+      }
+    }
+    const browserHandoffPending =
+      state.status === "waiting_for_browser" || Boolean(pendingForRun?.browserRequestPath);
+    const retryPlan = browserHandoffPending
+      ? browserRetryPlan(pendingForRun, state.status)
+      : apiPrimary
+        ? metaApiRetryPlan(pendingForRun, state.status)
+        : browserRetryPlan(pendingForRun, state.status);
+    if (retryPlan.blocked) {
+      process.stdout.write(`VS Store social run ${runKey} is paused: ${retryPlan.reason}.\n`);
       return;
     }
 
@@ -594,45 +878,14 @@ async function runDaily(args, config) {
       );
     }
 
+    const slot = postingSlot(config);
     let peak = pendingForRun?.peak
       ? pendingForRun.peak
-      : choosePeakHour(new Map(), config.fallbackHour);
-    let metaClient = null;
-    let instagramAccount = {
-      id: config.metaInstagramAccountId || null,
-      username: config.metaInstagramUsername || "vs.store2608",
+      : { hour: slot.hour, minute: slot.minute, source: slot.source, scores: {} };
+    const instagramAccount = {
+      id: null,
+      username: config.instagramHandle || "vs.store2608",
     };
-    if (config.metaPageAccessToken) {
-      metaClient = createVsStoreMetaClient(config);
-      try {
-        peak = await metaClient.audiencePeak({ retryInfo });
-      } catch (error) {
-        if (!isNetworkError(error)) {
-          throw new Error(
-            `Meta audience timing failed; no fallback timing is configured: ${normalizeText(error.message)}`,
-          );
-        } else {
-          const recovered = await waitForNetwork({ config, state, runKey, error });
-          if (!recovered) {
-            process.exitCode = 75;
-            return;
-          }
-          peak = await metaClient.audiencePeak({ retryInfo });
-        }
-      }
-      try {
-        const linkedInstagram = await metaClient.instagramAccountReadback({ retryInfo });
-        instagramAccount = {
-          id: linkedInstagram.id || instagramAccount.id,
-          username: linkedInstagram.username || instagramAccount.username,
-        };
-      } catch (error) {
-        if (isNetworkError(error)) throw error;
-        throw new Error(
-          `Linked Instagram account readback failed; API-only publishing cannot continue: ${normalizeText(error.message)}`,
-        );
-      }
-    }
     const scheduledAt = pendingForRun?.scheduledAt
       ? new Date(pendingForRun.scheduledAt)
       : nextScheduledDateForWeekday(
@@ -640,6 +893,8 @@ async function runDaily(args, config) {
           config.timezone,
           peak.hour,
           content.weekday ?? getDailySchedule(now, config.timezone).weekday,
+          25,
+          peak.minute || 0,
         );
     const offerDue = content.variant === "heartfelt";
     let offerPlan = pendingForRun?.offerPlan
@@ -685,7 +940,8 @@ async function runDaily(args, config) {
 
     const offerForCaption =
       offerPlan.status === "verified" ? { code: offerPlan.code, percent: offerPlan.percent } : null;
-    const baseCaption = buildContentCaption(content, config, offerForCaption);
+    const generatedCaption = buildContentCaption(content, config, offerForCaption);
+    const baseCaption = pendingForRun?.captionTemplate || generatedCaption;
     const captionTemplate = baseCaption;
     const targetUrl = targetUrlForContent(content, config);
     let image = null;
@@ -694,7 +950,11 @@ async function runDaily(args, config) {
       pendingForRun.imageMode === "imagegen" &&
       existsSync(pendingForRun.imagePath)
     ) {
-      image = { path: pendingForRun.imagePath, mode: "imagegen" };
+      image = {
+        path: pendingForRun.imagePath,
+        mode: "imagegen",
+        sha256: pendingForRun.imageSha256 || null,
+      };
     }
     if (!image && !args.dryRun) image = await usableImageGenResult({ state, runKey });
     if (!image && args.dryRun) {
@@ -725,6 +985,10 @@ async function runDaily(args, config) {
       process.exitCode = 75;
       return;
     }
+    if (!args.dryRun && !image.sha256) {
+      const inspectedImage = await inspectSocialImage(image.path);
+      image = { ...image, ...inspectedImage };
+    }
     const pendingBase = {
       runKey,
       fingerprint: makeFingerprint({
@@ -747,10 +1011,14 @@ async function runDaily(args, config) {
       offerPlan,
       retryInfo,
       destinations: {
-        facebook: { required: true, pageId: config.metaPageId || null },
+        facebook: {
+          required: true,
+          pageId: config.facebookPageId || null,
+          pageName: config.facebookPageName || null,
+          pageUrl: config.facebookPageUrl || null,
+        },
         instagram: {
           required: true,
-          accountId: instagramAccount.id,
           username: instagramAccount.username,
         },
       },
@@ -787,188 +1055,188 @@ async function runDaily(args, config) {
       return;
     }
 
-    let offer = offerPlan.status === "verified" ? offerPlan : null;
-    let caption = offer
-      ? buildContentCaption(content, config, { code: offer.code, percent: offer.percent })
-      : baseCaption;
-    let postResponse;
+    const offer = offerPlan.status === "verified" ? offerPlan : null;
+    const caption = baseCaption;
 
-    if (!metaClient) {
-      throw new Error("Meta API credentials are missing; browser fallback has been removed.");
-    }
-
-    const apiCannotPublishInstagram =
-      !instagramAccount.id ||
-      !config.metaInstagramPublicImageUrl ||
-      scheduledAt.getTime() > Date.now() + 2 * 60 * 1000;
-    if (apiCannotPublishInstagram) {
-      throw new Error(
-        "Instagram API publishing requires a linked Instagram account, a public image URL, and an immediate API slot; browser fallback has been removed.",
-      );
-    }
-
-    let instagramResponse;
-    let postId = normalizeText(pendingForRun?.metaPost?.id);
-    if (!postId) {
+    if (apiPrimary && !browserHandoffPending) {
+      if (isMetaApiPublishWindowPending(scheduledAt, { now })) {
+        const apiPending = buildApiPending({
+          pendingBase,
+          pendingForRun,
+          image,
+          caption,
+          instagramHandle: config.instagramHandle,
+        });
+        state = await writeSocialState(rootDir, {
+          ...state,
+          publisher: "meta-api-primary",
+          status: "waiting_for_publish_window",
+          error: null,
+          pending: apiPending,
+          platformStates: apiPending.platformStates,
+        });
+        await appendSocialEvent(rootDir, {
+          type: "meta_api_waiting_for_publish_window",
+          runKey,
+          scheduledAt: scheduledAt.toISOString(),
+        });
+        await appendSocialJournal(rootDir, {
+          type: "meta_api_waiting_for_publish_window",
+          runKey,
+          status: "waiting_for_publish_window",
+        });
+        process.stdout.write(
+          `VS Store social run ${runKey} is waiting for its Meta API publish window at ${scheduledAt.toISOString()}; no post was sent.\n`,
+        );
+        return;
+      }
       try {
-        postResponse = await metaClient.schedulePhoto({
-          imagePath: image.path,
+        const apiResult = await publishWithMetaApi({
+          rootDir,
+          config,
+          state,
+          pendingBase,
+          pendingForRun,
+          image,
           caption,
           scheduledAt,
+          retryPlan,
+          now,
           retryInfo,
         });
+        process.stdout.write(
+          `VS Store Meta API publishing finished with status ${apiResult.status}; independent Facebook and Instagram readback was recorded.\n`,
+        );
+        return;
       } catch (error) {
-        if (isNetworkError(error)) {
-          state = await writeSocialState(rootDir, {
-            ...state,
-            status: "waiting_for_network",
-            pending: { ...pendingBase, captionTemplate: caption, offerPlan: offer },
-          });
-          const recovered = await waitForNetwork({ config, state, runKey, error });
-          if (!recovered) {
-            process.exitCode = 75;
-            return;
-          }
-          postResponse = await metaClient.schedulePhoto({
-            imagePath: image.path,
-            caption,
-            scheduledAt,
-            retryInfo,
-          });
-        } else {
+        if (
+          ![
+            "META_API_LIVE_DISABLED",
+            "META_API_PREFLIGHT_FAILED",
+            "META_API_PREFLIGHT_NOT_READY",
+            "META_API_WAITING_FOR_DUE_SLOT",
+          ].includes(error?.code)
+        )
           throw error;
-        }
+        const waitingStatus =
+          error.code === "META_API_WAITING_FOR_DUE_SLOT"
+            ? "waiting_for_publish_window"
+            : "waiting_for_setup";
+        const apiPending = buildApiPending({
+          pendingBase,
+          pendingForRun,
+          image,
+          caption,
+          instagramHandle: config.instagramHandle,
+        });
+        const safeError = redactedMetaError(error, config);
+        state = await writeSocialState(rootDir, {
+          ...state,
+          publisher: "meta-api-primary",
+          status: waitingStatus,
+          error: safeError,
+          pending: apiPending,
+          platformStates: apiPending.platformStates,
+        });
+        await appendSocialEvent(rootDir, {
+          type:
+            waitingStatus === "waiting_for_publish_window"
+              ? "meta_api_waiting_for_publish_window"
+              : "meta_api_waiting_for_setup",
+          runKey,
+          code: error.code,
+          reason: safeError,
+        });
+        await appendSocialJournal(rootDir, {
+          type:
+            waitingStatus === "waiting_for_publish_window"
+              ? "meta_api_waiting_for_publish_window"
+              : "meta_api_waiting_for_setup",
+          runKey,
+          status: waitingStatus,
+        });
+        process.stdout.write(
+          `Meta API is waiting for setup (${safeError}); no post was sent and the run remains on API transport.\n`,
+        );
+        return;
       }
-      postId = normalizeText(postResponse?.id || postResponse?.post_id);
-      if (!postId) throw new Error("Meta publish response did not include a post ID.");
-      state = await writeSocialState(rootDir, {
-        ...state,
-        status: "verifying",
-        pending: {
-          ...pendingBase,
-          captionTemplate: caption,
-          offerPlan: offer,
-          metaPost: { id: postId },
-        },
-      });
     }
-    const postReadback = await metaClient.postReadback(postId, { retryInfo });
-    if (normalizeText(postReadback?.id) !== postId)
-      throw new Error("Meta post readback returned an unexpected post ID.");
-    if (!postReadback?.permalink_url && !postReadback?.scheduled_publish_time)
-      throw new Error("Meta post readback has neither a permalink nor a scheduled publish time.");
-    try {
-      instagramResponse = await metaClient.publishInstagramPhoto({
-        accountId: instagramAccount.id,
-        imageUrl: config.metaInstagramPublicImageUrl,
-        caption,
-        retryInfo,
-      });
-      const instagramPostId = normalizeText(instagramResponse?.id || instagramResponse?.post_id);
-      if (!instagramPostId)
-        throw new Error("Instagram publish response did not include a post ID.");
-      const instagramReadback = await metaClient.instagramPostReadback(instagramPostId, {
-        retryInfo,
-      });
-      if (normalizeText(instagramReadback?.id) !== instagramPostId)
-        throw new Error("Instagram post readback returned an unexpected post ID.");
-      if (!instagramReadback?.permalink)
-        throw new Error("Instagram post readback did not include a permalink.");
-      instagramResponse = { ...instagramReadback, id: instagramPostId };
-    } catch (error) {
-      throw error;
-    }
-    const instagramPostId = normalizeText(instagramResponse?.id);
-    const historyEntry = {
+
+    if (!apiPrimary && config.socialPublisher !== "business-suite-browser")
+      throw new Error("Unsupported VS Store social publisher.");
+    const browserExpiresAt = offer?.endsAt
+      ? new Date(offer.endsAt)
+      : new Date(scheduledAt.getTime() + 24 * 60 * 60 * 1000);
+    const revision = Number(pendingForRun?.browserRevision || 0) + 1;
+    const { request, image: verifiedImage } = await buildBrowserRequest({
+      config,
       runKey,
-      kind: content.kind,
-      variant: content.variant || null,
-      slot: content.slot || null,
-      weekday: content.weekday || null,
-      weekKey: content.weekKey || null,
-      handle: content.handle || null,
-      title: contentSummary(content).title,
-      selectedAt: content.selectedAt || now.toISOString(),
-      publishedAt:
-        postReadback.created_time || postReadback.scheduled_publish_time || now.toISOString(),
-      postId,
-      postUrl: postReadback.permalink_url || null,
-      instagramPostId,
-      instagramPostUrl: instagramResponse.permalink || null,
-      instagramPost: {
-        id: instagramPostId,
-        url: instagramResponse.permalink,
-        publishedAt: instagramResponse.timestamp || now.toISOString(),
-      },
-      image: { path: image.path, mode: image.mode },
-      offer: offer
-        ? { code: offer.code, percent: offer.percent, discountId: offer.discountId }
-        : null,
-      executionPath: "meta-api",
-    };
-    const completedState = {
-      ...recordUsage(state, {
-        kind: content.kind,
-        handle: content.handle,
-        usedAt: historyEntry.publishedAt,
-        weekKey: content.weekKey,
-      }),
-      status: "completed",
-      lastRunKey: runKey,
-      lastOffer: offer
-        ? {
-            createdAt: offer.startsAt,
-            startsAt: offer.startsAt,
-            endsAt: offer.endsAt,
-            code: offer.code,
-            percent: offer.percent,
-            discountId: offer.discountId,
-            target: offer.target,
-          }
-        : state.lastOffer,
-      couponRegistry: offer
-        ? {
-            ...(state.couponRegistry || {}),
-            [offer.code]: {
-              discountId: offer.discountId,
-              code: offer.code,
-              percent: offer.percent,
-              targetType: offer.target?.type || null,
-              startsAt: offer.startsAt,
-              endsAt: offer.endsAt,
-            },
-          }
-        : state.couponRegistry || {},
-      pending: null,
-      destinations: {
-        facebook: {
-          ...(state.destinations?.facebook || { required: true }),
-          lastPostId: postId,
-          lastPostUrl: postReadback.permalink_url || null,
-        },
-        instagram: {
-          ...(state.destinations?.instagram || { required: true }),
-          required: true,
-          accountId: instagramAccount.id,
-          username: instagramAccount.username,
-          lastPostId: instagramPostId,
-          lastPostUrl: instagramResponse.permalink || null,
-        },
-      },
-      history: [historyEntry, ...(Array.isArray(state.history) ? state.history : [])].slice(0, 90),
-    };
-    await writeSocialState(rootDir, completedState);
-    await appendSocialEvent(rootDir, {
-      type: "completed",
-      runKey,
-      executionPath: "meta-api",
-      postId,
-      instagramPostId,
-      discountId: offer?.discountId || null,
+      revision,
+      imagePath: image.path,
+      caption,
+      content: contentSummary(content),
+      scheduledAt,
+      offerPlan: offer || { status: "not-requested", reason: "no-verified-offer" },
+      expiresAt: browserExpiresAt,
+      allowedPlatforms: retryPlan.platforms,
     });
-    await clearImageGenFiles(rootDir);
+    await clearBrowserResult(rootDir);
+    const priorPlatformStates = pendingForRun?.platformStates || {};
+    const platformStates = Object.fromEntries(
+      BROWSER_PLATFORMS.map((platform) => [
+        platform,
+        {
+          ...(priorPlatformStates[platform] || {}),
+          status: priorPlatformStates[platform]?.status || "not_started",
+          ...(platform === "instagram" ? { username: config.instagramHandle } : {}),
+        },
+      ]),
+    );
+    const browserPending = {
+      ...pendingBase,
+      imagePath: verifiedImage.path,
+      imageMode: image.mode,
+      imageSha256: verifiedImage.sha256,
+      captionTemplate: caption,
+      offerPlan: offer,
+      browserRequestPath: resolve(config.socialOutputDir, "browser-request.json"),
+      browserRequestFingerprint: request.fingerprint,
+      browserRevision: revision,
+      allowedPlatforms: retryPlan.platforms,
+      platformStates,
+    };
+    const waitingState = {
+      ...state,
+      publisher: "business-suite-browser",
+      status: "waiting_for_browser",
+      error: null,
+      pending: browserPending,
+      platformStates: browserPending.platformStates,
+      destinations: browserPending.destinations,
+    };
+    await writeSocialState(rootDir, waitingState);
+    await appendSocialEvent(rootDir, {
+      type: "waiting_for_browser",
+      runKey,
+      requestFingerprint: request.fingerprint,
+      imageSha256: verifiedImage.sha256,
+      allowedPlatforms: request.allowedPlatforms,
+      retry: retryPlan.platforms.length < BROWSER_PLATFORMS.length,
+      liveEnabled: config.socialLiveEnabled,
+    });
+    await appendSocialJournal(rootDir, {
+      type: "browser_request_created",
+      runKey,
+      requestFingerprint: request.fingerprint,
+      revision,
+      status: "waiting_for_browser",
+    });
     process.stdout.write(
-      `VS Store social run completed through Meta API: Facebook ${postReadback.permalink_url || `scheduled post ${postId}`}; Instagram ${instagramResponse.permalink || instagramPostId}\n`,
+      `Browser publishing request prepared at ${resolve(config.socialOutputDir, "browser-request.json")}. ${
+        config.socialLiveEnabled
+          ? "Live browser publishing is enabled after the configured rollout approval; complete the Business Suite preflight and publish verification."
+          : "Live publishing remains disabled until the dedicated Business Suite preflight and explicit rollout approval are complete."
+      }\n`,
     );
   } finally {
     await releaseLock();
@@ -1010,6 +1278,21 @@ async function main() {
       `${JSON.stringify({ config: redactedConfig(config), missing, socialEnvFiles: [".env.vs-store-social.local", ".env.vs-store-social"] }, null, 2)}\n`,
     );
     if (missing.length) process.exitCode = 2;
+    return;
+  }
+  const missing = configMissing(config);
+  if (missing.length) {
+    const state = await readSocialState(rootDir).catch(() => null);
+    if (state)
+      await writeSocialState(rootDir, {
+        ...state,
+        status: "waiting_for_setup",
+        error: `Missing standalone social configuration: ${missing.join(", ")}`,
+      });
+    process.stderr.write(
+      `VS Store social automation is waiting for setup: ${missing.join(", ")}\n`,
+    );
+    process.exitCode = 2;
     return;
   }
   try {

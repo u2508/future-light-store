@@ -40,10 +40,16 @@ function pngChunk(type, payload) {
   return Buffer.concat([length, data, checksum]);
 }
 
-function createFallbackLogoPng() {
+export function createFallbackLogoPng() {
   const width = 256;
   const height = 256;
   const pixels = Buffer.alloc(width * height * 4);
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    pixels[offset] = 8;
+    pixels[offset + 1] = 20;
+    pixels[offset + 2] = 45;
+    pixels[offset + 3] = 255;
+  }
   const setPixel = (x, y, color) => {
     if (x < 0 || x >= width || y < 0 || y >= height) return;
     const offset = (y * width + x) * 4;
@@ -86,16 +92,20 @@ function createFallbackLogoPng() {
       if (Math.hypot(x - 9, y - 9) <= 9) setPixel(210 + x, 29 + y, gold);
     }
   }
-  const scanlines = Buffer.alloc(height * (width * 4 + 1));
+  const scanlines = Buffer.alloc(height * (width * 3 + 1));
   for (let y = 0; y < height; y += 1) {
-    const rowOffset = y * (width * 4 + 1);
-    pixels.copy(scanlines, rowOffset + 1, y * width * 4, (y + 1) * width * 4);
+    const rowOffset = y * (width * 3 + 1);
+    for (let x = 0; x < width; x += 1) {
+      const sourceOffset = (y * width + x) * 4;
+      const targetOffset = rowOffset + 1 + x * 3;
+      pixels.copy(scanlines, targetOffset, sourceOffset, sourceOffset + 3);
+    }
   }
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);
   header[8] = 8;
-  header[9] = 6;
+  header[9] = 2;
   return Buffer.concat([
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
     pngChunk("IHDR", header),
@@ -154,7 +164,11 @@ export async function prepareImageGenReferences({
   sourceUrl = "",
   existingSourcePath = "",
 }) {
-  const assetDir = resolve(config.rootDir, "output", "social", "assets", runKey);
+  const assetDir = resolve(
+    config.socialOutputDir || resolve(config.rootDir, "output", "social"),
+    "assets",
+    runKey,
+  );
   await mkdir(assetDir, { recursive: true });
   const logoPath = await ensureSocialLogo(config, assetDir);
   if (content?.kind === "banner") return { assetDir, logoPath, sourcePath: null };

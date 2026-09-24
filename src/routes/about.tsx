@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowUpRight, Compass, PackageCheck, Search, ShieldCheck, Sparkles } from "lucide-react";
 import heroImage from "@/assets/vs-hero.jpg";
+import { SHOPIFY_POLICY_SLUGS } from "@/lib/policies";
 import { canonicalUrl } from "@/lib/seo";
 
 const PRINCIPLES = [
@@ -69,7 +70,7 @@ function AboutPage() {
               </Link>
               <Link
                 to="/policies/$slug"
-                params={{ slug: "contact" }}
+                params={{ slug: SHOPIFY_POLICY_SLUGS.contact }}
                 className="inline-flex items-center justify-center rounded-full border border-primary-foreground/25 bg-primary-foreground/10 px-5 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-foreground/15"
               >
                 Talk to us

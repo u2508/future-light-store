@@ -1,18 +1,25 @@
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-export const SOCIAL_STATE_VERSION = 4;
+export const SOCIAL_STATE_VERSION = 5;
 
 export function socialPaths(rootDir) {
-  const directory = resolve(rootDir, "output", "social");
+  const configuredDirectory = String(process.env.VS_STORE_SOCIAL_OUTPUT_DIR || "").trim();
+  const directory = resolve(configuredDirectory || resolve(rootDir, "output", "social"));
   return {
     directory,
     state: resolve(directory, "vs-store-facebook-daily-state.json"),
     lock: resolve(directory, ".vs-store-facebook-daily.lock"),
     imageGenRequest: resolve(directory, "imagegen-request.json"),
     imageGenResult: resolve(directory, "imagegen-result.json"),
+    browserRequest: resolve(directory, "browser-request.json"),
+    browserResult: resolve(directory, "browser-result.json"),
+    browserIntent: resolve(directory, "browser-intent.json"),
     eventLog: resolve(directory, "events.jsonl"),
+    journal: resolve(directory, "publisher-journal.jsonl"),
+    runs: resolve(directory, "runs"),
   };
 }
 
@@ -20,6 +27,7 @@ function defaultState() {
   return {
     schemaVersion: SOCIAL_STATE_VERSION,
     status: "idle",
+    publisher: "business-suite-browser",
     nextRotation: 0,
     lastRunKey: null,
     lastOffer: null,
@@ -30,9 +38,14 @@ function defaultState() {
       collection: {},
     },
     destinations: {
-      facebook: { required: true },
-      instagram: { required: true, username: "vs.store2608" },
+      facebook: { required: true, status: "not_started" },
+      instagram: { required: true, username: "vs.store2608", status: "not_started" },
     },
+    platformStates: {
+      facebook: { status: "not_started" },
+      instagram: { status: "not_started" },
+    },
+    attemptJournal: [],
     pending: null,
     history: [],
     updatedAt: null,
@@ -50,18 +63,39 @@ export async function readSocialState(rootDir) {
   const filePath = socialPaths(rootDir).state;
   try {
     const parsed = JSON.parse(await readFile(filePath, "utf8"));
-    const browserFallbackState =
+    const legacyBrowserState =
       parsed?.status === "waiting_for_browser" ||
       parsed?.pending?.offerPlan?.status === "browser-required";
+    const legacyApiPending =
+      Number(parsed?.schemaVersion || 1) < SOCIAL_STATE_VERSION &&
+      parsed?.pending?.metaPost?.id &&
+      parsed?.status !== "completed";
+    const legacyApiFailure =
+      Number(parsed?.schemaVersion || 1) < SOCIAL_STATE_VERSION &&
+      /Meta API credentials are missing|browser fallback has been removed/i.test(
+        String(parsed?.error || ""),
+      ) &&
+      Boolean(parsed?.pending?.content);
     return {
       ...defaultState(),
       ...parsed,
       schemaVersion: SOCIAL_STATE_VERSION,
-      status: browserFallbackState ? "failed" : parsed?.status || "idle",
-      pending: browserFallbackState ? null : parsed?.pending || null,
-      error: browserFallbackState
-        ? "Internal-browser fallback was removed; the social runner is API-only."
-        : parsed?.error || null,
+      publisher:
+        parsed?.publisher ||
+        (legacyApiPending || legacyApiFailure ? "meta-api" : "business-suite-browser"),
+      status: legacyApiPending
+        ? "needs_review"
+        : legacyBrowserState
+          ? "waiting_for_browser"
+          : legacyApiFailure
+            ? "waiting_for_imagegen"
+            : parsed?.status || "idle",
+      pending: parsed?.pending || null,
+      error: legacyApiPending
+        ? "A legacy Meta API submission is in flight; reconcile it before browser publishing."
+        : legacyApiFailure
+          ? null
+          : parsed?.error || null,
       usageLedger: {
         product: parsed?.usageLedger?.product || {},
         collection: parsed?.usageLedger?.collection || {},
@@ -69,13 +103,35 @@ export async function readSocialState(rootDir) {
       destinations: {
         ...defaultState().destinations,
         ...(parsed?.destinations || {}),
-        facebook: { required: true, ...(parsed?.destinations?.facebook || {}) },
+        facebook: {
+          required: true,
+          status: parsed?.destinations?.facebook?.status || "not_started",
+          ...(parsed?.destinations?.facebook || {}),
+        },
         instagram: {
           required: true,
           username: "vs.store2608",
+          status: parsed?.destinations?.instagram?.status || "not_started",
           ...(parsed?.destinations?.instagram || {}),
         },
       },
+      platformStates: {
+        facebook: {
+          status:
+            parsed?.platformStates?.facebook?.status ||
+            parsed?.destinations?.facebook?.status ||
+            "not_started",
+          ...(parsed?.platformStates?.facebook || {}),
+        },
+        instagram: {
+          status:
+            parsed?.platformStates?.instagram?.status ||
+            parsed?.destinations?.instagram?.status ||
+            "not_started",
+          ...(parsed?.platformStates?.instagram || {}),
+        },
+      },
+      attemptJournal: Array.isArray(parsed?.attemptJournal) ? parsed.attemptJournal : [],
       history: Array.isArray(parsed?.history) ? parsed.history : [],
     };
   } catch (error) {
@@ -105,6 +161,16 @@ export async function appendSocialEvent(rootDir, event) {
       encoding: "utf8",
       flag: "a",
     },
+  );
+}
+
+export async function appendSocialJournal(rootDir, event) {
+  const paths = socialPaths(rootDir);
+  await mkdir(paths.directory, { recursive: true });
+  await writeFile(
+    paths.journal,
+    `${JSON.stringify({ at: new Date().toISOString(), ...event })}\n`,
+    { encoding: "utf8", flag: "a" },
   );
 }
 
@@ -139,17 +205,53 @@ function pidIsAlive(pid) {
   }
 }
 
-export async function acquireSocialLock(rootDir, { staleAfterMs = 8 * 60 * 60 * 1000 } = {}) {
+export async function acquireSocialLock(
+  rootDir,
+  { staleAfterMs = 8 * 60 * 60 * 1000, publisher = "business-suite-browser" } = {},
+) {
   const paths = socialPaths(rootDir);
   await mkdir(paths.directory, { recursive: true });
   try {
     await mkdir(paths.lock);
+    const leaseToken = randomUUID();
+    const startedAt = new Date().toISOString();
     await writeFile(
       resolve(paths.lock, "owner.json"),
-      `${JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() })}\n`,
+      `${JSON.stringify({
+        pid: process.pid,
+        startedAt,
+        heartbeatAt: startedAt,
+        leaseToken,
+        publisher,
+      })}\n`,
       "utf8",
     );
+    const heartbeatTimer = setInterval(
+      async () => {
+        try {
+          const ownerPath = resolve(paths.lock, "owner.json");
+          const owner = JSON.parse(await readFile(ownerPath, "utf8"));
+          if (owner?.leaseToken !== leaseToken) return;
+          await writeFile(
+            ownerPath,
+            `${JSON.stringify({ ...owner, heartbeatAt: new Date().toISOString() })}\n`,
+            "utf8",
+          );
+        } catch {
+          // The lease is reconciled by the next worker if this process disappears.
+        }
+      },
+      Math.min(60_000, Math.max(5_000, Math.floor(staleAfterMs / 3))),
+    );
+    heartbeatTimer.unref?.();
     return async () => {
+      clearInterval(heartbeatTimer);
+      try {
+        const owner = JSON.parse(await readFile(resolve(paths.lock, "owner.json"), "utf8"));
+        if (owner?.leaseToken !== leaseToken) return;
+      } catch {
+        return;
+      }
       await rm(paths.lock, { recursive: true, force: true });
     };
   } catch (error) {
@@ -167,9 +269,11 @@ export async function acquireSocialLock(rootDir, { staleAfterMs = 8 * 60 * 60 * 
     } catch {
       ageMs = 0;
     }
-    if (ageMs > staleAfterMs && !pidIsAlive(Number(metadata?.pid))) {
+    const heartbeatAt = Date.parse(String(metadata?.heartbeatAt || metadata?.startedAt || ""));
+    const heartbeatAgeMs = Number.isFinite(heartbeatAt) ? Date.now() - heartbeatAt : ageMs;
+    if (Math.max(ageMs, heartbeatAgeMs) > staleAfterMs && !pidIsAlive(Number(metadata?.pid))) {
       await rm(paths.lock, { recursive: true, force: true });
-      return acquireSocialLock(rootDir, { staleAfterMs });
+      return acquireSocialLock(rootDir, { staleAfterMs, publisher });
     }
     throw new Error(
       `VS Store social automation is already running (pid ${metadata?.pid || "unknown"}).`,
@@ -221,6 +325,18 @@ export async function readImageGenResult(rootDir) {
 
 export async function clearImageGenResult(rootDir) {
   await rm(socialPaths(rootDir).imageGenResult, { force: true });
+}
+
+export async function clearBrowserResult(rootDir) {
+  await rm(socialPaths(rootDir).browserResult, { force: true });
+}
+
+export async function clearBrowserRequest(rootDir) {
+  await rm(socialPaths(rootDir).browserRequest, { force: true });
+}
+
+export async function clearBrowserIntent(rootDir) {
+  await rm(socialPaths(rootDir).browserIntent, { force: true });
 }
 
 export async function clearImageGenFiles(rootDir) {

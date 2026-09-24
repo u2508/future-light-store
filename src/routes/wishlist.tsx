@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useWishlistStore } from "@/stores/wishlistStore";
 import { ProductCard } from "@/components/vs/ProductCard";
+import { canonicalUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/wishlist")({
   head: () => ({
@@ -11,6 +12,7 @@ export const Route = createFileRoute("/wishlist")({
       { property: "og:description", content: "Everything you've saved at VS Store." },
       { name: "robots", content: "noindex, nofollow" },
     ],
+    links: [{ rel: "canonical", href: canonicalUrl("/wishlist") }],
   }),
   component: WishlistPage,
 });

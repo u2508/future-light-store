@@ -25,11 +25,11 @@ export const MERCHANDISING_COLLECTIONS = [
   },
   {
     handle: "best-sellers",
-    title: "Best Sellers",
-    eyebrow: "The most-wanted edit",
+    title: "Curated Picks",
+    eyebrow: "The considered edit",
     headline: "Good finds. Great company.",
-    copy: "Discover the pieces making their way into everyday life.",
-    cta: "Explore best sellers",
+    copy: "Discover a considered mix of pieces for everyday life.",
+    cta: "Explore curated picks",
   },
   {
     handle: "premium-picks",

@@ -14,9 +14,12 @@ function numericId(product) {
   return match ? Number(match[1]) : 0;
 }
 
-function timestamp(product, primary, secondary = "") {
-  const value = Date.parse(text(product?.[primary]) || text(product?.[secondary]));
-  return Number.isFinite(value) ? value : 0;
+function timestamp(product, ...fields) {
+  for (const field of fields) {
+    const value = Date.parse(text(product?.[field]));
+    if (Number.isFinite(value)) return value;
+  }
+  return 0;
 }
 
 function isActive(product) {
@@ -24,8 +27,9 @@ function isActive(product) {
 }
 
 function newestFirst(left, right) {
-  return timestamp(right, "updated_at", "created_at") - timestamp(left, "updated_at", "created_at") ||
-    timestamp(right, "created_at") - timestamp(left, "created_at") ||
+  return timestamp(right, "updated_at", "updatedAt", "created_at", "createdAt") -
+      timestamp(left, "updated_at", "updatedAt", "created_at", "createdAt") ||
+    timestamp(right, "created_at", "createdAt") - timestamp(left, "created_at", "createdAt") ||
     numericId(right) - numericId(left) ||
     handle(left?.handle).localeCompare(handle(right?.handle));
 }
@@ -41,6 +45,11 @@ function orderedProductHandles(recentlyOrderedPayload, catalogByHandle) {
   const ordered = [];
   for (const entry of Array.isArray(recentlyOrderedPayload?.products) ? recentlyOrderedPayload.products : []) {
     const productHandle = handle(entry?.handle);
+    const orderCount = Number(entry?.orderCount);
+    const quantitySold = Number(entry?.quantitySold);
+    const hasSalesEvidence = (Number.isFinite(orderCount) && orderCount > 0) ||
+      (Number.isFinite(quantitySold) && quantitySold > 0);
+    if (!hasSalesEvidence) continue;
     if (!productHandle || seen.has(productHandle) || !catalogByHandle.has(productHandle)) continue;
     seen.add(productHandle);
     ordered.push(productHandle);
@@ -50,9 +59,9 @@ function orderedProductHandles(recentlyOrderedPayload, catalogByHandle) {
 
 /**
  * Build the two customer-facing merchandising cohorts from one deterministic
- * source. New Arrivals is recency-based; Best Sellers keeps the live order
- * feed first and fills the requested 250 slots from the newest eligible
- * catalog products when order history is sparse.
+ * source. New Arrivals is recency-based; Best Sellers contains only catalog
+ * products with positive order-count or quantity-sold evidence. If fewer than
+ * 250 products have verified sales, return fewer rather than padding the list.
  */
 export function buildMerchandisingCollectionMembership(products, recentlyOrderedPayload = {}) {
   const active = (Array.isArray(products) ? products : [])
@@ -61,13 +70,10 @@ export function buildMerchandisingCollectionMembership(products, recentlyOrdered
   const newest = [...active].sort(newestFirst);
   const catalogByHandle = productByHandle(active);
   const orderedHandles = orderedProductHandles(recentlyOrderedPayload, catalogByHandle);
-  const fallbackHandles = newest
-    .map((product) => handle(product.handle))
-    .filter((productHandle) => !orderedHandles.includes(productHandle));
 
   return {
     "new-arrivals": newest.slice(0, NEW_ARRIVALS_LIMIT),
-    "best-sellers": [...orderedHandles, ...fallbackHandles].slice(0, BEST_SELLERS_LIMIT).map((productHandle) => catalogByHandle.get(productHandle)),
+    "best-sellers": orderedHandles.slice(0, BEST_SELLERS_LIMIT).map((productHandle) => catalogByHandle.get(productHandle)),
   };
 }
 

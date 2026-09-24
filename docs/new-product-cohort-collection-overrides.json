@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "2026-09-21.future-light.new-product-collection-overrides.1",
+  "overrides": [
+    {
+      "handle": "doreenbox-30-70-100pcs-bronze-tone-spacer-beads-vintage-loose-spacer-beads-for-diy-jewelry-making-13x12mm",
+      "reviewId": "new-cohort-doreenbox-beads-20260921",
+      "tags": ["office-school-supplies"],
+      "rationale": "Loose spacer beads are DIY craft components, not finished wearable jewelry; Office & School Supplies is the closest governed craft/stationery collection and avoids misleading shoppers."
+    },
+    {
+      "handle": "large-detailed-cross-drill-jewel-earrings-silver-color-tone-gothic-punk-jewellery-fashion-charm-statement-women-giftred",
+      "reviewId": "new-cohort-cross-earrings-20260921",
+      "tags": ["women", "earrings", "everyday-jewelry"],
+      "rationale": "The listing is a finished pair of earrings; use the gender department plus the exact earring and everyday-jewelry collections."
+    },
+    {
+      "handle": "large-detailed-cross-drill-jewel-earrings-silver-color-tone-gothic-punk-jewellery-fashion-charm-statement-women-giftred-1",
+      "reviewId": "new-cohort-cross-earrings-20260921-duplicate",
+      "tags": ["women", "earrings", "everyday-jewelry"],
+      "rationale": "The listing is a finished pair of earrings; use the gender department plus the exact earring and everyday-jewelry collections."
+    },
+    {
+      "handle": "8-16-32pcs-large-clothespins-clothing-organizing-clips-drying-windproof-clips-for-securing-laundry-storage-clothes-pins-set-1",
+      "reviewId": "new-cohort-clothespins-20260921",
+      "tags": ["home-decor", "bedsheets-handlooms-towels"],
+      "rationale": "Laundry drying and storage clips belong with household textiles and utility home products."
+    },
+    {
+      "handle": "stainless-steel-windproof-clip-towel-rack-drying-rack-hook-windproof-socks-underwear-drying-rack-family-storage-laundry-rack-1",
+      "reviewId": "new-cohort-towel-rack-20260921",
+      "tags": ["home-decor", "bedsheets-handlooms-towels"],
+      "rationale": "This is a household laundry drying rack, so it belongs with home utility and towels/textiles."
+    },
+    {
+      "handle": "6-12pcs-plastic-beach-towel-clips-heavy-duty-beach-towel-clips-laundry-clothes-clamp-1",
+      "reviewId": "new-cohort-beach-clips-20260921",
+      "tags": ["home-decor", "bedsheets-handlooms-towels"],
+      "rationale": "The product is a towel and laundry clip, so the household textiles collection is the relevant shopper destination."
+    },
+    {
+      "handle": "home-decor-retro-peace-and-love-design-with-guitar-and-flowers-home-decor-new-years-valentines-day-music-decor-4",
+      "reviewId": "new-cohort-peace-love-decor-20260921",
+      "tags": ["home-decor"],
+      "rationale": "The item is decorative home artwork; do not place it in lighting without evidence that it is a light fixture."
+    }
+  ]
+}

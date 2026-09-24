@@ -5,6 +5,7 @@ import { adminGraphql, ORDER_FIELDS, orderRow, num, type AdminOrder } from "../_
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
+const SHOPIFY_WEBHOOK_SECRET = Deno.env.get("SHOPIFY_WEBHOOK_SECRET") ?? "";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -25,8 +26,9 @@ async function fetchOrders(query: string, max = 250): Promise<AdminOrder[]> {
   const out: AdminOrder[] = [];
   let after: string | null = null;
   while (out.length < max) {
-    const data: { orders: { pageInfo: { hasNextPage: boolean; endCursor: string }; nodes: AdminOrder[] } } =
-      await adminGraphql(ORDERS_QUERY, { first: Math.min(100, max - out.length), query, after });
+    const data: {
+      orders: { pageInfo: { hasNextPage: boolean; endCursor: string }; nodes: AdminOrder[] };
+    } = await adminGraphql(ORDERS_QUERY, { first: Math.min(100, max - out.length), query, after });
     out.push(...data.orders.nodes);
     if (!data.orders.pageInfo.hasNextPage) break;
     after = data.orders.pageInfo.endCursor;
@@ -46,7 +48,10 @@ function buildFinance(orders: AdminOrder[]) {
   let currency = "USD";
   const disputes: Array<Record<string, unknown>> = [];
   const refundRows: Array<Record<string, unknown>> = [];
-  const byDay = new Map<string, { date: string; gross: number; refunds: number; net: number; orders: number }>();
+  const byDay = new Map<
+    string,
+    { date: string; gross: number; refunds: number; net: number; orders: number }
+  >();
 
   for (const o of orders) {
     currency = o.currentTotalPriceSet?.shopMoney?.currencyCode ?? currency;
@@ -78,7 +83,13 @@ function buildFinance(orders: AdminOrder[]) {
     }
 
     for (const d of o.disputes ?? []) {
-      disputes.push({ id: d.id, order: o.name, status: d.status, initiatedAs: d.initiatedAs, amount: total });
+      disputes.push({
+        id: d.id,
+        order: o.name,
+        status: d.status,
+        initiatedAs: d.initiatedAs,
+        amount: total,
+      });
     }
 
     const day = (o.processedAt ?? o.createdAt ?? "").slice(0, 10);
@@ -114,10 +125,12 @@ function buildFinance(orders: AdminOrder[]) {
       averageOrderValue: orderCount > 0 ? netSales / orderCount : 0,
       refundRate: gross > 0 ? (refunds / gross) * 100 : 0,
       chargebacks: disputes.length,
-      chargebackAmount: disputes.reduce((s, d) => s + num(d['amount']), 0),
+      chargebackAmount: disputes.reduce((s, d) => s + num(d["amount"]), 0),
     },
     series: [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date)),
-    refundRows: refundRows.sort((a, b) => String(b['date']).localeCompare(String(a['date']))).slice(0, 50),
+    refundRows: refundRows
+      .sort((a, b) => String(b["date"]).localeCompare(String(a["date"])))
+      .slice(0, 50),
     disputes,
     recentOrders: orders.slice(0, 25).map((o) => ({
       id: o.id,
@@ -152,7 +165,9 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", userData.user.id);
-    const isStaff = (roles ?? []).some((r: { role: string }) => r.role === "admin" || r.role === "staff");
+    const isStaff = (roles ?? []).some(
+      (r: { role: string }) => r.role === "admin" || r.role === "staff",
+    );
     if (!isStaff) return json({ error: "Forbidden: admin access required" }, 403);
 
     const body = await req.json().catch(() => ({}));
@@ -198,7 +213,10 @@ Deno.serve(async (req) => {
             financialStatus: o.displayFinancialStatus,
             fulfillmentStatus: o.displayFulfillmentStatus,
             cancelledAt: o.cancelledAt,
-            items: (o.lineItems?.nodes ?? []).map((li) => ({ title: li.title, quantity: li.quantity })),
+            items: (o.lineItems?.nodes ?? []).map((li) => ({
+              title: li.title,
+              quantity: li.quantity,
+            })),
           })),
         });
       }
@@ -220,6 +238,15 @@ Deno.serve(async (req) => {
     }
 
     if (action === "register_webhooks") {
+      if (!SHOPIFY_WEBHOOK_SECRET) {
+        return json(
+          {
+            error:
+              "SHOPIFY_WEBHOOK_SECRET is not configured; refusing to register Shopify webhooks until HMAC verification is ready.",
+          },
+          503,
+        );
+      }
       const callbackUrl = `${SUPABASE_URL}/functions/v1/shopify-webhook`;
       const topics = [
         "ORDERS_CREATE",

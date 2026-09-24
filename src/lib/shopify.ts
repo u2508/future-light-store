@@ -8,6 +8,12 @@ const SUPABASE_PUBLISHABLE_KEY =
 // needs the Supabase project URL and its publishable client key.
 export const isShopifyConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
+// A live catalog request must fail visibly instead of leaving a route in an
+// infinite skeleton state. This is only a network bound: there is no cached or
+// generated catalog fallback behind it.
+const LIVE_CATALOG_REQUEST_TIMEOUT_MS = 12_000;
+const LIVE_INVENTORY_REQUEST_TIMEOUT_MS = 4_000;
+
 export interface ShopifyVariant {
   id: string;
   title: string;
@@ -18,6 +24,7 @@ export interface ShopifyVariant {
   // unauthenticated_read_product_inventory. Availability remains usable
   // without that optional scope.
   quantityAvailable?: number | null;
+  image?: { url: string; altText: string | null } | null;
   selectedOptions: Array<{ name: string; value: string }>;
 }
 
@@ -43,6 +50,15 @@ export interface ShopifyProductNode {
 export interface ShopifyProduct {
   node: ShopifyProductNode;
 }
+
+export type ShopifyProductInventory = {
+  id: string;
+  variants: {
+    edges: Array<{
+      node: Pick<ShopifyVariant, "id" | "availableForSale" | "quantityAvailable">;
+    }>;
+  };
+};
 
 /**
  * Storefront responses can contain a representative variant whose availability
@@ -97,7 +113,7 @@ export const PRODUCT_FRAGMENT = `
   availableForSale
   priceRange { minVariantPrice { amount currencyCode } }
   compareAtPriceRange { minVariantPrice { amount currencyCode } }
-  images(first: 6) { edges { node { url altText } } }
+  images(first: 250) { edges { node { url altText } } }
   variants(first: 25) {
     edges {
       node {
@@ -106,6 +122,8 @@ export const PRODUCT_FRAGMENT = `
         price { amount currencyCode }
         compareAtPrice { amount currencyCode }
         availableForSale
+        quantityAvailable
+        image { url altText }
         selectedOptions { name value }
       }
     }
@@ -162,9 +180,36 @@ export const BROWSE_PRODUCTS_QUERY = `
   }
 `;
 
-export const PRODUCT_BY_HANDLE_QUERY = `
+// Inventory is an optional Storefront API scope. Keep the base product query
+// field-reduced, then request quantities separately so stores whose public
+// token cannot read inventory can still render the live PDP. Both paths read
+// the requested product from Shopify at request time; neither is a catalog
+// fallback.
+const PRODUCT_FRAGMENT_WITHOUT_INVENTORY = PRODUCT_FRAGMENT.replace(
+  "        quantityAvailable\n",
+  "",
+);
+
+const PRODUCT_BY_HANDLE_WITHOUT_INVENTORY_QUERY = `
   query GetProduct($handle: String!) {
-    product(handle: $handle) { ${PRODUCT_FRAGMENT} }
+    product(handle: $handle) { ${PRODUCT_FRAGMENT_WITHOUT_INVENTORY} }
+  }
+`;
+
+const PRODUCT_INVENTORY_QUERY = `
+  query GetProduct($handle: String!) {
+    product(handle: $handle) {
+      id
+      variants(first: 25) {
+        edges {
+          node {
+            id
+            availableForSale
+            quantityAvailable
+          }
+        }
+      }
+    }
   }
 `;
 
@@ -204,7 +249,7 @@ const COLLECTION_PRODUCT_FRAGMENT = `
 `;
 
 export const COLLECTION_BY_HANDLE_QUERY = `
-  query GetCollection($handle: String!, $first: Int!) {
+  query GetCollection($handle: String!, $first: Int!, $after: String) {
     collection(handle: $handle) {
       id
       title
@@ -212,7 +257,10 @@ export const COLLECTION_BY_HANDLE_QUERY = `
       description
       updatedAt
       image { url altText }
-      products(first: $first) { edges { node {${COLLECTION_PRODUCT_FRAGMENT} } } }
+      products(first: $first, after: $after) {
+        edges { node {${COLLECTION_PRODUCT_FRAGMENT} } }
+        pageInfo { hasNextPage endCursor }
+      }
     }
   }
 `;
@@ -226,13 +274,24 @@ export interface ShopifyCollection {
   image: { url: string; altText: string | null } | null;
 }
 
-export async function storefrontApiRequest(query: string, variables: Record<string, unknown> = {}) {
+export type ShopifyCollectionPage = ShopifyCollection & {
+  products: ShopifyProduct[];
+  hasNextPage: boolean;
+  nextCursor: string | null;
+};
+
+export async function storefrontApiRequest(
+  query: string,
+  variables: Record<string, unknown> = {},
+  options: { timeout?: number } = {},
+) {
   if (!isShopifyConfigured) {
     throw new Error("Live Shopify catalog is not configured");
   }
 
   const { data, error } = await supabase.functions.invoke("shopify-storefront", {
     body: { query, variables },
+    timeout: options.timeout ?? LIVE_CATALOG_REQUEST_TIMEOUT_MS,
   });
 
   if (error) throw new Error(error.message || "Catalog service is unavailable");
@@ -297,8 +356,34 @@ export async function fetchLiveAllProducts(query?: string): Promise<ShopifyProdu
 }
 
 export async function fetchProduct(handle: string): Promise<ShopifyProductNode | null> {
-  const data = await storefrontApiRequest(PRODUCT_BY_HANDLE_QUERY, { handle });
+  // Product content is kept independent from optional inventory quantities so
+  // an inventory scope or resolver cannot block the PDP. This still reads the
+  // exact handle from Shopify at request time; it is not a local catalog
+  // fallback.
+  const data = await storefrontApiRequest(
+    PRODUCT_BY_HANDLE_WITHOUT_INVENTORY_QUERY,
+    { handle },
+    { timeout: LIVE_CATALOG_REQUEST_TIMEOUT_MS },
+  );
   return data?.data?.product ?? null;
+}
+
+export async function fetchProductInventory(
+  handle: string,
+): Promise<ShopifyProductInventory | null> {
+  try {
+    const data = await storefrontApiRequest(
+      PRODUCT_INVENTORY_QUERY,
+      { handle },
+      { timeout: LIVE_INVENTORY_REQUEST_TIMEOUT_MS },
+    );
+    return (data?.data?.product as ShopifyProductInventory | null | undefined) ?? null;
+  } catch {
+    // Inventory is an optional enhancement. Never turn a live product page
+    // into an error just because the optional quantity scope is unavailable or
+    // the inventory resolver is slow.
+    return null;
+  }
 }
 
 export async function fetchCollections(first = 20): Promise<ShopifyCollection[]> {
@@ -306,8 +391,12 @@ export async function fetchCollections(first = 20): Promise<ShopifyCollection[]>
   return (data?.data?.collections?.edges ?? []).map((e: { node: ShopifyCollection }) => e.node);
 }
 
-export async function fetchCollection(handle: string) {
-  const data = await storefrontApiRequest(COLLECTION_BY_HANDLE_QUERY, { handle, first: 100 });
+export async function fetchCollection(
+  handle: string,
+  first = 24,
+  after: string | null = null,
+): Promise<ShopifyCollectionPage | null> {
+  const data = await storefrontApiRequest(COLLECTION_BY_HANDLE_QUERY, { handle, first, after });
   const collection = data?.data?.collection;
   if (!collection) return null;
   const products = (collection.products?.edges ?? []).map(
@@ -324,7 +413,9 @@ export async function fetchCollection(handle: string) {
   return {
     ...collection,
     products,
-  } as ShopifyCollection & { products: ShopifyProduct[] };
+    hasNextPage: Boolean(collection.products?.pageInfo?.hasNextPage),
+    nextCursor: collection.products?.pageInfo?.endCursor ?? null,
+  } satisfies ShopifyCollectionPage;
 }
 
 export function formatMoney(amount: string | number, currencyCode = "USD") {

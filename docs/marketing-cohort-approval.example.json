@@ -1,0 +1,17 @@
+{
+  "approved": false,
+  "approvalId": "replace-with-operator-approval-id",
+  "approvedAt": null,
+  "approvedBy": null,
+  "handles": [
+    {
+      "handle": "replace-with-live-shopify-handle",
+      "supplierDeliveryVerified": false,
+      "returnsVerified": false,
+      "marginApproved": false,
+      "operatorApproved": false,
+      "allowableCpaUsd": null,
+      "notes": "Record supplier/DSers mapping, US delivery, returns, landed cost, payment fee, refund reserve, and policy review here."
+    }
+  ]
+}

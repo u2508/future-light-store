@@ -5,6 +5,17 @@ import { STALE_CATALOG_TAXONOMY_IMAGE_OVERRIDE_PRODUCT_IDS } from "./catalog-tax
 export const CATALOG_TAXONOMY_IMAGE_OVERRIDE_VERSION = "2026-09-06.1.future-light-store";
 
 const ALL_CATALOG_TAXONOMY_IMAGE_OVERRIDES = Object.freeze([
+  {
+    id: "image-future-light-16322582282321",
+    productId: "gid://shopify/Product/16322582282321",
+    handle: "baby-teething-toys-with-easy-grip-handles-food-grade-silicone-teething-toys-suitable-for-babies-0-6-months-6-12-months",
+    ruleId: "baby-care",
+    approved: true,
+    imageReviewed: true,
+    imageUrl: "https://cdn.shopify.com/s/files/1/1065/7008/8529/files/S40d4313f994a44cd8a274fb22006fda1l.webp?v=1789811271",
+    reviewedAt: "2026-09-21T00:00:00Z",
+    reason: "Live Shopify CDN image set reviewed in Codex internal browser; the matching images clearly show a silicone baby teether with textured chew surfaces and a grip handle.",
+  },
   { 
     "id": "image-future-light-15981559251025",
     "productId": "15981559251025",

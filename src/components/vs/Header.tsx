@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sheet";
 import { useWishlistStore } from "@/stores/wishlistStore";
 import { useAuth } from "@/hooks/useAuth";
+import { SHOPIFY_POLICY_SLUGS } from "@/lib/policies";
 
 const HEADER_NAV_ITEMS = [
   { label: "Shop all", to: "/shop" as const },
@@ -25,7 +26,7 @@ const HEADER_NAV_ITEMS = [
     params: { handle: "new-arrivals" },
   },
   {
-    label: "Best sellers",
+    label: "Curated picks",
     to: "/collections/$handle" as const,
     params: { handle: "best-sellers" },
   },
@@ -39,7 +40,7 @@ const HEADER_NAV_ITEMS = [
   {
     label: "Contact us",
     to: "/policies/$slug" as const,
-    params: { slug: "contact" },
+    params: { slug: SHOPIFY_POLICY_SLUGS.contact },
   },
 ] as const;
 

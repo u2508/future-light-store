@@ -1,6 +1,6 @@
 // Runs before `vite dev` and `vite build` (predev/prebuild hooks); writes public/sitemap.xml.
 
-import { writeFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
 function loadEnvFile(path: string) {
@@ -27,7 +27,7 @@ loadEnvFile(resolve(".env.local"));
 loadEnvFile(resolve(".env"));
 loadEnvFile(resolve(".env.example"));
 
-const BASE_URL = (process.env.VITE_SITE_URL ?? "https://vss-store.vercel.app").replace(/\/$/, "");
+const BASE_URL = (process.env.VITE_SITE_URL ?? "https://future-light-store.vercel.app").replace(/\/$/, "");
 
 const SUPABASE_URL = (
   process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "https://miiybtxnnxlimmiyfauy.supabase.co"

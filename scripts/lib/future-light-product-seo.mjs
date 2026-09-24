@@ -56,10 +56,12 @@ const HIDDEN_FACT_LABELS = new Set([
 const AUDIENCE_FAMILIES = new Set([
   "apparel-shirt", "apparel-dress", "apparel-top", "apparel-bottom", "apparel-outerwear",
   "apparel-underwear", "apparel-costume", "apparel-jumpsuit", "apparel-set", "socks", "jewelry", "watch", "smart-watch", "wallet", "bag",
+  "shoes", "hat", "scarf", "pajamas", "baby-romper", "hair-accessory", "sunglasses",
 ]);
 
 const NOUN_ALIASES = {
   "camera-mount": ["arm", "mount"],
+  "laundry-clip": ["clip", "clothespin", "clothes pin", "laundry"],
   "audio-cable": ["cable", "cord"],
   "charging-cable": ["cable", "cord"],
   "cable-organizer": ["organizer", "bag"],
@@ -68,9 +70,11 @@ const NOUN_ALIASES = {
   "keyboard": ["keyboard"],
   "smart-glasses": ["glasses"],
   "scarf": ["scarf", "bandana", "kerchief"],
+  "sunglasses": ["sunglasses", "eyewear", "glasses"],
   "face-covering": ["mask", "balaclava", "headband"],
   "pajamas": ["pajamas", "pajama", "pyjamas", "pyjama", "sleepwear"],
   "hat": ["hat", "cap", "beanie", "visor"],
+  "hair-accessory": ["hair", "clip", "claw", "barrette", "headband", "hairband", "scrunchie", "hairpin", "tie"],
   "bedding": ["bedding", "duvet", "quilt", "pillowcase"],
   "blanket": ["blanket", "quilt", "throw"],
   "hair-care": ["hair", "serum", "oil", "mask", "shampoo", "conditioner", "treatment"],
@@ -104,7 +108,7 @@ const NOUN_ALIASES = {
   "false-eyelash": ["eyelash", "eyelashes", "lashes"],
   "nfc-tag": ["nfc", "tag", "card"],
   "home-decor": ["decor", "decoration", "ornament"],
-  "shoes": ["shoe", "shoes", "footwear"],
+  "shoes": ["shoe", "shoes", "sneaker", "sneakers", "footwear"],
   "game-controller": ["controller", "gamepad"],
   "board-game": ["game"],
   "toy-tea-set": ["tea", "toy", "set"],
@@ -309,6 +313,7 @@ export function classifyProduct(product, facts = extractProductFacts(product)) {
   const text = [source.classificationText, factText].filter(Boolean).join(" ");
   const rules = [
     ["organizer", "organizer", /\b(?:organizer|storage box|storage case)\b/i],
+    ["laundry-clip", "laundry clip", /\b(?:clothespins?|clothes[- ]?pins?|laundry clips?|clothing organizing clips?)\b/i],
     ["camera-mount", "camera mounting arm", /\b(?:articulated|magic|mounting|camera)\b[^.]{0,70}\b(?:arm|hex pin|female thread|clamp)\b|\barm\b[^.]{0,70}\b(?:hex|thread|camera|mount)\b/i],
     ["video-adapter", "HDMI-to-VGA video adapter", /\bhdmi\b[^.]{0,90}\bvga\b|\bvga\b[^.]{0,90}\bhdmi\b/i],
     ["audio-cable", "AUX audio cable", /\b(?:aux|audio|rca|coaxial|3\.5\s*mm|headphone jack)\b[^.]{0,80}\b(?:cable|cord|wire|splitter|adapter)\b|\b(?:cable|cord|wire)\b[^.]{0,80}\b(?:aux|audio|rca|coaxial)\b/i],
@@ -319,7 +324,9 @@ export function classifyProduct(product, facts = extractProductFacts(product)) {
     ["computer-mouse", "computer mouse", /\b(?:computer|gaming|wireless|bluetooth|ergonomic)\b[^.]{0,35}\b(?:mouse|mice)\b|\b(?:mouse|mice)\b/i],
     ["keyboard", "keyboard", /\b(?:keyboard|touchpad)\b/i],
     ["smart-glasses", "smart glasses", /\b(?:smart glasses|shooting glasses|translation glasses)\b/i],
+    ["sunglasses", "sunglasses", /\b(?:sunglasses|sun glasses|polarized eyewear)\b/i],
     ["scarf", "scarf", /\b(?:scarf|bandana|kerchief|hijab|neckerchief)\b/i],
+    ["hair-accessory", "hair accessory", /\b(?:hair\s*(?:claw|clip|clips|pin|pins|tie|ties|band|bands|barrette|scrunchie)|barrette|ponytail holder|hair accessories?)\b/i],
     ["beauty-mask", "beauty face mask", /\b(?:led|beauty|facial|skin)\b[^.]{0,30}\bmask\b/i],
     ["face-covering", "face covering", /\b(?:balaclava|face mask|neck gaiter|headband)\b/i],
     ["pajamas", "pajamas", /\b(?:pajama|pyjama|sleepwear|nightwear)\b/i],
@@ -630,13 +637,13 @@ function generalAccessoryTitle(profile) {
     || rule(/(?:bath|face|microfiber).*towel|towel/i, () => [firstSize, /face/i.test(text) ? "Face Towel" : "Bath Towel"])
     || rule(/resistance\s*bands?|exercise\s*bands?/i, () => [firstSize, "Resistance Band Set"])
     || rule(/knee\s*pads?|elbow\s*pads?|wrist\s*guard/i, () => [firstSize, "Kids' Protective Pads Set"])
-    || rule(/sunglasses/i, () => [audience || "Kids'", "UV Protection Sunglasses"])
+    || rule(/sunglasses/i, () => [audience, "UV Protection Sunglasses"])
     || rule(/hair\s*(?:trimmer|clipper)|split\s*end\s*trimmer/i, () => [brand, "Hair Trimmer"])
     || rule(/massage\s*(?:roller|ball)|massager/i, () => [firstSize, "Massage Tool"])
     || rule(/makeup.*(?:blush|bronzer)|blush|bronzer/i, () => [brand, "Blush Makeup"])
     || rule(/hair.*(?:oil|serum)|rosemary.*oil/i, () => [brand, "Hair Oil"])
     || rule(/(?:textile|fabric)/i, () => [material, extractStyle(text).filter((value) => ["Floral", "Vintage", "Printed"].includes(value)).slice(0, 1).join(" "), "Fabric"])
-    || rule(/(?:hoodies?|jumpsuits?|overalls?|tank\s*tops?|coats?|clothes|bodysuits?)/i, () => [audience || "Unisex", features.includes("Long-Sleeve") ? "Long-Sleeve" : "", "Everyday Apparel"])
+    || rule(/(?:hoodies?|jumpsuits?|overalls?|tank\s*tops?|coats?|clothes\s+sets?|bodysuits?)/i, () => [audience || "Unisex", features.includes("Long-Sleeve") ? "Long-Sleeve" : "", "Everyday Apparel"])
     || rule(/(?:bag|handbag|tote|pouch|clutch|crossbody|satchel|backpack)/i, () => [audience, extractMaterial(profile.facts, text), /backpack/i.test(text) ? "Backpack" : /tote|handbag/i.test(text) ? "Tote Bag" : "Carry Bag"])
     || rule(/photography.*(?:background|backdrop)|backdrop|softbox/i, () => [brand, "Photography Backdrop"])
     || rule(/belt/i, () => [audience, extractMaterial(profile.facts, text), "Belt"])
@@ -703,8 +710,16 @@ function buildTitle(profile) {
     candidate = joinTitleParts([brand, features.includes("Wireless") ? "Wireless" : "", compatibility ? "For " + compatibility : "", "Keyboard"]);
   } else if (family === "smart-glasses") {
     candidate = joinTitleParts([brand, /\bcamera\b/i.test(handleText) ? "Camera" : "", /\btranslation\b/i.test(handleText) ? "Translation" : "", "Smart Glasses"]);
+  } else if (family === "sunglasses") {
+    candidate = joinTitleParts([audience, /\bpolarized\b/i.test(handleText) ? "Polarized" : "", "Sunglasses"]);
   } else if (family === "scarf") {
     candidate = joinTitleParts([audience, measurements[0] || "", /\bbandana\b|\bkerchief\b/i.test(handleText) ? "Bandana Scarf" : "Scarf"]);
+  } else if (family === "hair-accessory") {
+    const form = /\b(?:claw|crab)\b/i.test(handleText) ? "Hair Claw Clip"
+      : /\b(?:barrette|hairpin|pin)\b/i.test(handleText) ? "Hair Barrette"
+        : /\b(?:tie|ponytail|rubber band)\b/i.test(handleText) ? "Hair Tie Set"
+          : "Hair Accessory";
+    candidate = joinTitleParts([audience, material, salient.slice(0, 2).join(" "), form]);
   } else if (family === "face-covering") {
     candidate = joinTitleParts([/\bbalaclava\b/i.test(handleText) ? "Balaclava" : "Face Covering", /\bskull\b|\bhalloween\b/i.test(handleText) ? "Costume Style" : ""]);
   } else if (family === "pajamas") {
@@ -894,6 +909,8 @@ function buildTitle(profile) {
     candidate = joinTitleParts([measurements[0] || "", material, /\bpan\b/i.test(handleText) ? "Cooking Pan" : "Cookware Set"]);
   } else if (family === "cleaning-tool") {
     candidate = joinTitleParts([/\bglass\b|\bwindow\b/i.test(handleText) ? "Glass Window" : "", "Cleaning Squeegee"]);
+  } else if (family === "laundry-clip") {
+    candidate = joinTitleParts([measurements[0] || "", "Laundry Clothespin Set"]);
   } else if (family === "organizer") {
     candidate = joinTitleParts([salient.slice(0, 3).join(" "), "Organizer"]);
   } else if (family === "fan") {
@@ -1552,9 +1569,14 @@ export function buildProductSeoCopy(product) {
   const descriptionHtml = [
     "<h2>About " + escapeHtml(title) + "</h2>",
     "<p>" + escapeHtml(intro) + "</p>",
-    factMarkup ? "<h3>At a glance</h3>" + factMarkup : "",
+    factMarkup
+      ? "<h3>At a glance</h3>" + factMarkup
+      : "<h3>At a glance</h3><p><strong>Product type:</strong> " + escapeHtml(classification.noun) + "</p>",
     "<h3>Before you order</h3>",
     "<p>" + escapeHtml(check) + "</p>",
+    "<h3>FAQs</h3>",
+    "<p><strong>Q: What should I check before ordering?</strong></p>",
+    "<p>A: " + escapeHtml(check) + "</p>",
   ].filter(Boolean).join("\n");
   return {
     title: shortenTitle(title), seoTitle: shortenTitle(title), seoDescription, descriptionHtml,

@@ -8,7 +8,7 @@ from docx.oxml.ns import qn
 from docx.enum.style import WD_STYLE_TYPE
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parent / "dsers-family-store-search-terms.docx"
+OUT = Path(__file__).resolve().parent / "future-light-dsers-family-store-search-terms-2026-09-20.docx"
 
 def set_cell_shading(cell, fill):
     tcPr = cell._tc.get_or_add_tcPr()
@@ -85,7 +85,7 @@ def add_bullet(doc, text):
     return p
 
 collections = [
-    ("Kids and toddler learning", 28, [
+    ("Kids and toddler learning", 14, [
         "montessori toddler busy board sensory activity board",
         "toddler fine motor skills toy wooden activity cube",
         "preschool matching puzzle educational toy",
@@ -94,7 +94,7 @@ collections = [
         "early learning counting sorting toy",
         "toddler travel activity quiet book",
         "kids reusable drawing tablet no battery",]),
-    ("Toys and pretend play", 20, [
+    ("Toys and pretend play", 10, [
         "pretend play doctor kit kids non electronic",
         "kids role play tool set",
         "doll stroller pretend play accessory",
@@ -103,7 +103,7 @@ collections = [
         "outdoor bubble toy kids",
         "kids dress up costume accessory",
         "family board game educational",]),
-    ("Collectibles and action figures", 16, [
+    ("Collectibles and action figures", 8, [
         "collectible action figure display model",
         "posable robot action figure toy",
         "anime style collectible figure generic",
@@ -112,7 +112,7 @@ collections = [
         "miniature figure display shelf decor",
         "collectible trading card storage binder",
         "model building kit character figure",]),
-    ("Anime and manga lifestyle", 14, [
+    ("Anime and manga lifestyle", 6, [
         "anime inspired desk mat original artwork",
         "manga style stationery set original design",
         "anime inspired wall art no trademark",
@@ -121,7 +121,7 @@ collections = [
         "anime inspired tote bag original artwork",
         "manga reading bookmark gift set",
         "otaku room decor original design",]),
-    ("Pet essentials for dogs and cats", 22, [
+    ("Pet essentials for dogs and cats", 16, [
         "slow feeder dog bowl non electric",
         "cat interactive toy no battery",
         "dog grooming slicker brush",
@@ -132,7 +132,7 @@ collections = [
         "pet travel water bowl non electric",
         "cat scratching mat furniture protector",
         "dog leash collar set reflective non electronic",]),
-    ("Baby care and feeding", 18, [
+    ("Baby care and feeding", 10, [
         "silicone baby bib waterproof",
         "baby feeding spoon suction bowl",
         "newborn changing pad portable",
@@ -142,7 +142,7 @@ collections = [
         "infant stroller organizer bag",
         "baby diaper caddy organizer",
         "baby proofing corner guards",]),
-    ("Baby wear and kids wear", 24, [
+    ("Baby wear and kids wear", 12, [
         "baby cotton romper soft newborn",
         "toddler spring fall onesie",
         "kids unisex cotton pajama set",
@@ -153,7 +153,7 @@ collections = [
         "toddler socks non slip",
         "kids holiday outfit accessory",
         "children sun hat adjustable",]),
-    ("Women fashion", 18, [
+    ("Women fashion", 12, [
         "women oversized cotton t shirt",
         "women relaxed fit summer dress",
         "women casual wide leg pants",
@@ -163,7 +163,7 @@ collections = [
         "women puffer vest seasonal",
         "women satin skirt outfit",
         "women knit top capsule wardrobe",]),
-    ("Women accessories and jewellery", 18, [
+    ("Women accessories and jewellery", 16, [
         "stainless steel necklace waterproof",
         "minimalist hoop earrings hypoallergenic",
         "layered chain necklace women",
@@ -174,7 +174,7 @@ collections = [
         "silk style hair scarf",
         "women card holder slim wallet",
         "stackable fashion rings stainless steel",]),
-    ("Makeup tools and beauty accessories", 16, [
+    ("Makeup tools and beauty accessories", 9, [
         "makeup brush set synthetic bristles",
         "travel makeup organizer bag",
         "reusable makeup sponge blender",
@@ -183,7 +183,7 @@ collections = [
         "compact cosmetic mirror non electric",
         "lip balm holder keychain",
         "hair styling heatless curlers",]),
-    ("Women care skin and hair", 18, [
+    ("Women care skin and hair", 10, [
         "facial cleansing brush manual silicone",
         "skincare headband spa set",
         "satin pillowcase hair care",
@@ -193,7 +193,7 @@ collections = [
         "under eye cooling mask reusable",
         "body care exfoliating gloves",
         "hair oil applicator comb non electric",]),
-    ("Men fashion", 16, [
+    ("Men fashion", 9, [
         "men embroidered short sleeve shirt",
         "men casual overshirt lightweight",
         "men cargo shorts summer",
@@ -202,7 +202,7 @@ collections = [
         "men athletic jogger pants",
         "men puffer vest seasonal",
         "men beach button down shirt",]),
-    ("Men accessories", 12, [
+    ("Men accessories", 7, [
         "men leather style card holder",
         "men canvas crossbody bag",
         "men woven belt casual",
@@ -211,7 +211,7 @@ collections = [
         "men tie clip lapel pin",
         "men watch strap replacement accessory",
         "men travel toiletry organizer",]),
-    ("Home decor and organization", 18, [
+    ("Home decor and organization", 14, [
         "dopamine decor colorful home accent",
         "afrohemian home decor wall accent",
         "art deco decorative tray",
@@ -221,7 +221,7 @@ collections = [
         "tabletop vase artificial flower decor",
         "kitchen countertop organizer",
         "bathroom shower storage caddy",]),
-    ("Home textiles and handloom", 14, [
+    ("Home textiles and handloom", 8, [
         "cotton handloom cushion cover",
         "boho woven throw blanket",
         "reversible quilt bedspread",
@@ -230,7 +230,7 @@ collections = [
         "bathroom mat quick dry",
         "decorative pillow cover set",
         "kitchen towel cotton set",]),
-    ("Electronics accessories without batteries", 18, [
+    ("Electronics accessories without batteries", 12, [
         "phone case shockproof clear",
         "iphone case magsafe compatible no battery",
         "earbud protective case silicone",
@@ -240,7 +240,7 @@ collections = [
         "wireless mouse no built in battery excluded power source verify",
         "mechanical keyboard keycap set",
         "webcam privacy cover",]),
-    ("Gaming accessories without batteries or logic boards", 10, [
+    ("Gaming accessories without batteries or logic boards", 6, [
         "wired game controller pc",
         "controller thumb grips silicone",
         "gaming mouse pad extended",
@@ -249,7 +249,7 @@ collections = [
         "console controller carrying case",
         "arcade joystick replacement accessory only if not repair part",
         "game controller wall mount",]),
-    ("Watches and watch accessories", 10, [
+    ("Watches and watch accessories", 6, [
         "mechanical watch minimalist men",
         "mechanical watch minimalist women",
         "watch organizer travel case",
@@ -258,7 +258,7 @@ collections = [
         "stainless steel watch band accessory",
         "watch cleaning cloth kit",
         "watch gift box organizer",]),
-    ("Gifts travel and everyday carry", 7, [
+    ("Gifts travel and everyday carry", 5, [
         "personalized style gift organizer no personalization claim",
         "travel packing cubes lightweight",
         "weekend travel toiletry bag",
@@ -294,7 +294,7 @@ subtitle.paragraph_format.space_after = Pt(14)
 style_run(subtitle.add_run("US catalog expansion plan for the remaining Shopify capacity"), size=11, color="555555")
 
 add_para(doc, "Purpose", style="Heading 1", space_after=5, size=16, bold=True)
-add_para(doc, "This document gives the DSers search plan and collection allocation for the next catalog expansion pass. The live DSers sidebar currently reads 2,683 products in My Products, so the working capacity to the stated 3,000-product limit is 317 products. The allocation below is a selection target, not a promise to publish every search result: every product must pass the evidence, inventory, safety, and store-fit gates before it is imported or pushed.", size=10.8, space_after=8)
+add_para(doc, "This document gives the DSers search plan and collection allocation used for the catalog expansion pass. The initial live DSers readback was 2,810 products in My Products, leaving 190 planning slots before the stated 3,000-product target; the current readback is now 3,000, so no additional product should be pushed until a slot is intentionally freed. The allocation below remains a vetted search backlog and replacement plan, not a promise to publish every result: every product must pass the evidence, inventory, safety, and store-fit gates before it is imported or pushed.", size=10.8, space_after=8)
 add_para(doc, "The store is positioned as a broad US family retailer: children and baby products, fashion and accessories, beauty tools and care, pets, home, collectibles, and non-battery electronics accessories. Search terms are written to expose useful product intent for classic search and answer-oriented discovery while keeping the final listing grounded in the actual supplier product.", size=10.8, space_after=10)
 
 add_para(doc, "Hard selection rules", style="Heading 1", space_after=5, size=16, bold=True)
@@ -311,7 +311,7 @@ for bullet in [
     add_bullet(doc, bullet)
 
 add_para(doc, "Collection allocation and search terms", style="Heading 1", space_after=5, size=16, bold=True)
-add_para(doc, "Use the target column as a portfolio guide while filling the 317 available slots. A collection may receive fewer products when the live results fail the gates; unused capacity should move to another collection with stronger evidence and stock rather than being filled with weak items.", size=10.8, space_after=8)
+add_para(doc, "Use the target column as a portfolio guide while filling the 190 available slots. A collection may receive fewer products when the live results fail the gates; unused capacity should move to another collection with stronger evidence and stock rather than being filled with weak items. The targets add to 190 and are counted by unique products, not collection memberships.", size=10.8, space_after=8)
 
 table = doc.add_table(rows=1, cols=3)
 table.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -354,7 +354,7 @@ for bullet in [
     "Run one search term at a time in DSers and collect only product cards that show stock at least 200, sensible pricing, and a product-specific image.",
     "Before selecting, open enough of the result to confirm the item is not a battery, power bank, logic board, repair/replacement item, adult product, or unlicensed character product.",
     "De-duplicate by product identity and visual design. Do not fill a collection with many supplier variants that a shopper cannot distinguish.",
-    "Add products to the Import List, then push in small verified batches. For each batch, verify the exact Shopify store, push success, and the My Products count increment.",
+    "Add products to the Import List, then push in small verified batches. For each batch, verify the exact Shopify store, push success, and the My Products count increment. Stop at the live DSers plan limit; do not subscribe, upgrade, or enter billing details automatically.",
     "After the batch is pushed, assign the appropriate Shopify collection and run the release workflow. Release verification remains separate from DSers push verification.",
 ]:
     add_bullet(doc, bullet)

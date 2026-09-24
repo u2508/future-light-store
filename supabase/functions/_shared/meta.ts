@@ -123,6 +123,7 @@ export async function sendMetaPurchase(
         },
       ],
     }),
+    signal: AbortSignal.timeout(8_000),
   });
 
   const payload = (await response.json().catch(() => ({}))) as {

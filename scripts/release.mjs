@@ -1503,10 +1503,28 @@ async function main() {
     const finalIntegrityManifestPath = resolve(rootDir, "output", "shopify-catalog-integrity-manifest.json");
     try {
       const finalIntegrityManifest = JSON.parse(await readFile(finalIntegrityManifestPath, "utf8"));
-      const classificationReviewRemaining = Number(finalIntegrityManifest?.summary?.classificationReviewRemaining || 0);
+      let classificationReviewRemaining = Number(finalIntegrityManifest?.summary?.classificationReviewRemaining || 0);
+      let classificationReviewScope = "active product";
+      if (args.profile === "products") {
+        // Product-only releases must not be held by legacy classification-review
+        // items outside the frozen new-product cohort. Keep the gate strict for
+        // every new-cohort item, but do not mutate or require decisions for old
+        // products merely because the full integrity snapshot includes them.
+        const cohortHandlesPath = getReleasePaths(rootDir).productCohortHandles;
+        const visualQueuePath = resolve(rootDir, "output", "catalog-visual-review-queue.json");
+        const cohortHandles = await readJsonFile(cohortHandlesPath);
+        const visualQueue = await readJsonFile(visualQueuePath);
+        const scopedHandles = new Set(Array.isArray(cohortHandles) ? cohortHandles : []);
+        const queuedProducts = Array.isArray(visualQueue?.products) ? visualQueue.products : null;
+        if (!scopedHandles.size || !queuedProducts) {
+          throw new Error(`New-product visual scope is missing or unreadable at ${cohortHandlesPath} / ${visualQueuePath}.`);
+        }
+        classificationReviewRemaining = queuedProducts.filter((entry) => scopedHandles.has(entry?.handle)).length;
+        classificationReviewScope = "active new-cohort product";
+      }
       if (classificationReviewRemaining > 0) {
         throw new Error(
-          `Release completion blocked: ${classificationReviewRemaining} active product(s) remain in classification-review. Inspect output/catalog-visual-review-queue.json and resume after visual decisions.`,
+          `Release completion blocked: ${classificationReviewRemaining} ${classificationReviewScope}(s) remain in classification-review. Inspect output/catalog-visual-review-queue.json and resume after visual decisions.`,
         );
       }
     } catch (error) {

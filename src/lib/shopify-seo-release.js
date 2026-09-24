@@ -167,6 +167,67 @@ function disambiguateSeoContent(products) {
   return products;
 }
 
+function duplicateProductTitleGroups(products) {
+  const groups = new Map();
+  for (const product of products) {
+    const value = normalizeComparableText(
+      product?.desiredProductInput?.title || product?.intelligence?.canonicalTitle || product?.title || "",
+    );
+    if (!value) continue;
+    if (!groups.has(value)) groups.set(value, []);
+    groups.get(value).push(product);
+  }
+  return [...groups.values()].filter((group) => group.length > 1);
+}
+
+function appendProductTitleQualifier(value, qualifier) {
+  const suffix = ` - ${normalizePlainText(qualifier)}`;
+  return `${shortenSeoText(value, 68 - suffix.length)}${suffix}`.trim();
+}
+
+function disambiguateProductTitles(products) {
+  for (let pass = 0; pass < 2; pass += 1) {
+    const groups = duplicateProductTitleGroups(products);
+    if (!groups.length) break;
+    for (const group of groups) {
+      const semanticQualifiers = group.map((product) => buildSemanticGroupQualifier(product, group));
+      const semanticQualifiersAreUnique =
+        pass === 0 &&
+        semanticQualifiers.every(Boolean) &&
+        new Set(semanticQualifiers.map((value) => normalizeComparableText(value))).size === group.length;
+
+      group.forEach((product, index) => {
+        const handleSuffix = normalizeHandleValue(product.handle).match(/-(\d+)$/)?.[1];
+        const qualifier = pass > 0
+          ? `Ref ${stableCatalogReference(product.handle)}`
+          : semanticQualifiersAreUnique
+            ? semanticQualifiers[index]
+            : handleSuffix
+              ? `Style ${Number(handleSuffix) + 1}`
+              : `Style ${index + 1}`;
+        const currentTitle = normalizePlainText(
+          product?.desiredProductInput?.title || product?.intelligence?.canonicalTitle || product?.title || "",
+        ).replace(/\s+-\s+(?:Style\s+\d+|Ref\s+[A-Z0-9]+)$/i, "");
+        const nextTitle = appendProductTitleQualifier(currentTitle, titleCaseQualifier(qualifier));
+        product.desiredProductInput = {
+          ...(product.desiredProductInput || {}),
+          title: nextTitle,
+        };
+        product.productInput = {
+          ...(product.productInput || {}),
+          title: nextTitle,
+        };
+        product.intelligence = {
+          ...(product.intelligence || {}),
+          canonicalTitle: nextTitle,
+        };
+        product.reasons = [...(product.reasons || []), `product-title-identity:${titleCaseQualifier(qualifier)}`];
+      });
+    }
+  }
+  return products;
+}
+
 function duplicateDescriptionGroups(products) {
   const groups = new Map();
   for (const product of products) {
@@ -549,7 +610,7 @@ export async function buildShopifySeoReleasePlan(
         },
       };
 
-  const products = disambiguateDescriptionContent(disambiguateSeoContent(basePlan.products.map((productPlan) => {
+  const productPlans = basePlan.products.map((productPlan) => {
     const desiredProductInput = { ...(productPlan.desiredProductInput || {}) };
     if (forceExplicitSeo) {
       const canonicalSeoTitleBase = normalizePlainText(
@@ -597,7 +658,8 @@ export async function buildShopifySeoReleasePlan(
       currentQuantityTag: getMinimumQuantityTagForPrices(currentVariantUpdates.map((variant) => variant.price)),
       categoryAuthoritative: Boolean(productPlan.categoryId && productPlan.categoryQuery),
     };
-  })));
+  });
+  const products = disambiguateDescriptionContent(disambiguateSeoContent(disambiguateProductTitles(productPlans)));
 
   return {
     ...basePlan,

@@ -6,14 +6,16 @@ import "./styles.css";
 
 const rootElement = document.getElementById("root");
 
-if (!rootElement) {
-  throw new Error("The application root element is missing.");
+// The Shopify theme loads this shared entry on native Shopify pages too
+// (policies, checkout-adjacent surfaces, and other platform-owned templates).
+// Those pages intentionally do not render the React application root, so the
+// entry must remain a no-op there instead of creating a false runtime error.
+if (rootElement) {
+  const router = getRouter();
+
+  createRoot(rootElement).render(
+    <StrictMode>
+      <RouterProvider router={router} />
+    </StrictMode>,
+  );
 }
-
-const router = getRouter();
-
-createRoot(rootElement).render(
-  <StrictMode>
-    <RouterProvider router={router} />
-  </StrictMode>,
-);

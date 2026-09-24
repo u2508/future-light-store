@@ -8,10 +8,17 @@ Page and the connected Instagram account `@vs.store2608`.
 ## Setup
 
 Copy `.env.vs-store-social.example` to `.env.vs-store-social.local` and fill in
-the Future Light Shopify and Meta Page values locally. Do not paste tokens into
-chat or commit the local file. Shopify can use either a token with permission to
-read products, collections, variants, and inventory costs and create code
-discounts, or an authenticated Shopify CLI session.
+the Shopify values locally. For the normal route, configure
+`VS_STORE_SOCIAL_PUBLISHER=meta-api-primary`, the exact VS Store Page ID, the
+Page access token from the logged-in Meta developer session, and the verified
+linked Instagram Business account ID. Do not paste passwords, OTPs, browser
+cookies, or tokens into chat or commit the local file. The Page credential is
+used for both Facebook and the linked Instagram account in the Facebook Login
+flow; a separate Instagram token is optional.
+
+Business Suite identity and browser profile values are retained for an
+explicit `business-suite-browser` publisher configuration only. API mode never
+switches transports automatically.
 
 For CLI-backed Shopify access, set:
 
@@ -71,7 +78,7 @@ to one use per customer, and cannot stack.
 
 Live posts require a Codex Image Gen creative. Dry-run only prepares and
 reports the Image Gen references; it does not call a local image renderer or
-publish anything.
+upload, publish, or mutate production data.
 
 ## Image Gen handoff
 
@@ -90,25 +97,109 @@ node scripts/vs-store-social-imagegen-bridge.mjs --write-result \
 npm run social:daily:resume-imagegen
 ```
 
-The bridge accepts only an image path, run key, and fingerprint. The runner
-checks the path, file type, size, and matching fingerprint before any Meta or
-API publish step. If Image Gen is unavailable, the run remains paused and
-no local image renderer is substituted.
+The bridge checks containment, real image type, decoded dimensions, size, SHA-256
+hash, and matching fingerprint before any browser handoff. If Image Gen is
+unavailable, the run remains paused and no local image renderer is substituted.
 
-## API-only execution
+## Meta API primary execution
 
-The social runner has no authenticated-browser fallback. Meta Page and
-Instagram publishing, Shopify catalog reads, and guarded discount creation must
-complete through their configured APIs. A missing permission, missing linked
-Instagram account, missing public image URL, or non-network API failure stops
-the run with a durable `failed` state; it never silently changes the post,
-creates a duplicate, or asks the browser to finish it. DNS, timeout, and rate
-limit failures remain in the durable `waiting_for_network` state and are
-retried with backoff.
+When the API preflight confirms the exact Page `VS Store` and connected
+Instagram `@vs.store2608`, the runner publishes Facebook and Instagram through
+the Graph API and verifies each platform independently. The API path keeps the
+same Shopify live-catalog read, guarded Friday discount, Image Gen handoff,
+image hash, usage ledger, durable lock, partial retry, and ambiguous-submit
+recovery rules.
+
+Instagram content publishing is only attempted after the Facebook publish
+readback supplies a verified reusable image URL. This avoids requiring a
+separate public-image-URL setting for normal generated creatives. If that
+readback is unavailable after Facebook succeeds, the run is recorded as
+ambiguous/needs-review rather than duplicated through the fallback.
+
+The API cannot schedule an Instagram post for a future best-time slot. When a
+slot is still in the future, the runner stores `waiting_for_publish_window`
+and publishes through the API only when the due slot arrives. A failed
+read-only preflight stores `waiting_for_setup`; it never creates a browser
+handoff or publishes to only one platform. Browser publishing is available
+only when `VS_STORE_SOCIAL_PUBLISHER=business-suite-browser` is explicitly
+configured. An API run is never switched to the browser after a submit attempt
+or ambiguous result.
+
+To explicitly move an untouched pending browser handoff to API mode, use
+`npm run social:daily:resume-api`. The command refuses the migration if a
+browser submit intent, result, external-attempt journal entry, changed image,
+or non-`not_started` platform state exists.
+
+## Business Suite browser fallback
+
+Meta Page and Instagram publishing are delivered through visible Business Suite
+controls in the dedicated browser profile. The Node runner creates one frozen
+request containing the same local image, caption, Page identity, Instagram
+handle, offer snapshot, and hashes for both destinations. A browser worker must
+record independent receipts for each platform; Facebook success does not imply
+Instagram success.
+
+Use the read-only setup commands:
+
+```bash
+npm run social:daily:browser-login
+npm run social:daily:check-browser
+npm run social:daily:status
+```
+
+`check-browser` stops on login, 2FA, CAPTCHA, consent, unexpected Page identity,
+missing connected Instagram, or an unrecognized Business Suite UI. It never
+opens a composer or clicks Publish. Live publishing is disabled by default with
+`VS_STORE_SOCIAL_LIVE_ENABLED=0`; the normal run stops at durable
+`waiting_for_browser` and writes `output/social/browser-request.json`.
+
+After a separately verified browser interaction, validate and copy its result,
+then reconcile it under the same lock:
+
+```bash
+node scripts/vs-store-social-browser-bridge.mjs \
+  --write-result \
+  --run-key YYYY-MM-DD \
+  --fingerprint REQUEST_FINGERPRINT \
+  --result-path /absolute/path/to/browser-result.json
+npm run social:daily:resume-browser
+```
+
+When live mode is explicitly enabled for a real rollout, the browser worker
+must record submit intent immediately before the one Publish click. This is a
+durable guard against ambiguous clicks and duplicate retries; it is refused
+while the example configuration keeps live mode disabled:
+
+```bash
+npm run social:daily:browser:write-intent -- \
+  --run-key YYYY-MM-DD \
+  --fingerprint REQUEST_FINGERPRINT \
+  --attempt-id ATTEMPT_ID \
+  --platforms facebook,instagram
+```
+
+If the intent exists without a verified result, `resume-browser` reports
+`needs_review` and does not click or retry. A successful reconciliation archives
+the redacted result and intent under the run directory before clearing their
+compatibility pointers.
+
+Timeout after a Publish click is recorded as `unknown`, not retried blindly.
+Partial success keeps the successful receipt and retries only a conclusively
+failed destination. `business-suite-browser` remains available as an explicit
+browser-only mode.
 
 ## Automation behavior
 
 The separate Codex scheduled task invokes `npm run social:daily`, resumes
 `waiting_for_network` state, and reports only material failures, completion, or
-required setup. Keep the Mac and Codex desktop app available for the local
-scheduled task and Image Gen handoff.
+required setup. Each request carries the selected best-time slot. In API mode,
+if the slot is still in the future, the run remains durably waiting and makes
+no submission; at the due time, the API publishes and verifies both
+destinations. If the slot has passed, it publishes immediately and never
+creates a retroactive schedule. Browser scheduling is used only when the
+publisher is explicitly configured as `business-suite-browser`; action-time
+confirmation is required immediately before a Schedule or Publish control is
+activated in that mode.
+
+Keep the Mac and Codex desktop app available for the local scheduled task and
+Image Gen handoff.

@@ -37,7 +37,7 @@ const PRODUCT_SELECTION = /* GraphQL */ `
       inventoryQuantity
       inventoryItem { tracked }
     }
-    pageInfo { hasNextPage }
+    pageInfo { hasNextPage endCursor }
   }
 `;
 
@@ -225,7 +225,10 @@ async function fetchProductById(id, retryInfo, operation) {
 async function completeVariantInventory(product, retryInfo, operation) {
   if (!product?.variants?.pageInfo?.hasNextPage) return product;
   const variants = [...asArray(product.variants.nodes)];
-  let after = null;
+  // The first 250 variants are already present in `product`. Continue after
+  // that cursor; restarting at null duplicates the first page and creates a
+  // false inventory-total mismatch for products with more than 250 variants.
+  let after = product.variants.pageInfo.endCursor;
   let page = 0;
   while (true) {
     page += 1;

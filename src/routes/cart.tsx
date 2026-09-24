@@ -2,6 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Minus, Plus, ShieldCheck, Trash2, Truck } from "lucide-react";
 import { formatMoney } from "@/lib/shopify";
 import { useCartStore } from "@/stores/cartStore";
+import { trackBeginCheckout } from "@/lib/marketingAnalytics";
+import { canonicalUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({
@@ -15,6 +17,7 @@ export const Route = createFileRoute("/cart")({
       { property: "og:description", content: "Review your bag and continue to secure checkout." },
       { name: "robots", content: "noindex, nofollow" },
     ],
+    links: [{ rel: "canonical", href: canonicalUrl("/cart") }],
   }),
   component: CartPage,
 });
@@ -23,6 +26,24 @@ function CartPage() {
   const { items, updateQuantity, removeItem, checkoutUrl, isLoading } = useCartStore();
   const currency = items[0]?.price.currencyCode ?? "USD";
   const subtotal = items.reduce((sum, i) => sum + parseFloat(i.price.amount) * i.quantity, 0);
+
+  const handleCheckout = () => {
+    if (!checkoutUrl) return;
+    trackBeginCheckout({
+      currency,
+      value: subtotal,
+      items: items.map((item) => ({
+        item_id: item.product.node.handle || item.product.node.id,
+        item_name: item.product.node.title,
+        price: Number(item.price.amount),
+        quantity: item.quantity,
+        item_variant: item.variantTitle,
+        item_brand: item.product.node.vendor || undefined,
+        item_category: item.product.node.productType || undefined,
+      })),
+    });
+    window.open(checkoutUrl, "_blank");
+  };
 
   return (
     <div className="vs-wide-shell py-10">
@@ -135,7 +156,7 @@ function CartPage() {
               Taxes and shipping calculated at checkout.
             </p>
             <button
-              onClick={() => checkoutUrl && window.open(checkoutUrl, "_blank")}
+              onClick={handleCheckout}
               disabled={!checkoutUrl || isLoading}
               className="mt-4 block w-full rounded-xl bg-primary py-3 text-center text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >

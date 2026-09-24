@@ -81,6 +81,14 @@
   .vs-mobile-content {
     padding-bottom: max(5rem, calc(5rem + env(safe-area-inset-bottom)));
   }
+
+  /* The Shopify-injected WillLink launcher is fixed to the viewport. Keep it
+   * above the app navigation so it cannot steal taps from Search, Account, or
+   * the other bottom-nav destinations on narrow screens. */
+  #willlink-app {
+    bottom: calc(5.5rem + env(safe-area-inset-bottom)) !important;
+    right: 0.75rem !important;
+  }
 }
 
 .vs-cinematic-image {

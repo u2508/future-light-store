@@ -1,7 +1,9 @@
+import { US_SHIPPING_PROMISE } from "@/lib/shipping-promise";
+
 export const FAQS = [
   {
     question: "How long does delivery take?",
-    answer: "Most orders ship within 1–2 business days; delivery estimates are shown at checkout.",
+    answer: `For US addresses, the current standard profile shows ${US_SHIPPING_PROMISE.cost.toLowerCase()} shipping with an estimated ${US_SHIPPING_PROMISE.estimate} delivery window. Shopify confirms the final eligible option at checkout.`,
   },
   {
     question: "Can I return an item?",
@@ -61,9 +63,9 @@ export const FEATURED_COLLECTION_LINKS = [
 export const HERO_COLLECTION_BANNERS = [
   {
     handle: "best-sellers",
-    eyebrow: "Most ordered",
-    title: "Best sellers, restocked weekly.",
-    copy: "The products VS shoppers reorder most — proven picks with tracked delivery and easy returns.",
+    eyebrow: "Curated edit",
+    title: "Good finds, thoughtfully chosen.",
+    copy: "A considered mix of everyday upgrades with tracked delivery and clear returns information.",
   },
   {
     handle: "travel-outdoor",

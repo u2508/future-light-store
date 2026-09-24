@@ -3,16 +3,22 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { trackEmailSignup } from "@/lib/marketingAnalytics";
+import { canonicalUrl } from "@/lib/seo";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Sign in — VS Store" },
-      { name: "description", content: "Sign in to your VS Store account to manage orders and staff tools." },
+      {
+        name: "description",
+        content: "Sign in to your VS Store account to manage orders and staff tools.",
+      },
       { property: "og:title", content: "Sign in — VS Store" },
       { property: "og:description", content: "Sign in to VS Store." },
       { name: "robots", content: "noindex" },
     ],
+    links: [{ rel: "canonical", href: canonicalUrl("/auth") }],
   }),
   component: AuthPage,
 });
@@ -41,6 +47,7 @@ function AuthPage() {
           options: { emailRedirectTo: `${window.location.origin}/account` },
         });
         if (error) throw error;
+        trackEmailSignup("account");
         toast.success("Account created — check your inbox if confirmation is required.");
       }
     } catch (error) {
@@ -70,7 +77,9 @@ function AuthPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-16">
-      <h1 className="font-display text-3xl font-bold">{mode === "signin" ? "Sign in" : "Create account"}</h1>
+      <h1 className="font-display text-3xl font-bold">
+        {mode === "signin" ? "Sign in" : "Create account"}
+      </h1>
       <p className="mt-2 text-sm text-muted-foreground">
         VS accounts unlock saved bags, order history and staff tools.
       </p>

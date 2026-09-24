@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { existsSync } from "node:fs";
-import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -9,6 +8,7 @@ import {
   socialPaths,
   writeImageGenResult,
 } from "./lib/vs-store-social-state.mjs";
+import { inspectSocialImage } from "./lib/vs-store-social-image-validation.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 
@@ -55,9 +55,7 @@ async function writeResult(args) {
     throw new Error("Image Gen result path must match the pending request outputPath.");
   }
   if (!existsSync(imagePath)) throw new Error(`Image Gen result does not exist: ${imagePath}`);
-  const imageStats = await stat(imagePath);
-  if (!imageStats.isFile() || imageStats.size < 512)
-    throw new Error("Image Gen result is unexpectedly small or is not a file.");
+  const imageInfo = await inspectSocialImage(imagePath);
 
   await writeImageGenResult(rootDir, {
     runKey: args.runKey,
@@ -66,7 +64,11 @@ async function writeResult(args) {
       verified: true,
       path: imagePath,
       mode: args.mode || "imagegen",
-      bytes: imageStats.size,
+      bytes: imageInfo.bytes,
+      sha256: imageInfo.sha256,
+      mimeType: imageInfo.mimeType,
+      width: imageInfo.width,
+      height: imageInfo.height,
     },
   });
   process.stdout.write(

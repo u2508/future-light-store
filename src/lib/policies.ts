@@ -1,4 +1,5 @@
 import { STORE_CONTACT } from "@/lib/store-contact";
+import { US_SHIPPING_PROMISE } from "@/lib/shipping-promise";
 
 export type PolicySection = {
   heading: string;
@@ -11,6 +12,18 @@ export type StorePolicy = {
   updated?: string;
   sections: PolicySection[];
 };
+
+// Shopify's published policy handles are the canonical public URLs. Keep the
+// app's shorter internal keys in POLICIES, but use these handles for links and
+// canonical metadata so crawlers and Shopify checkout references agree.
+export const SHOPIFY_POLICY_SLUGS = {
+  shipping: "shipping-policy",
+  returns: "refund-policy",
+  privacy: "privacy-policy",
+  terms: "terms-of-service",
+  contact: "contact-information",
+  "legal-notice": "legal-notice",
+} as const;
 
 export const POLICIES: Record<string, StorePolicy> = {
   shipping: {
@@ -26,7 +39,7 @@ export const POLICIES: Record<string, StorePolicy> = {
       {
         heading: "Delivery estimates and charges",
         paragraphs: [
-          "Available delivery options, estimated delivery times and shipping charges are calculated at checkout based on your delivery address and the items in your order.",
+          `For US addresses, the current standard profile shows ${US_SHIPPING_PROMISE.cost.toLowerCase()} shipping with an estimated ${US_SHIPPING_PROMISE.estimate} delivery window. Shopify confirms the eligible service, taxes and any address-specific exceptions at checkout based on your delivery address and the items in your order.`,
           "Delivery estimates are not guaranteed. Carrier, customs or other events outside our control can affect the final delivery date.",
         ],
       },

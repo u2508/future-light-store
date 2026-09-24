@@ -100,7 +100,7 @@ export function PredictiveSearch({
   const goToProduct = (handle: string) => {
     setOpen(false);
     onNavigate?.();
-    navigate({ to: "/products/$handle", params: { handle } });
+    window.location.assign(`/products/${handle}`);
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

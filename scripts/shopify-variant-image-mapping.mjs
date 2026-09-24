@@ -9,6 +9,7 @@ import { promisify } from "node:util";
 import { normalizeHandleValue, normalizePlainText } from "../src/lib/shopify-seo-batch.js";
 import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
+import { FUTURE_LIGHT_SHOP_DOMAIN } from "./lib/product-image-health.mjs";
 
 const execFileAsync = promisify(execFile);
 const rootDir = resolve(import.meta.dirname, "..");
@@ -27,7 +28,7 @@ function normalizeStoreUrl(rawValue) {
 // Keep the module importable for pure mapping tests; the executable path
 // validates the Future Light store configuration before making any request.
 const shopBase = normalizeStoreUrl(
-  process.env.FUTURE_LIGHT_SHOP_URL || process.env.FUTURE_LIGHT_SHOP_DOMAIN,
+  process.env.FUTURE_LIGHT_SHOP_URL || process.env.FUTURE_LIGHT_SHOP_DOMAIN || FUTURE_LIGHT_SHOP_DOMAIN,
 );
 const storeDomain = shopBase ? new URL(shopBase).hostname : "";
 const apiVersion = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";

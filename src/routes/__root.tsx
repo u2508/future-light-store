@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
 } from "@tanstack/react-router";
 import { useEffect } from "react";
@@ -15,6 +16,7 @@ import { ExitIntentPrompt } from "@/components/vs/ExitIntentPrompt";
 import { Toaster } from "@/components/ui/sonner";
 import { useCartSync } from "@/hooks/useCartSync";
 import { initializeTikTokPixel } from "@/lib/tiktok";
+import { initializeMarketingAnalytics, trackPageView } from "@/lib/marketingAnalytics";
 import ogImage from "@/assets/vs-og.jpg";
 import { canonicalUrl, GOOGLE_SITE_VERIFICATION } from "@/lib/seo";
 import { STORE_CONTACT } from "@/lib/store-contact";
@@ -74,6 +76,16 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
       </div>
     </div>
   );
+}
+
+function normalizeRuntimeHead() {
+  if (typeof document === "undefined") return;
+
+  // Remove only explicitly marked static shell nodes. TanStack Router's
+  // HeadContent owns the live title/meta/canonical nodes; removing those DOM
+  // nodes directly during a route transition makes React try to delete a node
+  // whose parent has already disappeared, which can strand the previous page.
+  document.querySelectorAll("[data-vs-static-head]").forEach((element) => element.remove());
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -140,7 +152,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap",
       },
-      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
     ],
   }),
   component: RootComponent,
@@ -166,6 +177,16 @@ function StoreLayout() {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const locationHref = useRouterState({ select: (state) => state.location.href });
+
+  useEffect(() => {
+    initializeMarketingAnalytics();
+    normalizeRuntimeHead();
+  }, []);
+
+  useEffect(() => {
+    trackPageView(locationHref);
+  }, [locationHref]);
 
   useEffect(() => {
     let pixelTimer: number | undefined;

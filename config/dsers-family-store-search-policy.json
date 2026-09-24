@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 2,
+  "policyVersion": "2026-09-24.1",
+  "sourceDocument": "docs/future-light-dsers-family-store-search-terms.docx",
+  "sourceSha256": "e3c958c6a4159204d921d43b665f03709c2dd59fadb348be764ce852fd2c8b3f",
+  "sourceObjective": "This document is the working search library for the next Future Light Store catalog expansion. It is designed for US shoppers and for a clean, family-safe store mix across everyday utility, style, care, gifts, hobbies, and safe electronics accessories. Search terms are intentionally product-led so DSers results can be reviewed against actual images, stock, supplier cost, and variant clarity before import.",
+  "sourcePlanningNote": "The current Shopify catalog boundary leaves 679 planning slots before the 3,000-product target. The allocation below is a planning ceiling, not a promise to import every result. Quality gates may reduce the final count.",
+  "sourceOperatingBoundary": "Operating boundary: add only family-store products with stock ≥200, no batteries, no portable chargers, no logic boards, no adult/erotic products, and no replacement/repair parts. Keep existing Shopify products out of new batches.",
+  "sourceReferenceNote": "The library follows current ecommerce discovery guidance: product-led category selection, clear product facts, structured-data alignment and answer-ready copy. Sources used for trend/category orientation and search presentation:",
+  "sourceReferences": [
+    { "label": "Shopify — Trending Products", "url": "https://www.shopify.com/blog/trending-products" },
+    { "label": "Shopify — Top Online Shopping Categories", "url": "https://www.shopify.com/blog/top-online-shopping-categories" },
+    { "label": "Shopify — Ecommerce Trends", "url": "https://www.shopify.com/enterprise/blog/online-shopping-trends-ecommerce" },
+    { "label": "Google Search Central — Ecommerce SEO", "url": "https://developers.google.com/search/docs/specialty/ecommerce" },
+    { "label": "Google Search Central — Product structured data", "url": "https://developers.google.com/search/docs/appearance/structured-data/product" }
+  ],
+  "targetMarket": "US",
+  "productTarget": 3000,
+  "planningSlots": 679,
+  "planningSlotsAreCeiling": true,
+  "existingShopifyProductsAreNotNewCandidates": true,
+  "minimumStock": 200,
+  "pricingAssumptions": {
+    "storeOverheadUsd": 16,
+    "paidAcquisitionCostUsdPerOrder": 13,
+    "minimumNetContributionUsd": null,
+    "candidateMarginMustBePositiveAfterFixedCosts": true
+  },
+  "collectionLanes": [
+    { "id": "kids-toddler-learning", "name": "Kids toys & toddler learning", "slots": 80, "families": ["Kids & toddlers"], "whatBelongsHere": "Learning, sensory, pretend play, outdoor-safe play" },
+    { "id": "baby-care-wear", "name": "Baby care & baby wear", "slots": 60, "families": ["Baby care & wear"], "whatBelongsHere": "Non-medical care, clothing, feeding and nursery organization" },
+    { "id": "women-beauty-hair", "name": "Women beauty & hair care", "slots": 70, "families": ["Women beauty & hair"], "whatBelongsHere": "Cosmetic tools, organizers, hair accessories and non-medical care" },
+    { "id": "women-fashion-accessories", "name": "Women fashion & accessories", "slots": 60, "families": ["Women fashion"], "whatBelongsHere": "Wearable, giftable, non-repair fashion" },
+    { "id": "men-fashion-accessories", "name": "Men fashion & accessories", "slots": 50, "families": ["Men fashion"], "whatBelongsHere": "Belts, wallets, bags, watches and casual accessories" },
+    { "id": "anime-manga-collectibles", "name": "Anime, manga & collectibles", "slots": 60, "families": ["Anime & collectibles"], "whatBelongsHere": "Display-safe figures, desk collectibles, hobby gifts" },
+    { "id": "pet-essentials", "name": "Pet essentials", "slots": 80, "families": ["Pet essentials"], "whatBelongsHere": "Non-medical toys, grooming, walking and feeding accessories" },
+    { "id": "safe-electronics-accessories", "name": "Safe electronics accessories", "slots": 75, "families": ["Safe electronics accessories"], "whatBelongsHere": "Passive cables, holders, cases, stands and desk accessories" },
+    { "id": "home-decor-bedding", "name": "Home, decor & bedding", "slots": 70, "families": ["Home & decor"], "whatBelongsHere": "Storage, textiles, table, wall and small-space decor" },
+    { "id": "gaming-watches-utility", "name": "Gaming, watches & utility", "slots": 74, "families": ["Gaming, watches & utility"], "whatBelongsHere": "Controllers without batteries, watch accessories and everyday utility" }
+  ],
+  "searchFamilies": [
+    {
+      "name": "Kids & toddlers",
+      "laneId": "kids-toddler-learning",
+      "terms": ["montessori busy board toddler", "toddler sensory toy", "wooden shape sorter", "toddler stacking toy", "magnetic tiles kids", "pretend play kitchen set", "kids doctor play set", "toddler fine motor toy", "kids puzzle educational", "outdoor balance stepping stones", "kids art supply organizer", "washable finger paint set"],
+      "selectionIntent": "Prioritize clear age range, non-toxic/material evidence, complete sets and stock ≥200."
+    },
+    {
+      "name": "Baby care & wear",
+      "laneId": "baby-care-wear",
+      "terms": ["baby muslin swaddle", "baby feeding bib silicone", "baby bottle drying rack", "stroller organizer bag", "baby changing mat", "newborn cotton bodysuit", "baby romper set", "toddler socks set", "baby hair brush comb set", "nursery storage basket", "baby bath towel hooded"],
+      "selectionIntent": "Exclude medical claims, sleep-positioning products, unsafe cords and unclear age/safety details."
+    },
+    {
+      "name": "Women beauty & hair",
+      "laneId": "women-beauty-hair",
+      "terms": ["makeup brush set", "cosmetic travel case", "makeup sponge set", "brush drying holder", "heatless curling ribbon", "satin bonnet", "satin scrunchies", "hair claw clips set", "scalp massage brush", "cosmetic organizer", "lip brush set", "facial ice roller non-electric"],
+      "selectionIntent": "Use beauty-tool and organizer terms; reject unsupported treatment, medical or guaranteed-result claims."
+    },
+    {
+      "name": "Women fashion",
+      "laneId": "women-fashion-accessories",
+      "terms": ["stainless steel necklace women", "minimalist pendant necklace", "stackable ring set", "hoop earrings stainless steel", "jewelry travel organizer", "women crossbody bag", "canvas tote bag women", "knit handbag", "hair scarf", "sunglasses UV400", "women belt", "summer fashion accessory"],
+      "selectionIntent": "Prefer durable, non-repair, giftable accessories with readable color/size variants."
+    },
+    {
+      "name": "Men fashion",
+      "laneId": "men-fashion-accessories",
+      "terms": ["men leather belt automatic buckle", "men card wallet", "men crossbody sling bag", "men travel toiletry bag", "men quartz watch", "men sunglasses UV400", "men casual cap", "men cotton socks", "men tie clip set", "men bracelet stainless steel"],
+      "selectionIntent": "Keep actual gender/use clear; do not assign men/women labels from generic product metadata alone."
+    },
+    {
+      "name": "Anime & collectibles",
+      "laneId": "anime-manga-collectibles",
+      "terms": ["anime figure collectible", "manga display stand", "anime desk figurine", "action figure display case", "model building kit", "collectible keychain", "anime wall scroll", "chibi figure", "fantasy character statue", "trading card storage box", "cosplay prop non-weapon"],
+      "selectionIntent": "No weapons, adult content, counterfeit branding or fragile items with ambiguous licensing evidence."
+    },
+    {
+      "name": "Pet essentials",
+      "laneId": "pet-essentials",
+      "terms": ["dog grooming slicker brush", "cat grooming brush", "pet nail clipper manual", "dog leash collar set", "reflective dog harness", "slow feeder bowl", "pet food storage container", "interactive dog toy", "cat teaser wand", "pet travel water bottle", "dog poop bag holder", "pet bed washable"],
+      "selectionIntent": "Exclude medication, medical devices and dangerous chew/toy claims; check material and size clarity."
+    },
+    {
+      "name": "Safe electronics accessories",
+      "laneId": "safe-electronics-accessories",
+      "terms": ["USB C cable passive", "HDMI cable", "ethernet cable cat6", "phone case shockproof", "phone stand desk", "laptop stand aluminum", "cable organizer", "earbud case cover", "webcam privacy cover", "tablet stand", "controller phone clip", "mouse pad desk mat"],
+      "selectionIntent": "Passive accessory only. Reject batteries, power banks, chargers with unclear certification, logic boards and repair parts."
+    },
+    {
+      "name": "Home & decor",
+      "laneId": "home-decor-bedding",
+      "terms": ["cotton bed blanket", "duvet cover set", "pillowcase set", "throw pillow cover", "laundry storage basket", "drawer organizer", "desktop organizer", "wall decor metal", "artificial flower vase", "table runner", "kitchen storage rack", "bathroom organizer", "woven basket"],
+      "selectionIntent": "Prioritize dimensional clarity, material evidence, complete-set contents and clean lifestyle imagery."
+    },
+    {
+      "name": "Gaming, watches & utility",
+      "laneId": "gaming-watches-utility",
+      "terms": ["game controller stand", "controller storage holder", "gaming desk mat", "headset stand passive", "watch organizer box", "watch travel case", "quartz watch", "watch band strap", "travel packing cubes", "luggage organizer", "desk phone stand"],
+      "selectionIntent": "No battery-powered controllers or electronics; keep variant names human-readable and organized."
+    }
+  ],
+  "hardExclusions": [
+    { "id": "battery-powered", "description": "Batteries, rechargeable cells, power banks, portable chargers, battery packs, and products whose core function depends on an unverified battery." },
+    { "id": "logic-board-or-repair", "description": "Logic boards, bare boards, replacement boards, repair parts, spare assemblies, and products marketed for device repair." },
+    { "id": "medical-or-ingestible", "description": "Medical devices, diagnostic claims, supplements, ingestibles, medication, and cosmetic treatment or guaranteed-outcome claims." },
+    { "id": "adult-or-weapon", "description": "Adult, erotic, sexual-wellness, fetish, weapon, or tactical-weapon products." },
+    { "id": "counterfeit-or-unlicensed", "description": "Counterfeit/trademark-infringing merchandise or licensed-character products without credible licensing evidence." },
+    { "id": "stock-below-200", "description": "Supplier stock below 200 units." },
+    { "id": "missing-commercial-evidence", "description": "Missing supplier cost or plausible US price, or unstable/unverified supplier cost." },
+    { "id": "image-or-variant-evidence", "description": "Missing/unusable/mismatched images or unclear variant-image mapping." },
+    { "id": "misleading-copy", "description": "Materially misleading supplier copy or unsupported claims." },
+    { "id": "duplicate", "description": "Already imported duplicate or near-duplicate without meaningful differentiation." },
+    { "id": "code-only-option", "description": "Variant names that expose supplier SKU codes without a clear shopper-facing attribute." }
+  ],
+  "sourceHardExclusions": [
+    "Batteries, rechargeable cells, power banks, portable chargers, battery packs and products whose core function depends on an unverified battery.",
+    "Logic boards, bare boards, replacement boards, repair parts, spare assemblies and products marketed for device repair.",
+    "Medical devices, diagnostic claims, supplements, ingestibles, medication, cosmetic claims that promise treatment or guaranteed outcomes.",
+    "Adult, erotic, sexual-wellness, fetish, weapon, tactical weapon, counterfeit, trademark-infringing or licensed-character items without credible evidence.",
+    "Products with stock below 200, missing price/cost, missing images, unusable images, unclear variant mapping or materially misleading supplier copy.",
+    "Duplicate products already pushed to Shopify, near-duplicates with no meaningful differentiation, and variants whose names expose supplier SKU codes instead of shopper-readable attributes."
+  ],
+  "qualificationScore": {
+    "minimumPassingTotal": null,
+    "hardExclusionsOverrideScore": true,
+    "dimensions": [
+      { "id": "evidenceQuality", "label": "Evidence quality", "max": 30, "sourceCriterion": "primary image matches the product, variants are visible, dimensions/material/use are supported, and no supplier watermark or China-focused scene dominates the listing." },
+      { "id": "storeFit", "label": "Store fit", "max": 20, "sourceCriterion": "family-safe, giftable or useful, aligned with the target collection, and easy to explain in natural language." },
+      { "id": "commercialFit", "label": "Commercial fit", "max": 20, "sourceCriterion": "stock ≥200, stable cost, plausible US price, healthy margin after the store overhead, and no obvious commodity race-to-the-bottom." },
+      { "id": "variantClarity", "label": "Variant clarity", "max": 15, "sourceCriterion": "color, size, pack count or style is shopper-readable; remove codes and preserve only meaningful option structure." },
+      { "id": "contentReadiness", "label": "Content readiness", "max": 15, "sourceCriterion": "enough verified facts for a product-specific title, description, FAQ, alt text and collection placement without inventing claims." }
+    ]
+  },
+  "batches": [
+    { "id": 1, "sourceLane": "Kids + baby", "families": ["Kids & toddlers", "Baby care & wear"], "ceiling": 100, "sourceGate": "Validate family safety, age/size evidence and non-medical language.", "laneAllocations": [{ "laneId": "kids-toddler-learning", "slots": 80 }, { "laneId": "baby-care-wear", "slots": 20 }], "gate": "Validate family safety, age/size evidence and non-medical language." },
+    { "id": 2, "sourceLane": "Beauty + hair", "families": ["Baby care & wear", "Women beauty & hair"], "ceiling": 100, "sourceGate": "Tools and organizers first; reject treatment/guarantee claims.", "laneAllocations": [{ "laneId": "baby-care-wear", "slots": 40 }, { "laneId": "women-beauty-hair", "slots": 60 }], "gate": "Tools and organizers first; reject treatment/guarantee claims." },
+    { "id": 3, "sourceLane": "Women + men accessories", "families": ["Women beauty & hair", "Women fashion", "Men fashion"], "ceiling": 100, "sourceGate": "Readable wearable variants and no gender misclassification.", "laneAllocations": [{ "laneId": "women-beauty-hair", "slots": 10 }, { "laneId": "women-fashion-accessories", "slots": 60 }, { "laneId": "men-fashion-accessories", "slots": 30 }], "gate": "Readable wearable variants and no gender misclassification." },
+    { "id": 4, "sourceLane": "Pets", "families": ["Men fashion", "Pet essentials"], "ceiling": 100, "sourceGate": "Manual grooming, walking, feeding and enrichment only.", "laneAllocations": [{ "laneId": "men-fashion-accessories", "slots": 20 }, { "laneId": "pet-essentials", "slots": 80 }], "gate": "Manual grooming, walking, feeding and enrichment only." },
+    { "id": 5, "sourceLane": "Safe electronics accessories", "families": ["Safe electronics accessories", "Home & decor"], "ceiling": 100, "sourceGate": "Passive products only; no batteries, chargers or boards.", "laneAllocations": [{ "laneId": "safe-electronics-accessories", "slots": 75 }, { "laneId": "home-decor-bedding", "slots": 25 }], "gate": "Passive products only; no batteries, chargers or boards." },
+    { "id": 6, "sourceLane": "Home + decor + bedding", "families": ["Home & decor", "Anime & collectibles"], "ceiling": 100, "sourceGate": "Material, dimensions, set contents and lifestyle relevance.", "laneAllocations": [{ "laneId": "home-decor-bedding", "slots": 45 }, { "laneId": "anime-manga-collectibles", "slots": 55 }], "gate": "Material, dimensions, set contents and lifestyle relevance." },
+    { "id": 7, "sourceLane": "Anime + gaming + watches + utility", "families": ["Anime & collectibles", "Gaming, watches & utility"], "ceiling": 79, "sourceGate": "Collectible, display and passive utility products; licensing and safety checks.", "laneAllocations": [{ "laneId": "anime-manga-collectibles", "slots": 5 }, { "laneId": "gaming-watches-utility", "slots": 74 }], "gate": "Collectible, display and passive utility products; licensing and safety checks." }
+  ],
+  "copyRules": {
+    "titleOrder": ["product type", "supported differentiator", "size/count/use or included set"],
+    "descriptionRequirements": ["exact product identity", "shopper task/use", "confirmed included items", "confirmed limitations"],
+    "forbiddenFiller": ["specific function identified by its handle", "confirmed product details help shoppers compare", "generic unsubstantiated FAQs"],
+    "normalize": ["HTML entities", "duplicated supplier fields", "random brand names", "supplier SKU codes"],
+    "answerReady": ["fit", "size", "material when evidenced", "compatibility when evidenced", "care", "included pieces", "use context"],
+    "imageAlt": "Describe the actual product and meaningful variant; hold non-product-faithful images for visual review.",
+    "sourceSeoGeoAeo": {
+      "title": "product type first, then the differentiating material, size, use or included set. Keep it readable; remove supplier years, duplicate phrases, random brand names and SKU codes.",
+      "description": "write as a human selling the exact product. Lead with what it is, what it helps the shopper do, what is included, and the confirmed limitations. Never pad with generic “specific function identified by its handle” language.",
+      "facts": "use only verified title, image, variant, supplier specification and shipping/catalog evidence. Normalize HTML entities and duplicated fields before copy generation.",
+      "questions": "answer the shopper’s likely questions—fit, size, material, compatibility, care, included pieces and use context—without inventing certifications or performance guarantees.",
+      "geoAeo": "write concise answer-ready summaries, explicit product nouns, natural synonyms, scannable headings and clean internal links. Keep structured data aligned with the visible page.",
+      "imageAlt": "describe the actual product and meaningful variant, not a generic lifestyle scene. If an image is not product-faithful, hold the product for visual review instead of rewriting around it."
+    }
+  },
+  "operatingSequence": [
+    "Search one family at a time and keep the active filters visible: US target, stock ≥200, family-store category, no prohibited electronics or repair products.",
+    "Review primary/variant images before selection. Keep strong product images; hold or reject items where the image shows a different product, unsafe context, supplier branding or a misleading variant.",
+    "Check supplier cost, US price, stock, shipping signal and variant names. Do not import code-only options such as TK-0000007129 unless the shopper-facing attribute is also present and clear.",
+    "Check for duplicates against the existing Shopify catalog and the DSers My Products list before adding to Import List.",
+    "Add in controlled batches, then use Import Reviews and Shopify readback. Skip any item whose push result is partial, errored or mismatched.",
+    "After Shopify readback, route each product into one primary collection and optional secondary merchandising tags. Keep taxonomy and customer-facing copy synchronized."
+  ]
+}

@@ -6,6 +6,7 @@ import {
   dispatchFutureLightCartAdd,
   normalizeCartForStandardEvent,
 } from "@/lib/shopifyStandardEvents";
+import { getMarketingAttributionAttributes } from "@/lib/marketingAnalytics";
 
 export interface CartItem {
   lineId: string | null;
@@ -198,8 +199,12 @@ function isCartNotFoundError(userErrors: UserErrors): boolean {
 }
 
 async function createShopifyCart(item: CartItem) {
+  const marketingAttributes = getMarketingAttributionAttributes();
   const data = await storefrontApiRequest(CART_CREATE_MUTATION, {
-    input: { lines: [{ quantity: item.quantity, merchandiseId: item.variantId }] },
+    input: {
+      lines: [{ quantity: item.quantity, merchandiseId: item.variantId }],
+      ...(marketingAttributes.length ? { attributes: marketingAttributes } : {}),
+    },
   });
   const payload = data?.data?.cartCreate;
   const userErrors: UserErrors = payload?.userErrors ?? [];

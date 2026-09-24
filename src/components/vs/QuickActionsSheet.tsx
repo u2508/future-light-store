@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Heart, Loader2, Minus, Plus, Ruler, ShieldCheck, Truck } from "lucide-react";
 import { toast } from "sonner";
@@ -37,7 +36,7 @@ export function QuickActionsSheet({
     enabled: open && needsFullProduct,
     staleTime: 0,
     refetchInterval: open ? 60 * 1000 : false,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   });
   const activeProduct = fullProduct ? { node: fullProduct } : product;
@@ -68,7 +67,14 @@ export function QuickActionsSheet({
     if (open) setSelectedId(defaultVariantId);
   }, [open, defaultVariantId]);
 
-  const images = activeNode.images.edges.map((e) => e.node);
+  const images = Array.from(
+    new Map(
+      [
+        ...activeNode.images.edges.map((edge) => edge.node),
+        ...variants.flatMap((variant) => (variant.image ? [variant.image] : [])),
+      ].map((image) => [image.url, image] as const),
+    ).values(),
+  );
   const selected = variants.find((v) => v.id === selectedId) ?? null;
   const selectedAvailable =
     Boolean(selected?.availableForSale) && !unavailableVariantIds.has(selected?.id ?? "");
@@ -200,6 +206,10 @@ export function QuickActionsSheet({
                       onClick={() => {
                         setSelectedId(v.id);
                         setHasSelectedVariant(true);
+                        const variantImageIndex = images.findIndex(
+                          (image) => image.url === v.image?.url,
+                        );
+                        if (variantImageIndex >= 0) setImageIndex(variantImageIndex);
                       }}
                       className={cn(
                         "rounded-xl border px-3 py-2 text-sm transition-colors",
@@ -279,14 +289,13 @@ export function QuickActionsSheet({
               </p>
             </div>
 
-            <Link
-              to="/products/$handle"
-              params={{ handle: n.handle }}
+            <a
+              href={`/products/${n.handle}`}
               onClick={() => onOpenChange(false)}
               className="inline-block text-sm font-medium text-primary hover:underline"
             >
               View full details →
-            </Link>
+            </a>
           </div>
         </div>
       </SheetContent>

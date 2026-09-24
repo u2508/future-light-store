@@ -11,6 +11,7 @@ import {
 } from "../src/lib/shopify-seo-batch-intelligence.js";
 import { normalizeHandleValue, normalizePlainText } from "../src/lib/shopify-seo-batch.js";
 import { mapWithConcurrency, recommendedConcurrency, sleep } from "./lib/performance-runtime.mjs";
+import { loadFutureLightEnv } from "./lib/future-light-env.mjs";
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
@@ -32,12 +33,6 @@ const manifestPath = resolve(outputDir, "manifest.json");
 const lockPath = resolve(outputDir, "run.lock");
 const overridesPath = resolve(rootDir, "config", "future-light-seo-overrides.json");
 const imageHealthManifestPath = resolve(rootDir, "output", "future-light-image-health-queue.json");
-const envFiles = [
-  resolve(rootDir, ".env"),
-  resolve(rootDir, ".env.local"),
-  resolve(rootDir, ".env.release.local"),
-];
-
 const ACTIVE_PRODUCTS_QUERY = /* GraphQL */ `
   query FutureLightActiveProducts($after: String) {
     products(first: 250, after: $after, query: "status:active") {
@@ -154,32 +149,6 @@ function parseArgs(argv) {
   }
 
   return args;
-}
-
-function parseEnvValue(value) {
-  const trimmed = String(value || "").trim();
-  if (!trimmed) return "";
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-    return trimmed.slice(1, -1).replace(/\\n/g, "\n").replace(/\\"/g, '"');
-  }
-  return trimmed.replace(/\s+#.*$/, "");
-}
-
-async function loadEnvFiles() {
-  for (const filePath of envFiles) {
-    let raw;
-    try {
-      raw = await readFile(filePath, "utf8");
-    } catch (error) {
-      if (error?.code === "ENOENT") continue;
-      throw error;
-    }
-    for (const line of raw.split(/\r?\n/)) {
-      const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
-      if (!match || match[1].startsWith("#") || /^SALT_/i.test(match[1])) continue;
-      if (process.env[match[1]] === undefined) process.env[match[1]] = parseEnvValue(match[2]);
-    }
-  }
 }
 
 function now() {
@@ -1704,7 +1673,7 @@ async function processBatch({ batch, liveById, client, state, persistState, args
 
 async function main() {
   const args = parseArgs(process.argv);
-  await loadEnvFiles();
+  await loadFutureLightEnv({ rootDir });
   await acquireLock();
 
   let state = await readJson(statePath, null);

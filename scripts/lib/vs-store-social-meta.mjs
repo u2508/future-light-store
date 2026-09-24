@@ -1,3 +1,7 @@
+// Meta Graph API readback and publishing helpers for the API-primary transport.
+// Business Suite remains the guarded fallback when API publishing is not safely
+// due-ready or its read-only identity preflight cannot pass.
+
 import { basename } from "node:path";
 import { readFile } from "node:fs/promises";
 
@@ -111,6 +115,7 @@ export function nextScheduledDateForWeekday(
   hour,
   targetWeekday,
   minimumLeadMinutes = 25,
+  minute = 0,
 ) {
   const local = getZonedParts(now, timeZone);
   const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -127,7 +132,7 @@ export function nextScheduledDateForWeekday(
       month: local.month,
       day: local.day + daysAhead,
       hour,
-      minute: 0,
+      minute,
     },
     timeZone,
   );
@@ -139,7 +144,7 @@ export function nextScheduledDateForWeekday(
         month: local.month,
         day: local.day + daysAhead,
         hour,
-        minute: 0,
+        minute,
       },
       timeZone,
     );
@@ -155,13 +160,20 @@ export function createVsStoreMetaClient(config) {
 
   async function request(
     path,
-    { method = "GET", query = {}, body = null, retryInfo = [], operation = "Meta request" } = {},
+    {
+      method = "GET",
+      query = {},
+      body = null,
+      retryInfo = [],
+      operation = "Meta request",
+      accessToken = config.metaPageAccessToken,
+    } = {},
   ) {
     const url = new URL(`${baseUrl}${path.startsWith("/") ? path : `/${path}`}`);
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
     }
-    url.searchParams.set("access_token", config.metaPageAccessToken);
+    if (accessToken) url.searchParams.set("access_token", accessToken);
     for (let attempt = 0; attempt < config.maxAttempts; attempt += 1) {
       try {
         const response = await fetch(url, {
@@ -210,7 +222,7 @@ export function createVsStoreMetaClient(config) {
 
   async function pageReadback({ retryInfo = [] } = {}) {
     return request(`/${encodeURIComponent(config.metaPageId)}`, {
-      query: { fields: "id,name,instagram_business_account{id,username}" },
+      query: { fields: "id,name,link,category,instagram_business_account{id,username}" },
       retryInfo,
       operation: "Meta VS Store Page readback",
     });
@@ -219,10 +231,57 @@ export function createVsStoreMetaClient(config) {
   async function instagramAccountReadback({ retryInfo = [] } = {}) {
     const page = await pageReadback({ retryInfo });
     const linked = page?.instagram_business_account;
+    const configuredId = normalizeText(config.metaInstagramAccountId);
+    let account = linked;
+    if (!account && configuredId) {
+      account = await request(`/${encodeURIComponent(configuredId)}`, {
+        query: { fields: "id,username" },
+        accessToken: config.metaInstagramAccessToken || config.metaPageAccessToken,
+        retryInfo,
+        operation: "Meta VS Store Instagram account readback",
+      });
+    }
     return {
-      id: normalizeText(config.metaInstagramAccountId || linked?.id),
-      username: normalizeText(linked?.username || config.metaInstagramUsername),
+      id: normalizeText(configuredId || account?.id),
+      username: normalizeText(account?.username || config.metaInstagramUsername),
       page,
+      account,
+    };
+  }
+
+  async function preflight({ retryInfo = [] } = {}) {
+    const page = await pageReadback({ retryInfo });
+    const pageId = normalizeText(page?.id);
+    const pageName = normalizeText(page?.name);
+    const expectedPageName = normalizeText(config.facebookPageName);
+    const instagram = await instagramAccountReadback({ retryInfo });
+    const expectedInstagram = normalizeText(config.instagramHandle).replace(/^@/, "");
+    const pageReady =
+      pageId === normalizeText(config.metaPageId) &&
+      (!expectedPageName || pageName.toLowerCase() === expectedPageName.toLowerCase());
+    const instagramReady =
+      Boolean(instagram.id) &&
+      (!expectedInstagram || instagram.username.toLowerCase() === expectedInstagram.toLowerCase());
+    return {
+      status: pageReady && instagramReady ? "ready" : "not_ready",
+      reason: !pageReady
+        ? "Meta token did not read back the configured VS Store Page identity."
+        : !instagram.id
+          ? "No connected Instagram Business account was returned for the configured Page; provide an Instagram account ID/token or connect the account to the Page."
+          : !instagramReady
+            ? "Meta read back an Instagram account that does not match the configured VS Store handle."
+            : "The configured Page and Instagram identities are API-readable.",
+      page: {
+        id: pageId || null,
+        name: pageName || null,
+        link: normalizeText(page?.link) || null,
+      },
+      instagram: {
+        id: instagram.id || null,
+        username: instagram.username || null,
+      },
+      pageReady,
+      instagramReady,
     };
   }
 
@@ -259,12 +318,19 @@ export function createVsStoreMetaClient(config) {
     }
   }
 
-  async function schedulePhoto({ imagePath, caption, scheduledAt, retryInfo = [] }) {
+  async function schedulePhoto({
+    imagePath,
+    caption,
+    scheduledAt,
+    forceImmediate = false,
+    retryInfo = [],
+  }) {
     const imageBytes = await readFile(imagePath);
     const form = new FormData();
     form.set("access_token", config.metaPageAccessToken);
     form.set("caption", caption);
-    const publishImmediately = scheduledAt.getTime() <= Date.now() + 2 * 60 * 1000;
+    const publishImmediately =
+      forceImmediate || scheduledAt.getTime() <= Date.now() + 2 * 60 * 1000;
     form.set("published", publishImmediately ? "true" : "false");
     if (!publishImmediately)
       form.set("scheduled_publish_time", String(Math.floor(scheduledAt.getTime() / 1000)));
@@ -280,17 +346,43 @@ export function createVsStoreMetaClient(config) {
   async function publishInstagramPhoto({ accountId, imageUrl, caption, retryInfo = [] }) {
     if (!accountId) throw new Error("Linked Instagram Business account ID is required.");
     if (!imageUrl) throw new Error("A public Instagram image URL is required for API publishing.");
+    let parsedImageUrl;
+    try {
+      parsedImageUrl = new URL(imageUrl);
+    } catch {
+      throw new Error("Instagram image URL is invalid.");
+    }
+    if (parsedImageUrl.protocol !== "https:")
+      throw new Error("Instagram image URL must use HTTPS.");
+    const accessToken = config.metaInstagramAccessToken || config.metaPageAccessToken;
     const container = await request(`/${encodeURIComponent(accountId)}/media`, {
       method: "POST",
       body: new URLSearchParams({ image_url: imageUrl, caption }),
+      accessToken,
       retryInfo,
       operation: "Instagram media container create",
     });
     const creationId = normalizeText(container?.id || container?.creation_id);
     if (!creationId) throw new Error("Instagram media container response did not include an ID.");
+    const deadline = Date.now() + 90_000;
+    while (Date.now() < deadline) {
+      const status = await request(`/${encodeURIComponent(creationId)}`, {
+        query: { fields: "id,status_code,status" },
+        accessToken,
+        retryInfo,
+        operation: "Instagram media container status",
+      });
+      const statusCode = normalizeText(status?.status_code || status?.status).toUpperCase();
+      if (!statusCode || ["FINISHED", "PUBLISHED"].includes(statusCode)) break;
+      if (["ERROR", "EXPIRED"].includes(statusCode))
+        throw new Error(`Instagram media container is ${statusCode.toLowerCase()}.`);
+      await sleep(3_000);
+    }
+    if (Date.now() >= deadline) throw new Error("Instagram media container processing timed out.");
     return request(`/${encodeURIComponent(accountId)}/media_publish`, {
       method: "POST",
       body: new URLSearchParams({ creation_id: creationId }),
+      accessToken,
       retryInfo,
       operation: "Instagram media publish",
     });
@@ -299,6 +391,7 @@ export function createVsStoreMetaClient(config) {
   async function instagramPostReadback(postId, { retryInfo = [] } = {}) {
     return request(`/${encodeURIComponent(postId)}`, {
       query: { fields: "id,caption,media_type,media_url,permalink,timestamp" },
+      accessToken: config.metaInstagramAccessToken || config.metaPageAccessToken,
       retryInfo,
       operation: `Instagram post readback ${postId}`,
     });
@@ -307,7 +400,8 @@ export function createVsStoreMetaClient(config) {
   async function postReadback(postId, { retryInfo = [] } = {}) {
     return request(`/${encodeURIComponent(postId)}`, {
       query: {
-        fields: "id,created_time,scheduled_publish_time,is_published,permalink_url,message",
+        fields:
+          "id,created_time,scheduled_publish_time,is_published,permalink_url,message,full_picture",
       },
       retryInfo,
       operation: `Meta post readback ${postId}`,
@@ -318,6 +412,7 @@ export function createVsStoreMetaClient(config) {
     request,
     pageReadback,
     instagramAccountReadback,
+    preflight,
     audiencePeak,
     schedulePhoto,
     publishInstagramPhoto,
