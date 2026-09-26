@@ -20,6 +20,9 @@ function validateExpectedProducts(expectedProducts) {
   if (!Array.isArray(expectedProducts)) {
     throw new TypeError("expectedProducts must be an array");
   }
+  if (expectedProducts.length === 0) {
+    throw new TypeError("expectedProducts must not be empty for a complete category-metafield readback");
+  }
 
   const seenProducts = new Set();
   for (const [productIndex, product] of expectedProducts.entries()) {
@@ -30,9 +33,15 @@ function validateExpectedProducts(expectedProducts) {
       throw new TypeError(`Duplicate expected productId: ${productId}`);
     seenProducts.add(productId);
 
-    if (product.metafields === undefined) continue;
     if (!Array.isArray(product.metafields))
       throw new TypeError(`${label}.metafields must be an array`);
+    if (!Array.isArray(product.requiredDefinitionKeys))
+      throw new TypeError(`${label}.requiredDefinitionKeys must be an array`);
+    const requiredDefinitionKeys = product.requiredDefinitionKeys.map((key, keyIndex) =>
+      requireNonEmptyString(key, `${label}.requiredDefinitionKeys[${keyIndex}]`),
+    );
+    if (new Set(requiredDefinitionKeys).size !== requiredDefinitionKeys.length)
+      throw new TypeError(`${label}.requiredDefinitionKeys contains duplicates`);
     const seenKeys = new Set();
     for (const [metafieldIndex, metafield] of product.metafields.entries()) {
       const metafieldLabel = `${label}.metafields[${metafieldIndex}]`;
@@ -122,7 +131,9 @@ function addCheck(checks, check) {
  * Expected metafields have `definitionKey: { namespace, key }` and exactly one
  * of `canonicalValue` (an exact Shopify value string) or `canonicalReference`
  * (one GID or an ordered list of GIDs). `expectedType` is optional; when
- * supplied, it is compared exactly with the readback metafield type. Unknown
+ * supplied, it is compared exactly with the readback metafield type. Each
+ * expected product must also declare its exact `requiredDefinitionKeys` list;
+ * a required key absent from `metafields` fails closed as unmapped. Unknown
  * readback metafields are ignored unless their namespace or full definition key
  * is explicitly managed, or `fullMetafieldSnapshot` is true. Readback products
  * use `id`, `category.id`, and `metafields` with Shopify's
@@ -213,6 +224,18 @@ export function validateShopifyCategoryMetafieldReadback({
     const expectedKeys = new Set(
       expectedMetafields.map((metafield) => definitionKeyOf(metafield, "expected metafield")),
     );
+    for (const definitionKey of expected.requiredDefinitionKeys) {
+      if (expectedKeys.has(definitionKey)) continue;
+      addCheck(checks, {
+        status: "missing",
+        type: "metafield",
+        productId: expected.productId,
+        definitionKey,
+        expected: { definitionKey },
+        actual: null,
+        reason: "required-category-metafield-unmapped",
+      });
+    }
     const actualMetafields = Array.isArray(actualProduct?.metafields)
       ? actualProduct.metafields
       : [];

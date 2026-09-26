@@ -7,6 +7,7 @@ import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { normalizeHandleValue, normalizePlainText } from "../src/lib/shopify-seo-batch.js";
+import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
 import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
 import { FUTURE_LIGHT_SHOP_DOMAIN } from "./lib/product-image-health.mjs";
@@ -1854,10 +1855,11 @@ async function verifyProducts(plannedProducts) {
 }
 
 async function main() {
+  const args = parseArgs(process.argv);
+  assertFutureLightDirectWriteDisabled({ runner: "automatic-variant-image-mapping", mode: args.mode });
   if (!shopBase) {
     throw new Error("FUTURE_LIGHT_SHOP_URL or FUTURE_LIGHT_SHOP_DOMAIN is required for Future Light variant-image mapping.");
   }
-  const args = parseArgs(process.argv);
   const [snapshot, scopeHandles] = await Promise.all([
     loadSnapshot(args.inputPath),
     args.scope === "new-products" ? loadHandles(args.handlesPath) : Promise.resolve(null),

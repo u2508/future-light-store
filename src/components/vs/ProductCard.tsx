@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import {
   discountPercent,
   formatMoney,
-  isProductAvailable,
   type ShopifyProduct,
 } from "@/lib/shopify";
 import { requestCartOpen, useCartStore } from "@/stores/cartStore";
@@ -16,6 +15,8 @@ import {
 } from "@/components/vs/productCardImage";
 import { cn } from "@/lib/utils";
 import { dispatchProductViewWhenReady } from "@/lib/shopifyStandardEvents";
+import { resolveProductCardPricing } from "@/lib/product-card-pricing.mjs";
+import { getProductAvailability } from "@/lib/product-availability.mjs";
 
 export function ProductCard({ product }: { product: ShopifyProduct }) {
   const n = product.node;
@@ -31,12 +32,14 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
   const imageDelivery = image ? getProductCardImageDelivery(image.url) : null;
   const variants = n.variants.edges.map((e) => e.node);
   const firstVariant = variants.find((variant) => variant.availableForSale) ?? variants[0];
-  const price = firstVariant?.price ?? n.priceRange.minVariantPrice;
-  const compareAt = firstVariant?.compareAtPrice?.amount ?? null;
-  const off = discountPercent(price.amount, compareAt);
+  const { price, compareAt, showFrom } = resolveProductCardPricing(n);
+  const displayPrice = price ?? n.priceRange.minVariantPrice;
+  const off = discountPercent(displayPrice.amount, compareAt);
   const variantCount = n.variantsCount?.count ?? variants.length;
   const singleVariant = variantCount === 1;
-  const soldOut = !isProductAvailable(n) || unavailable;
+  const availability = getProductAvailability(n);
+  const soldOut = availability === "unavailable" || unavailable;
+  const canAddToBag = availability === "available" && !unavailable;
 
   useEffect(() => {
     const card = cardRef.current;
@@ -64,7 +67,7 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
   }, [n]);
 
   const quickAdd = async () => {
-    if (soldOut) return;
+    if (!canAddToBag) return;
     if (!singleVariant) {
       setQuickOpen(true);
       return;
@@ -74,6 +77,8 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
       product,
       variantId: firstVariant.id,
       variantTitle: firstVariant.title,
+      variantImageUrl: firstVariant.image?.url ?? null,
+      variantImageAlt: firstVariant.image?.altText ?? null,
       price: firstVariant.price,
       quantity: 1,
       selectedOptions: firstVariant.selectedOptions ?? [],
@@ -146,6 +151,11 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
               Sold out
             </span>
           )}
+          {availability === "unknown" && !soldOut && (
+            <span className="absolute inset-x-0 bottom-0 bg-foreground/75 py-1.5 text-center text-[11px] font-semibold uppercase tracking-widest text-background">
+              Availability checking
+            </span>
+          )}
 
           <div className="absolute inset-x-3 bottom-3 translate-y-3 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 max-sm:hidden">
             <button
@@ -167,18 +177,25 @@ export function ProductCard({ product }: { product: ShopifyProduct }) {
           <div className="mt-auto flex items-end justify-between gap-2">
             <div>
               <p className="font-display text-[17px] font-bold">
-                {formatMoney(price.amount, price.currencyCode)}
+                {showFrom ? "From " : ""}
+                {formatMoney(displayPrice.amount, displayPrice.currencyCode)}
               </p>
               {off > 0 && compareAt && (
                 <p className="text-[11px] text-muted-foreground line-through">
-                  {formatMoney(compareAt, price.currencyCode)}
+                  {formatMoney(compareAt, displayPrice.currencyCode)}
                 </p>
               )}
             </div>
             <button
               onClick={quickAdd}
-              disabled={soldOut || isLoading}
-              aria-label={singleVariant ? "Add to bag" : "Choose options"}
+              disabled={!canAddToBag || isLoading}
+              aria-label={
+                availability === "unknown"
+                  ? "Availability not confirmed"
+                  : singleVariant
+                    ? "Add to bag"
+                    : "Choose options"
+              }
               className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
             >
               {isLoading ? (

@@ -239,6 +239,13 @@ const RELEASE_REPAIR_ROUTES = [
     message: "so live-aware merchandising values reach Shopify before verification",
   },
   {
+    failedLabel: "Verify exact category-metafield completeness readback",
+    startLabel: "Apply all-active-catalog product categories and merchandising metafields",
+    matches: /category.metafield|unmapped|required|readback/i,
+    reason: "category-metafield completeness or exact live readback failed; replaying the guarded all-active metafield backfill",
+    message: "so category metafields are resolved and verified against a fresh Shopify readback",
+  },
+  {
     failedLabel: "Automatically clear visual classification review with guarded evidence",
     startLabel: "Build visual taxonomy review queue",
     matches: /visual|classification|review|image|evidence/i,
@@ -1047,6 +1054,12 @@ function buildCatalogReleaseSteps({
       label: "Apply all-active-catalog product categories and merchandising metafields",
       command: npmBin,
       args: ["run", "shopify:product-metafields:backfill:all-active"],
+      cwd: releaseRootDir,
+    },
+    {
+      label: "Verify exact category-metafield completeness readback",
+      command: npmBin,
+      args: ["run", "shopify:category-metafield:readback:verify"],
       cwd: releaseRootDir,
     },
     {

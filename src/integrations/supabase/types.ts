@@ -75,6 +75,7 @@ export type Database = {
           fulfillments: Json
           id: string
           line_items: Json
+          marketing_attribution: Json
           name: string | null
           order_number: string | null
           processed_at: string | null
@@ -96,6 +97,7 @@ export type Database = {
           fulfillments?: Json
           id: string
           line_items?: Json
+          marketing_attribution?: Json
           name?: string | null
           order_number?: string | null
           processed_at?: string | null
@@ -117,6 +119,7 @@ export type Database = {
           fulfillments?: Json
           id?: string
           line_items?: Json
+          marketing_attribution?: Json
           name?: string | null
           order_number?: string | null
           processed_at?: string | null
@@ -164,6 +167,39 @@ export type Database = {
           processed_at?: string | null
           raw?: Json
           reason?: string | null
+        }
+        Relationships: []
+      }
+      shopify_webhook_receipts: {
+        Row: {
+          attempts: number
+          created_at: string
+          dedupe_key: string
+          last_error: string | null
+          shopify_id: string
+          status: string
+          topic: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          dedupe_key: string
+          last_error?: string | null
+          shopify_id: string
+          status?: string
+          topic: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          dedupe_key?: string
+          last_error?: string | null
+          shopify_id?: string
+          status?: string
+          topic?: string
+          updated_at?: string
         }
         Relationships: []
       }

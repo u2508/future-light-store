@@ -91,6 +91,9 @@ export const STALE_CATALOG_TAXONOMY_IMAGE_OVERRIDE_PRODUCT_IDS = new Set([
   "15983059501137",
   "15983060287569",
   "15983062155345",
+  // This product handle was recreated under a new Shopify product ID and a
+  // different image set; the prior image review must not be reused.
+  "15983063826513",
   "15983070543953",
   "15983070675025",
   "15983070838865",

@@ -6,6 +6,12 @@ import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
+import {
+  FUTURE_LIGHT_CATALOG_TAXONOMY_ENV_KEYS,
+  futureLightShopifyCliEnv,
+  loadFutureLightEnv,
+} from "./lib/future-light-env.mjs";
+import { resolveFutureLightShopifyTarget } from "./lib/future-light-shopify-target.mjs";
 
 import {
   buildCatalogTaxonomyReleasePlan,
@@ -24,32 +30,32 @@ import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 
 const execFileAsync = promisify(execFile);
 const rootDir = resolve(import.meta.dirname, "..");
+await loadFutureLightEnv({ rootDir, allowedKeys: FUTURE_LIGHT_CATALOG_TAXONOMY_ENV_KEYS });
 const inputDir = resolve(rootDir, "public", "data");
 const defaultOutputPath = resolve(rootDir, "output", "catalog-taxonomy-apply-manifest.json");
 const catalogIntegrityManifestPath = resolve(rootDir, "output", "shopify-catalog-integrity-manifest.json");
-const shopBase = process.env.SALT_SHOP_URL;
-if (!shopBase) throw new Error("SALT_SHOP_URL is required for Future Light Store taxonomy writes.");
-const storeDomain = new URL(shopBase).hostname;
-const apiVersion = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
-const adminAccessToken = (process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SALT_SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim();
-const adminGraphqlUrl = `${new URL(shopBase).origin}/admin/api/${apiVersion}/graphql.json`;
-const cliBinary = process.env.SHOPIFY_CLI_BINARY || "shopify";
-const cliAgentInfo = process.env.SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:catalog-taxonomy-release";
+const { shopDomain: storeDomain } = resolveFutureLightShopifyTarget();
+const shopBase = `https://${storeDomain}`;
+const apiVersion = process.env.FUTURE_LIGHT_SHOPIFY_API_VERSION || process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
+const adminAccessToken = (process.env.FUTURE_LIGHT_SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim();
+const adminGraphqlUrl = `${shopBase}/admin/api/${apiVersion}/graphql.json`;
+const cliBinary = process.env.FUTURE_LIGHT_SHOPIFY_CLI_BINARY || "shopify";
+const cliAgentInfo = process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:catalog-taxonomy-release";
 const cliAgentIds =
-  process.env.SHOPIFY_CLI_AGENT_IDS ||
-  `s:${process.env.CONVERSATION_ID || "local"}|r:${process.pid}|i:catalog-taxonomy-release`;
-const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
+  process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_IDS ||
+  `s:future-light-store|r:${process.pid}|i:catalog-taxonomy-release`;
+const requestDelayMs = Math.max(0, Number(process.env.FUTURE_LIGHT_SHOPIFY_REQUEST_DELAY_MS || 125));
 const requestConcurrency = envInteger(
-  "SALT_SHOPIFY_REQUEST_CONCURRENCY",
+  "FUTURE_LIGHT_SHOPIFY_REQUEST_CONCURRENCY",
   recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
   { min: 1, max: 8 },
 );
-const maxAttempts = Math.max(1, Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
-const maxRetryDelayMs = Math.max(1000, Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));
-const batchSize = Math.max(1, Math.min(25, Number(process.env.SALT_CATALOG_TAXONOMY_BATCH_SIZE || 20)));
+const maxAttempts = Math.max(1, Number(process.env.FUTURE_LIGHT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
+const maxRetryDelayMs = Math.max(1000, Number(process.env.FUTURE_LIGHT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));
+const batchSize = Math.max(1, Math.min(25, Number(process.env.FUTURE_LIGHT_CATALOG_TAXONOMY_BATCH_SIZE || 20)));
 const concurrency = Math.max(
   1,
-  Math.min(8, Number(process.env.SALT_CATALOG_TAXONOMY_CONCURRENCY || recommendedConcurrency({ kind: "cpu", reserve: 1, max: 8 }))),
+  Math.min(8, Number(process.env.FUTURE_LIGHT_CATALOG_TAXONOMY_CONCURRENCY || recommendedConcurrency({ kind: "cpu", reserve: 1, max: 8 }))),
 );
 const activeProductQuery = "status:active";
 
@@ -192,7 +198,7 @@ function parseArgs(argv) {
 
 function getCliEnv() {
   return {
-    ...process.env,
+    ...futureLightShopifyCliEnv(),
     SHOPIFY_CLI_AGENT_INFO: cliAgentInfo,
     SHOPIFY_CLI_AGENT_IDS: cliAgentIds,
   };
@@ -252,7 +258,7 @@ async function runShopifyGraphQLInternal(query, variables, { allowMutations = fa
         return parseGraphQlPayload(raw);
       }
 
-      const tempDir = await mkdtemp(join(tmpdir(), "salt-catalog-taxonomy-"));
+      const tempDir = await mkdtemp(join(tmpdir(), "future-light-catalog-taxonomy-"));
       const queryPath = join(tempDir, "operation.graphql");
       const variablesPath = join(tempDir, "variables.json");
       const outputFile = join(tempDir, "result.json");
@@ -322,7 +328,7 @@ async function verifyApprovalForApply() {
   try {
     await execFileAsync(process.execPath, ["scripts/catalog-taxonomy-approval.mjs"], {
       cwd: rootDir,
-      env: process.env,
+      env: { PATH: process.env.PATH || "", HOME: process.env.HOME || "" },
       maxBuffer: 2 * 1024 * 1024,
     });
   } catch (error) {
@@ -628,7 +634,7 @@ async function uploadTaxonomyBulkInput(inputPath, retryInfo) {
   const curlArgs = ["-sS", "-X", "POST", target.url];
   for (const parameter of asArray(target.parameters)) curlArgs.push("-F", `${parameter.name}=${parameter.value}`);
   curlArgs.push("-F", `file=@${inputPath};type=text/jsonl`);
-  await execFileAsync("curl", curlArgs, { cwd: rootDir, maxBuffer: 20 * 1024 * 1024 });
+  await execFileAsync("curl", curlArgs, { cwd: rootDir, env: futureLightShopifyCliEnv(), maxBuffer: 20 * 1024 * 1024 });
   const stagedUploadPath = asArray(target.parameters).find((parameter) => parameter.name === "key")?.value;
   if (!stagedUploadPath) throw new Error("Shopify taxonomy staged upload target did not include a key");
   return stagedUploadPath;
@@ -747,7 +753,7 @@ async function runCatalogTaxonomyRelease({ mode, output, sample }) {
 
   const retryInfo = [];
   const knowledgeModel = await readCatalogKnowledgeModel({
-    required: process.env.SALT_REQUIRE_KNOWLEDGE_MODEL === "1",
+    required: process.env.FUTURE_LIGHT_REQUIRE_KNOWLEDGE_MODEL === "1",
   });
   const [catalog, liveProducts] = await Promise.all([
     readProductCatalogPayload(inputDir),
@@ -822,7 +828,7 @@ async function runCatalogTaxonomyRelease({ mode, output, sample }) {
   );
 
   const useMetafieldBulk =
-    actionableTasks.length >= Math.max(1, Number(process.env.SALT_CATALOG_TAXONOMY_BULK_THRESHOLD || 500)) &&
+    actionableTasks.length >= Math.max(1, Number(process.env.FUTURE_LIGHT_CATALOG_TAXONOMY_BULK_THRESHOLD || 500)) &&
     actionableTasks.every((task) => task.tagsToAdd.length === 0 && task.metafieldNeedsUpdate);
   if (useMetafieldBulk) {
     await applyTaxonomyMetafieldsBulk({

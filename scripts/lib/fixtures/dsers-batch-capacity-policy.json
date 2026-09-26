@@ -1,4 +1,8 @@
 {
+  "policyVersion": "fixture-v1",
+  "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "productTarget": 3000,
+  "shopDomain": "vs-future-store-0jl2t-jxu6tnr3.myshopify.com",
   "planningSlots": 679,
   "collectionLanes": [
     { "id": "lane-a", "name": "Lane A", "slots": 400 },
@@ -16,5 +20,13 @@
     { "id": 5, "families": ["Family A", "Family B"], "ceiling": 100, "laneAllocations": [{ "laneId": "lane-a", "slots": 60 }, { "laneId": "lane-b", "slots": 40 }] },
     { "id": 6, "families": ["Family A", "Family B"], "ceiling": 100, "laneAllocations": [{ "laneId": "lane-a", "slots": 60 }, { "laneId": "lane-b", "slots": 40 }] },
     { "id": 7, "families": ["Family A", "Family B"], "ceiling": 79, "laneAllocations": [{ "laneId": "lane-a", "slots": 40 }, { "laneId": "lane-b", "slots": 39 }] }
-  ]
+  ],
+  "laneToBatchCrosswalkApproval": {
+    "status": "approved",
+    "policyVersion": "fixture-v1",
+    "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "crosswalkSha256": "b937748df572f50f5ee5843399ca7416e8f0585fae59ac36e37bdaeb13bd8dec",
+    "approvedBy": "test fixture",
+    "approvedAt": "2026-09-24T09:00:00.000Z"
+  }
 }

@@ -55,3 +55,59 @@ test("accepts product-led, evidence-grounded language without template filler", 
   assert.deepEqual(assessment.issues, []);
   assert.deepEqual(assessment.genericPatterns, []);
 });
+
+test("rejects pet-care copy on a beauty product even when product keywords overlap", () => {
+  const assessment = assessProductContentSpecificity(
+    "Give your pet a more engaging addition to their routine with this silicone lip mask brush. Choose the appropriate size and supervise use, especially during chewing or active play.",
+    {
+      handle: "6-new-lip-mask-brush-beauty-tools-portable-silicone-lip-brush",
+      title: "6 New Lip Mask Brush Beauty Tools Portable Silicone Lip Brush",
+      productType: "makeup brush",
+      category: { fullName: "Pet Grooming Supplies" },
+    },
+    { field: "description", rejectGenericPatterns: true },
+  );
+
+  assert.equal(assessment.specific, false);
+  assert.ok(assessment.issues.includes("cross-domain-product-copy"));
+});
+
+test("does not flag accurate pet-grooming copy as a beauty mismatch", () => {
+  const assessment = assessProductContentSpecificity(
+    "This dog grooming brush is designed to lift loose coat during routine brushing. Check the brush dimensions and use gently around sensitive areas.",
+    {
+      handle: "dog-grooming-brush-loose-coat",
+      title: "Dog Grooming Brush for Loose Coat",
+      productType: "pet grooming brush",
+    },
+    { field: "description", rejectGenericPatterns: true },
+  );
+
+  assert.equal(assessment.specific, true);
+  assert.ok(!assessment.issues.includes("cross-domain-product-copy"));
+});
+
+test("rejects the generic SEO template fragments found in the saved catalog export", () => {
+  const phrases = [
+    "Give your pet a more engaging addition to their routine",
+    "Shape, texture, and finish shown are the details to compare",
+    "Play or outfit option you choose",
+    "Build a more considered beauty routine with this",
+    "Texture, shade, size, and application format shown",
+    "Choose the shade, size, and format shown for your needs",
+    "A practical addition to a beauty routine in the format shown",
+    "Choose the shade or format that suits your routine",
+  ];
+
+  for (const phrase of phrases) {
+    const assessment = assessProductContentSpecificity(
+      phrase + ".",
+      product,
+      { field: "description", rejectGenericPatterns: true },
+    );
+    assert.ok(
+      assessment.issues.includes("generic-filler-pattern"),
+      "expected generic SEO filler to be rejected: " + phrase,
+    );
+  }
+});

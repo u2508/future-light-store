@@ -7,7 +7,7 @@ import {
   useRouterState,
   HeadContent,
 } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { Header } from "@/components/vs/Header";
 import { MobileAppNav } from "@/components/vs/MobileAppNav";
@@ -15,8 +15,13 @@ import { Footer } from "@/components/vs/Footer";
 import { ExitIntentPrompt } from "@/components/vs/ExitIntentPrompt";
 import { Toaster } from "@/components/ui/sonner";
 import { useCartSync } from "@/hooks/useCartSync";
-import { initializeTikTokPixel } from "@/lib/tiktok";
-import { initializeMarketingAnalytics, trackPageView } from "@/lib/marketingAnalytics";
+import {
+  getMarketingConsentSnapshot,
+  initializeMarketingAnalytics,
+  subscribeMarketingConsent,
+  trackPageView,
+} from "@/lib/marketingAnalytics";
+import type { MarketingConsentSnapshot } from "@/lib/marketingConsent.mjs";
 import ogImage from "@/assets/vs-og.jpg";
 import { canonicalUrl, GOOGLE_SITE_VERIFICATION } from "@/lib/seo";
 import { STORE_CONTACT } from "@/lib/store-contact";
@@ -178,30 +183,19 @@ function StoreLayout() {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const locationHref = useRouterState({ select: (state) => state.location.href });
+  const [marketingConsent, setMarketingConsent] = useState<MarketingConsentSnapshot | null>(null);
 
   useEffect(() => {
+    const unsubscribe = subscribeMarketingConsent(setMarketingConsent);
     initializeMarketingAnalytics();
+    setMarketingConsent(getMarketingConsentSnapshot());
     normalizeRuntimeHead();
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
     trackPageView(locationHref);
-  }, [locationHref]);
-
-  useEffect(() => {
-    let pixelTimer: number | undefined;
-    const initializeDeferredPixel = () => {
-      pixelTimer = window.setTimeout(initializeTikTokPixel, 1_500);
-    };
-
-    if (document.readyState === "complete") initializeDeferredPixel();
-    else window.addEventListener("load", initializeDeferredPixel, { once: true });
-
-    return () => {
-      window.removeEventListener("load", initializeDeferredPixel);
-      if (pixelTimer !== undefined) window.clearTimeout(pixelTimer);
-    };
-  }, []);
+  }, [locationHref, marketingConsent?.analytics, marketingConsent?.advertising]);
 
   return (
     <QueryClientProvider client={queryClient}>

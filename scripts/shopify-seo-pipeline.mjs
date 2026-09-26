@@ -2,6 +2,7 @@
 
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
+import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -99,6 +100,7 @@ export function buildSeoPipelineStages({ mode, scope, frozenCatalog = "", produc
 
 async function main() {
   const args = parseArgs(process.argv);
+  assertFutureLightDirectWriteDisabled({ runner: "new-product-seo-pipeline", mode: args.mode });
   if (args.scope === "new-products" && Boolean(args.frozenCatalog) !== Boolean(args.productHandlesFile)) {
     throw new Error("New-products frozen runs require both --frozen-catalog and --product-handles-file");
   }

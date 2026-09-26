@@ -29,6 +29,7 @@ import { PRICE_REWORK_RULES } from "../src/lib/shopify-price-rework-policy.js";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
 import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
 import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
+import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
@@ -37,11 +38,14 @@ const rootDir = resolve(__dirname, "..");
 const inputDir = resolve(rootDir, "public", "data");
 const outputPath = resolve(rootDir, "output", "shopify-seo-release-manifest.json");
 const productSeoArtifactPath = resolve(inputDir, "product-seo.json");
-const liveCatalogPath = process.env.SALT_SHOPIFY_SEO_LIVE_CATALOG || resolve(rootDir, "output", ".shopify-seo-live-catalog.json");
-const shopBase = process.env.SALT_SHOP_URL;
-if (!shopBase) throw new Error("SALT_SHOP_URL is required for Future Light Store SEO operations.");
-const storeDomain = new URL(shopBase).hostname;
-const apiVersion = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
+const liveCatalogPath = process.env.FUTURE_LIGHT_SHOPIFY_SEO_LIVE_CATALOG || resolve(rootDir, "output", ".shopify-seo-live-catalog.json");
+const shopBaseValue = String(process.env.FUTURE_LIGHT_SHOPIFY_STORE_DOMAIN || "").trim();
+const shopBase = shopBaseValue
+  ? (/^https?:\/\//i.test(shopBaseValue) ? shopBaseValue : `https://${shopBaseValue}`)
+  : "";
+const storeUrl = shopBase ? new URL(shopBase) : null;
+const storeDomain = storeUrl?.hostname || "";
+const apiVersion = process.env.FUTURE_LIGHT_SHOPIFY_ADMIN_API_VERSION || "2026-07";
 
 export function assertBaseSeoPriceFloor(products, minimumSellPrice = PRICE_REWORK_RULES.minimumSellPrice) {
   const violations = [];
@@ -68,24 +72,23 @@ export function assertBaseSeoPriceFloor(products, minimumSellPrice = PRICE_REWOR
   }
   return { threshold: minimumSellPrice, productsChecked: Array.isArray(products) ? products.length : 0, variantsChecked, violations: 0 };
 }
-const adminAccessToken =
-  process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SALT_SHOPIFY_ADMIN_ACCESS_TOKEN || "";
-const adminGraphqlUrl = `${new URL(shopBase).origin}/admin/api/${apiVersion}/graphql.json`;
-const cliBinary = process.env.SHOPIFY_CLI_BINARY || "shopify";
-const cliAgentInfo = process.env.SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:openai";
+const adminAccessToken = process.env.FUTURE_LIGHT_SHOPIFY_ADMIN_ACCESS_TOKEN || "";
+const adminGraphqlUrl = storeUrl ? `${storeUrl.origin}/admin/api/${apiVersion}/graphql.json` : "";
+const cliBinary = process.env.FUTURE_LIGHT_SHOPIFY_CLI_BINARY || "shopify";
+const cliAgentInfo = process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:openai";
 const cliAgentIds =
-  process.env.SHOPIFY_CLI_AGENT_IDS || `s:future-light-store|r:${process.pid}|i:future-light-store-seo`;
-const requestDelayMs = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
+  process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_IDS || `s:future-light-store|r:${process.pid}|i:future-light-store-seo`;
+const requestDelayMs = Math.max(0, Number(process.env.FUTURE_LIGHT_SHOPIFY_REQUEST_DELAY_MS || 125));
 const requestConcurrency = envInteger(
-  "SALT_SHOPIFY_REQUEST_CONCURRENCY",
+  "FUTURE_LIGHT_SHOPIFY_REQUEST_CONCURRENCY",
   recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
   { min: 1, max: 8 },
 );
-const maxAttempts = Math.max(1, Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
-const maxRetryDelayMs = Math.max(1000, Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));
-const seoApplyBatchSize = Math.max(1, Math.min(5, Number(process.env.SALT_SHOPIFY_SEO_BATCH_SIZE || 5)));
+const maxAttempts = Math.max(1, Number(process.env.FUTURE_LIGHT_SHOPIFY_MAX_REQUEST_ATTEMPTS || 5));
+const maxRetryDelayMs = Math.max(1000, Number(process.env.FUTURE_LIGHT_SHOPIFY_MAX_RETRY_DELAY_MS || 30_000));
+const seoApplyBatchSize = Math.max(1, Math.min(5, Number(process.env.FUTURE_LIGHT_SHOPIFY_SEO_BATCH_SIZE || 5)));
 const seoReadConcurrency = envInteger(
-  "SALT_SHOPIFY_SEO_READ_CONCURRENCY",
+  "FUTURE_LIGHT_SHOPIFY_SEO_READ_CONCURRENCY",
   recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
   { min: 1, max: 8 },
 );
@@ -564,6 +567,9 @@ function parseGraphQlPayload(raw) {
 const requestScheduler = createRequestScheduler({ concurrency: requestConcurrency, minIntervalMs: requestDelayMs });
 
 async function runShopifyCliGraphQLInternal(query, variables, { allowMutations = false, operation, retryInfo } = {}) {
+  if (!storeUrl || !storeDomain.endsWith(".myshopify.com")) {
+    throw new Error("FUTURE_LIGHT_SHOPIFY_STORE_DOMAIN must identify the verified Future Light myshopify.com store.");
+  }
 
   if (adminAccessToken) {
     let attempt = 0;
@@ -610,7 +616,7 @@ async function runShopifyCliGraphQLInternal(query, variables, { allowMutations =
     }
   }
 
-  const tempDir = await mkdtemp(join(tmpdir(), "salt-shopify-seo-release-"));
+  const tempDir = await mkdtemp(join(tmpdir(), "future-light-shopify-seo-release-"));
   const queryFile = join(tempDir, "operation.graphql");
   const variablesFile = join(tempDir, "variables.json");
   const outputFile = join(tempDir, "result.json");
@@ -2122,7 +2128,7 @@ async function applyPlan(args) {
   const pendingCount = args.manifest.products.filter(
     (entry) => entry.status !== "skipped-exact-match" && !entry.status.startsWith("failed"),
   ).length;
-  const bulkThreshold = Math.max(1, Number(process.env.SALT_SHOPIFY_SEO_BULK_THRESHOLD || 500));
+  const bulkThreshold = Math.max(1, Number(process.env.FUTURE_LIGHT_SHOPIFY_SEO_BULK_THRESHOLD || 500));
   if (pendingCount >= bulkThreshold) {
     return applyPlanBulk(args);
   }
@@ -2146,7 +2152,7 @@ export async function runShopifySeoRelease({
   const localSnapshot = await loadCatalogSnapshot();
   const snapshot = await loadFrozenCatalogSnapshot(frozenCatalog, localSnapshot);
   const knowledgeModel = await readCatalogKnowledgeModel({
-    required: process.env.SALT_REQUIRE_KNOWLEDGE_MODEL === "1",
+    required: process.env.FUTURE_LIGHT_REQUIRE_KNOWLEDGE_MODEL === "1",
   });
   const explicitNewProductHandles = newProductsOnly ? await readProductHandles(productHandlesFile) : null;
   const productSeoArtifact = await loadProductSeoArtifact({
@@ -2345,6 +2351,7 @@ export async function runShopifySeoRelease({
 
 async function main() {
   const args = parseArgs(process.argv);
+  assertFutureLightDirectWriteDisabled({ runner: "seo-release", mode: args.mode });
   await access(rootDir);
   await runShopifySeoRelease(args);
 }

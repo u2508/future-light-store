@@ -59,7 +59,13 @@ const AUDIENCE_FAMILIES = new Set([
   "shoes", "hat", "scarf", "pajamas", "baby-romper", "hair-accessory", "sunglasses",
 ]);
 
+const COMPATIBLE_TAXONOMY_FAMILIES = new Map([
+  ["audio-accessory", new Set(["audio-cable"])],
+  ["watch", new Set(["watch-strap", "smart-watch"])],
+]);
+
 const NOUN_ALIASES = {
+  "laundry-drying-rack": ["drying rack", "rack", "clip"],
   "camera-mount": ["arm", "mount"],
   "laundry-clip": ["clip", "clothespin", "clothes pin", "laundry"],
   "audio-cable": ["cable", "cord"],
@@ -82,7 +88,7 @@ const NOUN_ALIASES = {
   "eyeshadow": ["eyeshadow", "palette"],
   "eyeliner": ["eyeliner", "gel"],
   "sticker": ["sticker", "stickers", "decals"],
-  "memory-card": ["memory", "card"],
+  "memory-card": ["memory", "card", "usb flash drive", "flash drive", "pen drive", "u disk"],
   "keychain": ["keychain", "airtag"],
   "charger": ["charger", "adapter"],
   "translator": ["translator", "translation"],
@@ -259,13 +265,15 @@ function sourceParts(product) {
   const handle = humanizeHandle(product?.handle);
   const title = normalizeText(product?.title);
   const listedType = normalizeText(product?.product_type || product?.productType);
+  const taxonomy = normalizeText(product?.category?.fullName || product?.category?.name || product?.category);
   const highlights = Array.isArray(customData.highlights) ? customData.highlights.join(" ") : "";
   return {
     handle,
     title,
     listedType,
+    taxonomy,
     classificationText: [handle, title, listedType].filter(Boolean).join(" "),
-    evidenceText: [handle, title, listedType, highlights, product?.body_html, product?.descriptionHtml]
+    evidenceText: [handle, title, listedType, taxonomy, highlights, product?.body_html, product?.descriptionHtml]
       .filter(Boolean).join(" "),
   };
 }
@@ -307,12 +315,81 @@ function has(text, pattern) {
   return pattern.test(text);
 }
 
+function classificationFromShopifyCategory(product) {
+  const category = normalizeText(product?.category?.fullName || product?.category?.name || product?.category);
+  if (!category) return null;
+  const mappings = [
+    ["laundry-drying-rack", "clip drying rack", /(?:^| > )drying racks(?:\s*&\s*hangers)?$/i],
+    ["apparel-shirt", "shirt", /(?:^| > )(?:shirts|t-shirts)$/i],
+    ["apparel-outerwear", "jacket", /(?:^| > )outerwear$/i],
+    ["apparel-bottom", "pants", /(?:^| > )(?:pants|shorts|leggings)$/i],
+    ["apparel-dress", "dress", /(?:^| > )dresses$/i],
+    ["socks", "socks", /(?:^| > )socks$/i],
+    ["hat", "hat", /(?:^| > )hats$/i],
+    // "Decor" alone is a broad Shopify leaf that this catalog has often
+    // received incorrectly; only trust an explicit Home Decor category.
+    ["home-decor", "home decor", /(?:^| > )home decor$/i],
+    ["backpack", "backpack", /(?:^| > )backpacks$/i],
+    ["bag", "handbag", /(?:^| > )handbags$/i],
+    ["wallet", "wallet", /(?:^| > )wallets & money clips$/i],
+    ["jewelry", "jewelry", /(?:^| > )(?:bracelets|charms|brooches|earrings|rings|necklaces|jewelry sets)$/i],
+    ["watch-strap", "watch strap", /(?:^| > )watch bands$/i],
+    ["watch", "watch", /(?:^| > )watches$/i],
+    ["pet-toy", "pet toy", /(?:^| > )(?:dog toys|cat toys)$/i],
+    ["pet-accessory", "pet accessory", /(?:^| > )pet grooming supplies$/i],
+    ["toy", "toy", /(?:^| > )(?:educational toys|sensory toys)$/i],
+    ["board-game", "board game", /(?:^| > )board games$/i],
+    ["hair-care", "hair care", /(?:^| > )hair care$/i],
+    ["makeup-brush", "makeup brush", /(?:^| > )makeup brushes$/i],
+    ["lip-makeup", "lip makeup", /(?:^| > )lip makeup$/i],
+    ["microphone", "microphone", /(?:^| > )microphones$/i],
+    ["speaker", "speaker", /(?:^| > )speakers$/i],
+    ["general-accessory", "projector", /(?:^| > )projectors$/i],
+    ["game-controller", "game controller", /(?:^| > )video game controllers$/i],
+    ["mouse-pad", "mouse pad", /(?:^| > )mouse pads$/i],
+    ["audio-accessory", "audio accessory", /(?:^| > )audio accessories$/i],
+    ["radio", "radio", /(?:^| > )radios$/i],
+    ["memory-card", "memory card", /(?:^| > )usb flash drives$/i],
+    ["medical-kit", "medical kit", /(?:^| > )first aid kits$/i],
+    ["tent", "camping tent", /(?:^| > )tents$/i],
+    ["fan", "fan", /(?:^| > )fans$/i],
+  ];
+  const match = mappings.find(([, , pattern]) => pattern.test(category));
+  return match ? { familyId: match[0], noun: match[1], confidence: "high", source: "shopify-product-taxonomy" } : null;
+}
+
+function reconcileClassification(product, listingClassification, taxonomyClassification) {
+  const taxonomyText = sourceParts(product).taxonomy;
+  const nonApparelCategory = /^(?:Electronics|Hardware|Arts & Entertainment|Sporting Goods|Office Supplies|Home & Garden|Animals & Pet Supplies|Toys & Games|Media|Vehicles & Parts|Luggage & Bags)\b/i.test(taxonomyText);
+  const listingIsApparel = listingClassification.familyId.startsWith("apparel-")
+    || listingClassification.familyId === "socks"
+    || listingClassification.familyId === "baby-romper";
+  const mappedCategoryConflict = taxonomyClassification
+    && taxonomyClassification.familyId !== listingClassification.familyId
+    && !COMPATIBLE_TAXONOMY_FAMILIES.get(taxonomyClassification.familyId)?.has(listingClassification.familyId);
+  const broadCategoryConflict = !taxonomyClassification && nonApparelCategory && listingIsApparel;
+  if (!mappedCategoryConflict && !broadCategoryConflict) {
+    if (taxonomyClassification) return { ...taxonomyClassification, source: "shopify-taxonomy+listing-evidence" };
+    return { ...listingClassification, source: "listing-evidence" };
+  }
+  return {
+    ...listingClassification,
+    confidence: "conflict",
+    source: "shopify-taxonomy-listing-conflict",
+    reviewRequired: true,
+    taxonomyEvidence: taxonomyText,
+  };
+}
+
 export function classifyProduct(product, facts = extractProductFacts(product)) {
+  const taxonomyClassification = classificationFromShopifyCategory(product);
   const source = sourceParts(product);
   const factText = facts.map((fact) => fact.label + " " + fact.value).join(" ");
   const text = [source.classificationText, factText].filter(Boolean).join(" ");
   const rules = [
+    ["watch-organizer", "watch organizer case", /\bwatch(?:es)?\s+(?:organizer|travel case|display holder|storage box|box)\b|\bwatch[- ]box[- ]organizer\b|\bwatch organizer case\b/i],
     ["organizer", "organizer", /\b(?:organizer|storage box|storage case)\b/i],
+    ["laundry-drying-rack", "clip drying rack", /\b(?:clip|clips)\s+towel\s+rack\b|\b(?:towel|drying|laundry)\s+rack\b[^.]{0,55}\bclips?\b|\bclips?\b[^.]{0,55}\b(?:towel|drying|laundry)\s+rack\b/i],
     ["laundry-clip", "laundry clip", /\b(?:clothespins?|clothes[- ]?pins?|laundry clips?|clothing organizing clips?)\b/i],
     ["camera-mount", "camera mounting arm", /\b(?:articulated|magic|mounting|camera)\b[^.]{0,70}\b(?:arm|hex pin|female thread|clamp)\b|\barm\b[^.]{0,70}\b(?:hex|thread|camera|mount)\b/i],
     ["video-adapter", "HDMI-to-VGA video adapter", /\bhdmi\b[^.]{0,90}\bvga\b|\bvga\b[^.]{0,90}\bhdmi\b/i],
@@ -338,6 +415,7 @@ export function classifyProduct(product, facts = extractProductFacts(product)) {
     ["eyeshadow", "eyeshadow palette", /\b(?:eyeshadow|eye shadow)\b/i],
     ["eyeliner", "eyeliner", /\b(?:eyeliner|eye liner|eyebrow gel|brow gel)\b/i],
     ["sticker", "sticker set", /\b(?:stickers?|decals?)\b/i],
+    ["memory-card", "USB flash drive", /\b(?:usb\s*flash\s*drives?|flash\s*drives?|pen drives?|u[- ]?disks?)\b/i],
     ["memory-card", "memory card", /\b(?:memory card|sd card|tf card)\b/i],
     ["keychain", "keychain", /\b(?:keychain|airtag)\b/i],
     ["charger", "device charger", /\b(?:charger|charging adapter|wall adapter|power adapter)\b/i],
@@ -350,11 +428,9 @@ export function classifyProduct(product, facts = extractProductFacts(product)) {
     ["tripod", "smartphone tripod", /\btripod\b/i],
     ["camera-accessory", "camera accessory", /\b(?:camera|camcorder|insta360)\b[^.]{0,90}\b(?:lens|filter|mount|cage|accessor|bracket|holder|tripod)\b|\b(?:lens|filter)\b[^.]{0,70}\b(?:camera|photography)\b/i],
     ["phone-holder", "phone holder", /\b(?:phone|mobile|cell)\b[^.]{0,50}\b(?:holder|stand|mount)\b|\b(?:holder|stand|mount)\b[^.]{0,50}\b(?:phone|mobile|cell)\b/i],
-    ["watch-organizer", "watch organizer case", /\bwatch\b[^.]{0,70}\b(?:box|organizer|travel case|display holder|storage)\b/i],
+    ["watch-strap", "watch strap", /\b(?:watch|wristwatch)\s*(?:replacement\s*)?(?:straps?|bands?|wristbands?)\b|\b(?:replacement\s*)?(?:straps?|bands?|wristbands?)\s+for\s+(?:a\s+)?(?:watch|wristwatch)\b/i],
     ["smart-watch", "smart watch", /\b(?:smartwatch|smart watch|fitness tracker)\b/i],
-    ["watch", "watch", /\b(?:wristwatch|wrist watch|quartz|analog|digital|sport|sports|military|alarm|business)\b[^.]{0,30}\b(?:watch|clock)\b|\b(?:watch|clock)\b[^.]{0,30}\b(?:digital|analog|sport|military|alarm)\b/i],
-    ["watch-strap", "watch strap", /\b(?:watch|wristwatch)\b[^.]{0,50}\b(?:strap|band|bracelet)\b|\b(?:strap|band)\b[^.]{0,50}\bwatch\b/i],
-    ["watch", "watch", /\b(?:wristwatch|wrist watch|watch)\b/i],
+    ["watch", "watch", /\b(?:wristwatches?|wrist watches?|quartz|analog|digital|sport|sports|military|alarm|business)\b[^.]{0,30}\b(?:watches?|clocks?)\b|\b(?:watches?|clocks?)\b[^.]{0,30}\b(?:digital|analog|sport|military|alarm)\b|\b(?:wristwatches?|wrist watches?|watch|watches)\b/i],
     ["radio", "emergency radio", /\b(?:radio|fm|mw|sw|vhf|hand crank)\b/i],
     ["flashlight", "flashlight", /\b(?:flashlight|torch)\b/i],
     ["audio-accessory", "audio accessory", /\b(?:headphone|headphones|earphone|earphones|earbud|earbuds|headset|audio accessory)\b/i],
@@ -364,7 +440,7 @@ export function classifyProduct(product, facts = extractProductFacts(product)) {
     ["pet-toy", "pet toy", /\b(?:cat|kitten|dog|puppy|pet)\b[^.]{0,80}\b(?:toy|ball|chew|frisbee)\b/i],
     ["pet-accessory", "pet accessory", /\b(?:cat|kitten|dog|puppy|pet)\b[^.]{0,80}\b(?:collar|leash|bowl|carrier|clothing|outfit|supply|accessory)\b|\bpet\s+accessory\b/i],
     ["toy-tea-set", "children's tea set", /\b(?:tea set|pretend play|playhouse kitchen|kids kitchen toy)\b/i],
-    ["board-game", "board game", /\b(?:board game|card game|party game|tabletop game|dart board)\b/i],
+    ["board-game", "board game", /\b(?:board game|card game|party game|tabletop game|dart board|chess(?:board| set)?|checkers?|dominoes|mahjong|backgammon)\b/i],
     ["toy", "toy", /\b(?:puzzle toy|educational toy|baby toy|children'?s toy|toy)\b/i],
     ["medical-kit", "medical kit", /\b(?:medical|medicine|first[- ]?aid|emergency)\b[^.]{0,45}\b(?:bag|kit|case)\b/i],
     ["backpack", "backpack", /\b(?:backpack|rucksack|hiking bag|tactical bag)\b/i],
@@ -372,6 +448,7 @@ export function classifyProduct(product, facts = extractProductFacts(product)) {
     ["cooler-bag", "insulated cooler bag", /\b(?:wine cooler|cooler bag|insulated tote)\b/i],
     ["camping-table", "camping table", /\b(?:camping|outdoor|folding)\b[^.]{0,45}\btable\b|\btable\b[^.]{0,45}\bcamping\b/i],
     ["tent", "camping tent", /\b(?:beach|camping|pop[- ]?up|backpacking)\b[^.]{0,55}\btent\b|\btent\b/i],
+    ["bag", "bag", /\b(?:handbags?|hand bags?|totes?|purses?|clutch bags?|shoulder bags?|crossbody bags?|satchels?|hobo bags?|bucket bags?)\b/i],
     ["home-decor", "home decor", /\b(?:home decor|home decoration|ornament|figurine|statue)\b/i],
     ["shoes", "shoes", /\b(?:shoe|shoes|sneaker|footwear)\b/i],
     ["wallet", "wallet", /\b(?:wallet|purse|coin[- ]?pocket|card holder)\b/i],
@@ -384,14 +461,14 @@ export function classifyProduct(product, facts = extractProductFacts(product)) {
     ["face-paint", "face paint", /\b(?:face|body)\s*paint\b/i],
     ["false-eyelash", "false eyelashes", /\b(?:false eyelash|false eyelashes|eyelash extensions?|lashes)\b/i],
     ["beauty-mask", "beauty face mask", /\b(?:facial|beauty|skin)\b[^.]{0,30}\bmask\b/i],
-    ["apparel-dress", "dress", /\b(?:dresses|dress|sundresses|sundress|gowns|gown)\b/i],
+    ["apparel-dress", "dress", /\b(?:sundresses|sundress|gowns|gown)\b|\b(?:women'?s|men'?s|girls'?|boys'?|ladies'?|floral|evening|casual|summer)\b[^.]{0,50}\b(?:dresses|dress)\b/i],
     ["apparel-shirt", "shirt", /\b(?:t[- ]?shirts?|shirts?|blouses?|tees?|polos?|button[- ]?downs?)\b/i],
-    ["apparel-top", "top", /\b(?:tank[- ]?tops?|crop[- ]?tops?|camisoles?|tops?)\b/i],
+    ["apparel-top", "top", /\b(?:tank[- ]?tops?|crop[- ]?tops?|camisoles?)\b|\b(?:women'?s|men'?s|girls'?|boys'?|ladies'?|sportswear|backless|fitted|sleeveless|short[- ]sleeve|long[- ]sleeve)\b[^.]{0,45}\btop\b/i],
     ["apparel-bottom", "pants", /\b(?:pants|trousers|jeans|shorts|leggings|skirts?)\b/i],
     ["apparel-outerwear", "jacket", /\b(?:jackets?|coats?|hoodies|hoodie|sweaters?|cardigans?|blazers?)\b/i],
     ["apparel-underwear", "underwear", /\b(?:underwear|bras?|lingerie|swimsuits?|bikinis?)\b/i],
     ["socks", "socks", /\b(?:stockings?|pantyhose|socks?)\b/i],
-    ["baby-romper", "baby romper", /\b(?:romper|infant|newborn|baby clothes)\b/i],
+    ["baby-romper", "baby romper", /\b(?:baby|infant|newborn)\b[^.]{0,35}\b(?:rompers?|bodysuits?|clothes|clothing|onesies)\b|\b(?:rompers?|bodysuits?|onesies)\b[^.]{0,35}\b(?:baby|infant|newborn)\b/i],
     ["apparel-costume", "costume", /\b(?:costume|cosplay|disguise|roleplay|performance uniform)\b/i],
     ["apparel-jumpsuit", "jumpsuit", /\b(?:jumpsuits?|rompers?|bodysuits?)\b/i],
     ["apparel-set", "apparel set", /\b(?:clothes? sets?|outfit sets?|basketball clothes|matching set)\b/i],
@@ -400,26 +477,34 @@ export function classifyProduct(product, facts = extractProductFacts(product)) {
     ["cleaning-tool", "cleaning tool", /\b(?:squeegee|cleaning tool|window cleaner|glass cleaner)\b/i],
     ["nfc-tag", "NFC tag", /\b(?:nfc|ntag|rfid)\b[^.]{0,50}\b(?:card|tag)\b|\b(?:card|tag)\b[^.]{0,50}\b(?:nfc|ntag|rfid)\b/i],
     ["organizer", "organizer", /\b(?:organizer|storage box|storage case)\b/i],
-    ["fan", "fan", /\b(?:fan|air cooler)\b/i],
+    ["fan", "fan", /\b(?:handheld|desk|table|neck|portable|wearable|clip[- ]on)\s+fans?\b|\bair cooler\b|\b(?:fans?|air cooler)\b[^.]{0,35}\b(?:portable|rechargeable|cooling|bladeless|usb)\b/i],
     ["light", "light", /\b(?:lamp|light|lantern)\b/i],
     ["tool", "tool", /\b(?:tool|pliers|tweezers|screwdriver|wrench)\b/i],
   ];
   for (const entry of rules) {
-    if (has(text, entry[2])) return { familyId: entry[0], noun: entry[1], confidence: "high" };
+    if (has(text, entry[2])) return reconcileClassification(
+      product,
+      { familyId: entry[0], noun: entry[1], confidence: "high" },
+      taxonomyClassification,
+    );
   }
   const listedType = nonGenericListedType(product, facts);
   if (listedType) {
     const normalized = listedType.toLowerCase();
-    if (/\b(?:bag|tote|pouch)\b/.test(normalized)) return { familyId: "bag", noun: "bag", confidence: "medium" };
-    if (/\b(?:case|cover)\b/.test(normalized)) return { familyId: "general-accessory", noun: "case", confidence: "medium" };
-    if (/\b(?:holder|stand)\b/.test(normalized)) return { familyId: "general-accessory", noun: "holder", confidence: "medium" };
-    return { familyId: "general-accessory", noun: titleCasePhrase(listedType), confidence: "medium" };
+    if (/\b(?:bag|tote|pouch)\b/.test(normalized)) return reconcileClassification(product, { familyId: "bag", noun: "bag", confidence: "medium" }, taxonomyClassification);
+    if (/\b(?:case|cover)\b/.test(normalized)) return reconcileClassification(product, { familyId: "general-accessory", noun: "case", confidence: "medium" }, taxonomyClassification);
+    if (/\b(?:holder|stand)\b/.test(normalized)) return reconcileClassification(product, { familyId: "general-accessory", noun: "holder", confidence: "medium" }, taxonomyClassification);
+    return reconcileClassification(product, { familyId: "general-accessory", noun: titleCasePhrase(listedType), confidence: "medium" }, taxonomyClassification);
   }
   const fallbackNoun = [
     "organizer", "adapter", "holder", "stand", "cover", "case", "bag", "kit", "tool", "set",
     "accessory", "device", "brush", "toy", "lamp", "light", "bottle", "cup",
   ].find((candidate) => new RegExp("\\b" + candidate + "\\b", "i").test(text));
-  return { familyId: "general-accessory", noun: fallbackNoun || "everyday accessory", confidence: fallbackNoun ? "medium" : "low" };
+  return reconcileClassification(
+    product,
+    { familyId: "general-accessory", noun: fallbackNoun || "everyday accessory", confidence: fallbackNoun ? "medium" : "low" },
+    taxonomyClassification,
+  );
 }
 
 function brandFromText(text) {
@@ -743,7 +828,12 @@ function buildTitle(profile) {
   } else if (family === "false-eyelash") {
     candidate = joinTitleParts([measurements[0] || "", salient.filter((value) => !/eyelash|lashes/i.test(value)).slice(0, 2).join(" "), "False Eyelashes"]);
   } else if (family === "memory-card") {
-    candidate = joinTitleParts([brand, "SD Memory Card"]);
+    candidate = joinTitleParts([
+      brand,
+      /\b(?:usb\s*flash\s*drive|flash\s*drive|pen\s*drive|u[- ]?disk)\b/i.test(handleText)
+        ? "USB Flash Drive"
+        : "SD Memory Card",
+    ]);
   } else if (family === "keychain") {
     candidate = joinTitleParts([brand, /\bairtag\b/i.test(handleText) ? "AirTag Keychain Case" : "Keychain"]);
   } else if (family === "charger") {
@@ -909,6 +999,8 @@ function buildTitle(profile) {
     candidate = joinTitleParts([measurements[0] || "", material, /\bpan\b/i.test(handleText) ? "Cooking Pan" : "Cookware Set"]);
   } else if (family === "cleaning-tool") {
     candidate = joinTitleParts([/\bglass\b|\bwindow\b/i.test(handleText) ? "Glass Window" : "", "Cleaning Squeegee"]);
+  } else if (family === "laundry-drying-rack") {
+    candidate = joinTitleParts([material, "Hanging Clip Drying Rack"]);
   } else if (family === "laundry-clip") {
     candidate = joinTitleParts([measurements[0] || "", "Laundry Clothespin Set"]);
   } else if (family === "organizer") {
@@ -1053,6 +1145,23 @@ function naturalizeCustomerCopy(value) {
     .trim();
 }
 
+function rackConfigurations(product) {
+  const variants = Array.isArray(product?.variants)
+    ? product.variants
+    : product?.variants?.nodes || [];
+  return uniqueValues(variants.map((variant) => {
+    const title = normalizeText(variant?.title);
+    const selected = Array.isArray(variant?.selectedOptions)
+      ? variant.selectedOptions.map((option) => option?.value).filter(Boolean).join(" ")
+      : "";
+    const raw = title && !/^default title$/i.test(title) ? title : normalizeText(selected);
+    const match = raw.match(/\b(square|round|arc(?:\s+type)?)\s*(\d+)\s*clips?\b/i);
+    if (!match) return "";
+    const shape = /^arc/i.test(match[1]) ? "Arc-style" : titleCasePhrase(match[1]);
+    return `${shape} rack with ${match[2]} clips`;
+  }));
+}
+
 function familyIntro(profile, title) {
   const family = profile.classification.familyId;
   const handle = profile.handleText;
@@ -1060,6 +1169,14 @@ function familyIntro(profile, title) {
   const measurements = extractMeasurements(handle, profile.facts);
   const uses = USE_TERMS.filter(([term]) => new RegExp("\\b" + escapeRegExp(term) + "\\b", "i").test(handle))
     .map(([, value]) => value);
+  if (family === "laundry-drying-rack") {
+    const materialText = material ? material.toLowerCase() + " " : "";
+    const configurations = rackConfigurations(profile.product);
+    const options = configurations.length
+      ? `Choose the layout and clip count that fit your routine: ${naturalList(configurations)}.`
+      : "Choose the rack layout and clip count shown in the selected option.";
+    return `Keep socks, underwear, towels, and other small laundry together while it dries with this ${materialText}hanging clip rack. ${options}`;
+  }
   if (family === "video-adapter") {
     const resolution = measurements.find((value) => /^(?:720p|1080p|1440p|4k)$/i.test(value));
     const resolutionText = resolution ? ` for ${resolution} video output` : "";
@@ -1102,6 +1219,9 @@ function familyIntro(profile, title) {
   if (family === "camera-mount") return "The " + title + " gives a camera or light a movable mounting point, with thread and pin fittings that should be matched to the equipment.";
   if (family === "watch-organizer") return "The " + title + " is a travel case for keeping watches together, separated, and ready to pack.";
   if (family === "watch" || family === "smart-watch") return "The " + title + " is a wristwatch designed around the display, timekeeping, or smart features named in its configuration.";
+  if (family === "memory-card" && /\b(?:usb\s*flash\s*drive|flash\s*drive|pen\s*drive|u[- ]?disk)\b/i.test(profile.handleText)) {
+    return "The " + title + " is removable USB storage for moving files between compatible devices, with capacity options to compare before ordering.";
+  }
   if (family === "phone-case") return "The " + title + " is a phone case made to cover a compatible device while keeping the selected cutouts and controls accessible.";
   if (family === "phone-holder") return "The " + title + " keeps a compatible phone in a stable position for the viewing or mounting setup described by the product.";
   if (family === "camera") return "The " + title + " is a camera for shooting, recording, or security use.";
@@ -1192,7 +1312,9 @@ function compactMetaSummaryBase(profile, facts) {
   if (family === "eyeshadow") return "Eyeshadow palette with its shade count and finish.";
   if (family === "eyeliner") return "Eyeliner or brow product in a pencil, gel, or liquid format.";
   if (family === "sticker") return "Sticker set with its pack size, designs, and intended surface.";
-  if (family === "memory-card") return "Removable memory card for a compatible device format and capacity.";
+  if (family === "memory-card") return /\b(?:usb\s*flash\s*drive|flash\s*drive|pen\s*drive|u[- ]?disk)\b/i.test(profile.handleText)
+    ? "USB flash drive for portable file storage."
+    : "Removable memory card for a compatible device format and capacity.";
   if (family === "keychain") return "Keychain or tracker case in its shape and attachment format.";
   if (family === "charger") return "Wall charger with its power and connector configuration.";
   if (family === "translator") return "Language translator with its language, audio, and connection features.";
@@ -1249,7 +1371,7 @@ function compactMetaSummary(profile, facts) {
                                         : family === "keyboard" ? "Keyboard"
                                           : family === "computer-mouse" ? "Computer mouse"
                                             : family === "smart-glasses" ? "Smart glasses"
-                                              : family === "memory-card" ? "Memory card"
+                                                : family === "memory-card" ? /\b(?:usb\s*flash\s*drive|flash\s*drive|pen\s*drive|u[- ]?disk)\b/i.test(profile.handleText) ? "USB flash drive" : "Memory card"
                                                 : family === "charger" ? "Device charger"
                                                   : family === "translator" ? "Language translator"
                                                     : family === "backpack" ? "Hiking backpack"
@@ -1301,6 +1423,7 @@ function compactMetaSummary(profile, facts) {
 
 function practicalCheck(profile) {
   const family = profile.classification.familyId;
+  if (family === "laundry-drying-rack") return "Choose the rack shape and clip count you want; these are rack configurations, not color variations.";
   if (family === "video-adapter") return "Match the HDMI source, VGA display, and whether you need audio or USB power before ordering.";
   if (family === "audio-cable" || family === "hdmi-cable" || family === "charging-cable" || family === "camera-mount" || family === "camera-accessory") return "Match the connector, thread, device, and clearance to your setup before ordering.";
   if (family === "speaker" || family === "phone-case" || family === "phone-holder" || family === "tripod" || family === "selfie-stick" || family === "watch" || family === "smart-watch") return "Choose the device-compatible size, color, or configuration that fits your setup before checkout.";
@@ -1418,6 +1541,9 @@ function familySalesCopy(profile, title, facts) {
   // recovered from this product. This keeps the copy readable without
   // inventing benefits or falling back to supplier boilerplate.
   const intro = familyIntro(profile, title);
+  if (profile.classification.familyId === "laundry-drying-rack") {
+    return naturalizeCustomerCopy(intro);
+  }
   return naturalizeCustomerCopy([intro, productDetailSentence(profile, facts)].join(" "));
 }
 
@@ -1458,6 +1584,13 @@ function specificMetaSentence(profile, title, facts) {
   const useText = uses.length ? naturalList(uses).toLowerCase() : "its intended setting";
   const focusText = focus.length ? naturalList(focus).toLowerCase() : "the product's configuration";
 
+  if (family === "laundry-drying-rack") {
+    const shapes = uniqueValues(rackConfigurations(profile.product).map((option) =>
+      /^arc-style\b/i.test(option) ? "arc" : option.split(/\s+/)[0].toLowerCase(),
+    ));
+    const choices = shapes.length ? naturalList(shapes) : "the available";
+    return `Hang socks, underwear, or towels on a clip drying rack; choose ${choices} options.`;
+  }
   if (family === "video-adapter") {
     const resolution = measurements.find((value) => /^(?:720p|1080p|1440p|4k)$/i.test(value));
     const resolutionText = resolution ? ` for ${resolution} video` : "";
@@ -1566,12 +1699,19 @@ export function buildProductSeoCopy(product) {
   const detailSentence = customerMetaSummary(profile, title, summarizedFacts);
   const seoDescription = buildCustomerMetaDescription(title, profile, summarizedFacts, check);
   const factMarkup = customerDetailsMarkup(summarizedFacts);
+  const dryingRackConfigurations = classification.familyId === "laundry-drying-rack"
+    ? rackConfigurations(product)
+    : [];
+  const dryingRackOptions = dryingRackConfigurations.length
+    ? "<h3>Available rack configurations</h3><ul>" + dryingRackConfigurations.map((option) => `<li>${escapeHtml(option)}</li>`).join("") + "</ul>"
+    : "";
   const descriptionHtml = [
     "<h2>About " + escapeHtml(title) + "</h2>",
     "<p>" + escapeHtml(intro) + "</p>",
     factMarkup
       ? "<h3>At a glance</h3>" + factMarkup
       : "<h3>At a glance</h3><p><strong>Product type:</strong> " + escapeHtml(classification.noun) + "</p>",
+    dryingRackOptions,
     "<h3>Before you order</h3>",
     "<p>" + escapeHtml(check) + "</p>",
     "<h3>FAQs</h3>",
@@ -1597,7 +1737,8 @@ export function buildProductSeoRecord(product, prior = null) {
     descriptionHtml: copy.descriptionHtml, productType: copy.noun,
     classification: {
       familyId: copy.classification.familyId, confidence: copy.classification.confidence,
-      audience: copy.audience, source: "handle-title-and-verified-listing-facts",
+      audience: copy.audience, source: copy.classification.source || "handle-title-and-verified-listing-facts",
+      ...(copy.classification.reviewRequired ? { reviewRequired: true, taxonomyEvidence: copy.classification.taxonomyEvidence } : {}),
     },
     evidence: {
       factCount: copy.facts.length, facts: copy.facts, tokens: copy.evidenceTokens,
@@ -1780,6 +1921,7 @@ export function auditProductSeoRecords(records) {
     descriptions.set(descriptionKey, (descriptions.get(descriptionKey) || 0) + 1);
     if (descriptionHtmlKey) descriptionHtml.set(descriptionHtmlKey, (descriptionHtml.get(descriptionHtmlKey) || 0) + 1);
     const allCopy = record.title + "\n" + record.seoDescription + "\n" + stripHtml(record.descriptionHtml);
+    if (record.classification?.reviewRequired) issues.push(record.handle + ":shopify-category-listing-conflict");
     if (record.title.length < 20 || record.title.length > 70) issues.push(record.handle + ":title-length");
     if (record.seoDescription.length < 120 || record.seoDescription.length > 160) issues.push(record.handle + ":seo-description-length");
     if (GENERIC_TITLE_RE.test(record.title) || RAW_COPY_RE.test(allCopy)) issues.push(record.handle + ":generic-or-raw-copy");

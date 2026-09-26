@@ -4,9 +4,17 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { CATALOG_TAXONOMY_VERSION } from "../src/lib/catalog-taxonomy.js";
+import { loadFutureLightEnv } from "./lib/future-light-env.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const approvalPath = resolve(rootDir, "docs", "catalog-taxonomy-approval.json");
+await loadFutureLightEnv({
+  rootDir,
+  allowedKeys: new Set([
+    "FUTURE_LIGHT_CATALOG_TAXONOMY_APPROVED",
+    "FUTURE_LIGHT_CATALOG_TAXONOMY_APPROVAL_ID",
+  ]),
+});
 
 function approvalError(message) {
   throw new Error(
@@ -64,11 +72,11 @@ async function main() {
   if (approval?.scope?.newCollections !== "approved only for missing canonical collections in the checked-in governance registry" || approval?.scope?.collectionMergesOrArchives !== "not approved") {
     approvalError("Approval does not limit collection creation to checked-in canonical records or forbids merges and archives.");
   }
-  if (process.env.SALT_CATALOG_TAXONOMY_APPROVED !== "1") {
-    approvalError("Set SALT_CATALOG_TAXONOMY_APPROVED=1 only for the approved release run.");
+  if (process.env.FUTURE_LIGHT_CATALOG_TAXONOMY_APPROVED !== "1") {
+    approvalError("Set FUTURE_LIGHT_CATALOG_TAXONOMY_APPROVED=1 only for the approved release run.");
   }
-  if (process.env.SALT_CATALOG_TAXONOMY_APPROVAL_ID !== approvalId) {
-    approvalError("SALT_CATALOG_TAXONOMY_APPROVAL_ID does not match the approved taxonomy manifest.");
+  if (process.env.FUTURE_LIGHT_CATALOG_TAXONOMY_APPROVAL_ID !== approvalId) {
+    approvalError("FUTURE_LIGHT_CATALOG_TAXONOMY_APPROVAL_ID does not match the approved taxonomy manifest.");
   }
 
   process.stdout.write(

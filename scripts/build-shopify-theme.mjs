@@ -1133,7 +1133,7 @@ async function writeThemeScaffold(
         <p style="font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:#5d6675">{{ product.vendor | default: shop.name | escape }}</p>
         <h1 style="font-size:clamp(1.75rem,4vw,3rem);line-height:1.05;margin:.5rem 0 1rem">{{ product.title | escape }}</h1>
         <p style="font-size:1.5rem;font-weight:700;margin:0 0 .75rem">{{ salt_fallback_variant.price | money }}</p>
-        <p style="font-size:.95rem;color:#5d6675">{% if salt_fallback_variant.available %}In stock{% else %}Sold out{% endif %} · Configured Shopify estimate: 5–8 business days in the United States; final estimate at checkout</p>
+        <p style="font-size:.95rem;color:#5d6675">{% if salt_fallback_variant.available %}In stock{% else %}Sold out{% endif %} · Free standard US shipping: 5–8 business days after dispatch; allow 1–2 business days for processing (about 6–10 business days total). Final options confirmed at checkout.</p>
         {% if product.description != blank %}
           <div style="margin:1.25rem 0;line-height:1.6">{{ product.description | strip_html | truncate: 600 | escape }}</div>
         {% endif %}
@@ -1196,6 +1196,39 @@ async function writeThemeScaffold(
     "/brand/salt-logo.png": {{ '${themeLogoAsset}' | asset_url | json }},
     "/brand-salt-logo.png": {{ '${themeLogoAsset}' | asset_url | json }},
   };
+</script>
+<script>
+  (() => {
+    const replacements = [
+      ['Free standard US shipping · 5–8 business days', 'Free standard US shipping · 5–8 business days after dispatch; allow 1–2 business days for processing (about 6–10 business days total)'],
+      ['estimated 5–8 business days delivery window', 'estimated 5–8 business days after dispatch'],
+    ];
+    const root = document.getElementById('root');
+    if (!root) return;
+    const patchText = (value) => replacements.reduce((text, [from, to]) => text.includes(from) && !text.includes(to) ? text.replaceAll(from, to) : text, value);
+    const updateTextNode = (node) => {
+      const next = patchText(node.nodeValue);
+      if (next !== node.nodeValue) node.nodeValue = next;
+    };
+    const patchNode = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        updateTextNode(node);
+        return;
+      }
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      let textNode;
+      while ((textNode = walker.nextNode())) {
+        updateTextNode(textNode);
+      }
+    };
+    patchNode(root);
+    new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.type === 'characterData') patchNode(record.target);
+        else for (const node of record.addedNodes) patchNode(node);
+      }
+    }).observe(root, { subtree: true, childList: true, characterData: true });
+  })();
 </script>
 {% if request.page_type == 'product' and product %}
 </s-view-event>
@@ -1266,6 +1299,7 @@ Disallow: /apps/finance
 }
 
 async function copyAssets(entryJsPath, entryCssPath) {
+  const themeBuildStamp = Date.now().toString(36);
   await cp(resolve(distDir, "assets"), themeAssetsDir, { recursive: true });
 
   const entryJs = basename(entryJsPath);
@@ -1277,7 +1311,7 @@ async function copyAssets(entryJsPath, entryCssPath) {
   // In Shopify, the entry is served from /cdn/shop/.../assets, so make those
   // paths relative to the entry file instead. This keeps lazy chunks on the
   // Shopify CDN instead of requesting non-existent /assets/* URLs.
-  const themeAssetResolver = `const __saltThemeAsset=(path)=>{const rawBase=globalThis.SALT_THEME_ASSET_BASE||new URL("./",import.meta.url).href;const base=rawBase.startsWith("//")?window.location.protocol+rawBase:rawBase;const file=String(path);return new URL(file.startsWith("./")?file.slice(2):file,base).href};\n`;
+  const themeAssetResolver = `const __saltThemeAsset=(path)=>{const rawBase=globalThis.SALT_THEME_ASSET_BASE||new URL("./",import.meta.url).href;const base=rawBase.startsWith("//")?window.location.protocol+rawBase:rawBase;const file=String(path);if(file.startsWith("//"))return window.location.protocol+file;if(/^[a-z][a-z\\d+.-]*:/i.test(file))return file;return new URL(file.startsWith("./")?file.slice(2):file,base).href};\n`;
   const themeEntrySource =
     themeAssetResolver +
     entrySource
@@ -1296,7 +1330,7 @@ async function copyAssets(entryJsPath, entryCssPath) {
         "$1 $2$3",
       );
   const entryCacheKey = createHash("sha256").update(themeEntrySource).digest("hex").slice(0, 12);
-  const themeEntryJs = `salt-entry-${entryCacheKey}.js`;
+  let themeEntryJs = `salt-entry-${entryCacheKey}.js`;
   const themeEntryAssetPath = resolve(themeAssetsDir, themeEntryJs);
   await writeFile(themeEntryAssetPath, themeEntrySource);
   await rm(entryAssetPath);
@@ -1318,13 +1352,17 @@ async function copyAssets(entryJsPath, entryCssPath) {
       // so those must be relative to that chunk rather than nested under a
       // second `/assets/` path.
       .replace(/(["'])assets\//g, "$1./")
+      // Vite's preload helper normally prefixes dependency URLs with `/`.
+      // Shopify's theme entry resolver already supplies absolute CDN URLs, so
+      // prefixing those again produces `/https://shop/...` and 404s on PDPs.
+      .replace(/var ([A-Za-z_$][\w$]*)=function\(([A-Za-z_$][\w$]*)\)\{return`\/`\+\2\}/g, "var $1=function($2){return $2}")
       .replaceAll(`./${entryJs}`, `./${themeEntryJs}`)
       // A prior theme build may already have rewritten a lazy chunk to an
       // older salt-entry file. Repoint every such import so React has exactly
       // one runtime across the app shell and route chunks.
       .replace(/\.\/salt-entry-[A-Za-z0-9_-]+\.js/g, `./${themeEntryJs}`);
     const rewrittenAssetSource = needsVitePreloadResolver
-      ? `const __saltThemeAsset=(path)=>{const value=String(path);return new URL(value.startsWith("./")?value.slice(2):value,import.meta.url).href};\n${rewrittenAssetBody}`.replace(
+      ? `const __saltThemeAsset=(path)=>{const value=String(path);if(value.startsWith("//"))return window.location.protocol+value;if(/^[a-z][a-z\\d+.-]*:/i.test(value))return value;return new URL(value.startsWith("./")?value.slice(2):value,import.meta.url).href};\n${rewrittenAssetBody}`.replace(
           /=>i\.map\(i=>d\[i\]\)/g,
           "=>i.map(i=>__saltThemeAsset(d[i]))",
         )
@@ -1332,6 +1370,66 @@ async function copyAssets(entryJsPath, entryCssPath) {
     if (rewrittenAssetSource !== assetSource) {
       await writeFile(assetPath, rewrittenAssetSource);
     }
+  }
+
+  // Shopify serves theme assets with a one-year CDN TTL. Files modified after
+  // Vite has assigned their content hash need fresh names, plus fresh names for
+  // their importers, or storefronts can keep executing the cached old helper.
+  const javascriptAssets = (await readdir(themeAssetsDir)).filter((asset) =>
+    asset.endsWith(".js"),
+  );
+  const javascriptBodies = new Map(
+    await Promise.all(
+      javascriptAssets.map(async (asset) => [
+        asset,
+        await readFile(resolve(themeAssetsDir, asset), "utf8"),
+      ]),
+    ),
+  );
+  const preloadHelper = javascriptAssets.find(
+    (asset) =>
+      asset.startsWith("preload-helper-") &&
+      javascriptBodies.get(asset)?.includes("var e=function(e){return e}"),
+  );
+
+  if (preloadHelper) {
+    const renamedAssets = new Map([
+      [preloadHelper, `preload-helper-${themeBuildStamp}.js`],
+    ]);
+    let foundImporter = true;
+    while (foundImporter) {
+      foundImporter = false;
+      for (const [asset, body] of javascriptBodies) {
+        if (
+          renamedAssets.has(asset) ||
+          ![...renamedAssets.keys()].some((dependency) => body.includes(dependency))
+        ) {
+          continue;
+        }
+
+        const versionedName =
+          asset === themeEntryJs
+            ? `salt-entry-${themeBuildStamp}.js`
+            : `${asset.slice(0, -3)}-${themeBuildStamp}.js`;
+        renamedAssets.set(asset, versionedName);
+        foundImporter = true;
+      }
+    }
+
+    for (const [asset, body] of javascriptBodies) {
+      let updatedBody = body;
+      for (const [oldName, newName] of renamedAssets) {
+        updatedBody = updatedBody.replaceAll(oldName, newName);
+      }
+      const updatedName = renamedAssets.get(asset) || asset;
+      if (updatedName !== asset) {
+        await writeFile(resolve(themeAssetsDir, updatedName), updatedBody);
+        await rm(resolve(themeAssetsDir, asset));
+      } else if (updatedBody !== body) {
+        await writeFile(resolve(themeAssetsDir, asset), updatedBody);
+      }
+    }
+    themeEntryJs = renamedAssets.get(themeEntryJs) || themeEntryJs;
   }
 
   // Do not duplicate the Vite entry bundle under a second filename. Lazy

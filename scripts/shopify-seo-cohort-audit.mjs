@@ -5,7 +5,6 @@ import { dirname, resolve } from "node:path";
 
 import { buildShopifySeoReleasePlan } from "../src/lib/shopify-seo-release.js";
 import { normalizeHandleValue, normalizePlainText } from "../src/lib/shopify-seo-batch.js";
-import { PER_PRODUCT_OVERHEAD } from "../src/lib/shopify-seo-batch-intelligence.js";
 
 const inputPath = resolve(process.cwd(), process.argv[2] || "output/new-products-305-catalog.json");
 const outputPath = resolve(process.cwd(), process.argv[3] || "output/new-products-305-seo-audit.json");
@@ -92,12 +91,14 @@ for (const product of plan.products) {
   const desiredPrices = [];
   for (const variant of product.desiredVariantUpdates || []) {
     const id = String(variant.variantId || "").match(/(\d+)$/)?.[1] || "";
-    const before = Number(sourceVariants.get(id)?.price || 0);
+    const sourceVariant = sourceVariants.get(id) || {};
+    const before = Number(sourceVariant.price || 0);
+    const beforeCompareAt = Number(sourceVariant.compareAtPrice ?? sourceVariant.compare_at_price ?? 0);
     const after = Number(variant.price || 0);
     const compareAt = Number(variant.compareAtPrice || 0);
     if (!Number.isFinite(after) || after <= 0) issues.push(`invalid-price:${id}`);
-    if (!operationalAdjustment && before > 0 && after + 0.001 < before + PER_PRODUCT_OVERHEAD) issues.push(`price-overhead-floor:${id}`);
-    if (compareAt > 0 && (compareAt < after * 1.2 - 0.02 || compareAt > after * 1.4 + 0.02)) issues.push(`compare-at-range:${id}`);
+    if (before > 0 && Math.abs(after - before) > 0.001) issues.push(`price-mutated-by-seo-planner:${id}`);
+    if (Math.abs(compareAt - beforeCompareAt) > 0.001) issues.push(`compare-at-mutated-by-seo-planner:${id}`);
     desiredPrices.push(after);
   }
   const expectedTag = operationalAdjustment ? "" : expectedQuantityTag(desiredPrices);

@@ -40,7 +40,7 @@ test("matches exact taxonomy tokens and never treats articulated as Art", () => 
   assert.deepEqual(matchTaxonomyAttributeValues(product, pattern), []);
 });
 
-test("ignores source tags and clears stale audience metadata without product evidence", () => {
+test("ignores source tags and preserves existing audience metadata without product evidence", () => {
   const product = {
     id: 2,
     title: "Camera Mounting Arm",
@@ -55,9 +55,8 @@ test("ignores source tags and clears stale audience metadata without product evi
   const gender = attribute(837, "Target gender", [[18, "Female"], [19, "Male"], [20, "Unisex"]]);
   const plan = buildCategoryMetafieldPlan({ product, category, definitions: [definition("target-gender")], attributes: [gender] });
   assert.deepEqual(matchTaxonomyAttributeValues(product, gender), []);
-  assert.equal(plan.writes.length, 1);
-  assert.equal(plan.writes[0].action, "clear-invalid");
-  assert.deepEqual(plan.writes[0].currentReferenceIds, ["gid://shopify/Metaobject/old"]);
+  assert.equal(plan.writes.length, 0);
+  assert.ok(plan.skipped.some((entry) => entry.reason === "no direct evidence-backed taxonomy value"));
 });
 
 test("uses variant color options but does not turn Golden into jewelry material", () => {

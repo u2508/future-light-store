@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import policy from "../config/dsers-family-store-search-policy.json" with { type: "json" };
+import { computeDsersLaneBatchCrosswalkSha256 } from "./lib/dsers-batch-capacity.mjs";
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -95,6 +96,11 @@ test("seven source batches and joint lane allocations reconcile to the same 679-
       [["home-decor-bedding", 45], ["anime-manga-collectibles", 55]],
       [["anime-manga-collectibles", 5], ["gaming-watches-utility", 74]],
     ],
+  );
+  assert.equal(policy.laneToBatchCrosswalkApproval.status, "unapproved");
+  assert.equal(
+    policy.laneToBatchCrosswalkApproval.crosswalkSha256,
+    computeDsersLaneBatchCrosswalkSha256(policy),
   );
 });
 

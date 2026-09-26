@@ -63,6 +63,10 @@ import { scoreCatalogKnowledgeModelBatch } from "./catalog-knowledge-model-accel
 import { ensureFutureLightVisionRuntime } from "./future-light-vision-runtime.mjs";
 import { resolveVisualTaxonomyHint } from "../src/lib/catalog-visual-taxonomy.js";
 import { buildMerchandisingAssignments } from "../src/lib/merchandising-collection-rules.js";
+import {
+  collectionProductsCountIssue,
+  collectionPublicationReadbackIssue,
+} from "./lib/collection-readback-guard.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const execFileAsync = promisify(execFile);
@@ -171,7 +175,7 @@ const COLLECTIONS_QUERY = /* GraphQL */ `
         handle
         title
         descriptionHtml
-        productsCount { count }
+        productsCount { count precision }
         ruleSet { appliedDisjunctively rules { column relation condition } }
         sources {
           __typename
@@ -193,6 +197,7 @@ const COLLECTIONS_QUERY = /* GraphQL */ `
         }
         resourcePublications(first: 100) {
           nodes { isPublished channel { id name } }
+          pageInfo { hasNextPage }
         }
       }
       pageInfo { hasNextPage endCursor }
@@ -288,7 +293,6 @@ const BULK_COLLECTION_MEMBERSHIP_QUERY = /* GraphQL */ `
           id
           handle
           title
-          productsCount { count }
           sources {
             __typename
             ... on CollectionConditionsSource {
@@ -1731,9 +1735,12 @@ async function fetchCollectionMembershipBulk(retryInfo) {
   return { collections, membersByCollectionId, operation };
 }
 
-async function verifyCollectionMembership({ targets, products, tagTasks, retryInfo }) {
+async function verifyCollectionMembership({ targets, products, tagTasks, collections, retryInfo }) {
   const membership = await fetchCollectionMembershipBulk(retryInfo);
-  const liveCollections = membership.collections;
+  if (!Array.isArray(collections) || collections.length === 0) {
+    throw new Error("Exact collection verification has no complete paginated collection metadata readback.");
+  }
+  const liveCollections = collections;
   const byHandle = new Map(liveCollections.map((collection) => [normalizeCollectionHandle(collection.handle), collection]));
   const expectedByTag = new Map(SEMANTIC_COLLECTION_POLICIES.map((policy) => [normalizeTag(policy.tag), new Set()]));
   const taskByProductId = new Map(tagTasks.map((task) => [task.productId, task]));
@@ -1753,6 +1760,29 @@ async function verifyCollectionMembership({ targets, products, tagTasks, retryIn
   }
 
   const failures = [];
+  const reviewedEmptyExceptions = new Map(
+    targets
+      .filter((target) => target.policy.allowEmpty === true)
+      .map((target) => [normalizeCollectionHandle(target.policy.handle), target.policy]),
+  );
+  for (const collection of liveCollections) {
+    const publicationIssue = collectionPublicationReadbackIssue(collection);
+    if (publicationIssue) {
+      failures.push(`${collection.handle || collection.id}: ${publicationIssue}`);
+      continue;
+    }
+    if (!isOnlineStorePublished(collection)) continue;
+    const policy = reviewedEmptyExceptions.get(normalizeCollectionHandle(collection.handle));
+    const membershipIssue = collectionProductsCountIssue({
+      isPublishedToOnlineStore: true,
+      count: collection.productsCount?.count,
+      precision: collection.productsCount?.precision,
+      allowEmpty: policy?.allowEmpty === true,
+      allowEmptyReviewed: policy?.allowEmptyReviewed === true,
+      allowEmptyReason: policy?.allowEmptyReason,
+    });
+    if (membershipIssue) failures.push(`${collection.handle}: ${membershipIssue}`);
+  }
   const actualMembershipByProduct = new Map(products.map((product) => [product.id, new Set()]));
   for (const target of targets) {
     const collection = byHandle.get(target.policy.handle);
@@ -2328,7 +2358,13 @@ async function run(args) {
 
   let verification;
   for (let attempt = 1; attempt <= membershipPollAttempts; attempt += 1) {
-    verification = await verifyCollectionMembership({ targets, products: liveProducts, tagTasks, retryInfo });
+    verification = await verifyCollectionMembership({
+      targets,
+      products: liveProducts,
+      tagTasks,
+      collections,
+      retryInfo,
+    });
     if (!verification.failures.length) break;
     if (attempt < membershipPollAttempts) {
       process.stdout.write(`Collection propagation incomplete (${verification.failures.length} issues); retrying ${attempt}/${membershipPollAttempts}.\n`);

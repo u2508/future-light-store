@@ -1,6 +1,11 @@
-export const SHOP_DOMAIN = Deno.env.get("SHOPIFY_SHOP_DOMAIN") ?? "vs-store-us.myshopify.com";
-export const ADMIN_API_VERSION = Deno.env.get("SHOPIFY_API_VERSION") ?? "2026-07";
-export const ADMIN_GRAPHQL_URL = `https://${SHOP_DOMAIN}/admin/api/${ADMIN_API_VERSION}/graphql.json`;
+import type { Json } from "../../../src/integrations/supabase/types.ts";
+
+export const SHOP_DOMAIN = Deno.env.get("SHOPIFY_SHOP_DOMAIN") ??
+  "vs-store-us.myshopify.com";
+export const ADMIN_API_VERSION = Deno.env.get("SHOPIFY_API_VERSION") ??
+  "2026-07";
+export const ADMIN_GRAPHQL_URL =
+  `https://${SHOP_DOMAIN}/admin/api/${ADMIN_API_VERSION}/graphql.json`;
 
 type TokenCache = { accessToken: string; expiresAt: number };
 
@@ -14,15 +19,18 @@ async function requestClientCredentialsToken(): Promise<string> {
     throw new Error("Missing SHOPIFY_CLIENT_ID or SHOPIFY_CLIENT_SECRET");
   }
 
-  const response = await fetch(`https://${SHOP_DOMAIN}/admin/oauth/access_token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "client_credentials",
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
-  });
+  const response = await fetch(
+    `https://${SHOP_DOMAIN}/admin/oauth/access_token`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    },
+  );
   const payload = (await response.json().catch(() => ({}))) as {
     access_token?: string;
     expires_in?: number;
@@ -43,8 +51,12 @@ async function requestClientCredentialsToken(): Promise<string> {
 export async function adminToken(): Promise<string> {
   // Dev Dashboard apps issue short-lived tokens. Prefer the refreshable
   // client-credentials flow whenever its server-only secrets are configured.
-  if (Deno.env.get("SHOPIFY_CLIENT_ID") && Deno.env.get("SHOPIFY_CLIENT_SECRET")) {
-    if (tokenCache && tokenCache.expiresAt > Date.now()) return tokenCache.accessToken;
+  if (
+    Deno.env.get("SHOPIFY_CLIENT_ID") && Deno.env.get("SHOPIFY_CLIENT_SECRET")
+  ) {
+    if (tokenCache && tokenCache.expiresAt > Date.now()) {
+      return tokenCache.accessToken;
+    }
     if (!tokenRequest) {
       tokenRequest = requestClientCredentialsToken().finally(() => {
         tokenRequest = null;
@@ -54,8 +66,8 @@ export async function adminToken(): Promise<string> {
   }
 
   // Temporary compatibility path for an explicitly configured static token.
-  const staticToken =
-    Deno.env.get("SHOPIFY_ADMIN_ACCESS_TOKEN") ?? Deno.env.get("SHOPIFY_ACCESS_TOKEN");
+  const staticToken = Deno.env.get("SHOPIFY_ADMIN_ACCESS_TOKEN") ??
+    Deno.env.get("SHOPIFY_ACCESS_TOKEN");
   if (!staticToken) throw new Error("Missing Shopify Admin credentials");
   return staticToken;
 }
@@ -74,12 +86,16 @@ export async function adminGraphql<T = unknown>(
   });
 
   const text = await res.text();
-  if (!res.ok) throw new Error(`Shopify Admin API ${res.status}: ${text.slice(0, 500)}`);
+  if (!res.ok) {
+    throw new Error(`Shopify Admin API ${res.status}: ${text.slice(0, 500)}`);
+  }
 
   const json = JSON.parse(text);
   if (json.errors && !json.data) {
     throw new Error(
-      `Shopify Admin API error: ${json.errors.map((e: { message: string }) => e.message).join(", ")}`,
+      `Shopify Admin API error: ${
+        json.errors.map((e: { message: string }) => e.message).join(", ")
+      }`,
     );
   }
   return json.data as T;
@@ -93,6 +109,7 @@ export const ORDER_FIELDS = `
   createdAt
   processedAt
   cancelledAt
+  test
   cancelReason
   displayFinancialStatus
   displayFulfillmentStatus
@@ -133,6 +150,7 @@ export interface AdminOrder {
   createdAt: string;
   processedAt: string | null;
   cancelledAt: string | null;
+  test: boolean;
   cancelReason: string | null;
   displayFinancialStatus: string | null;
   displayFulfillmentStatus: string | null;
@@ -148,8 +166,14 @@ export interface AdminOrder {
     note: string | null;
     totalRefundedSet: { shopMoney: { amount: string; currencyCode: string } };
   }>;
-  disputes: Array<{ id: string; status: string | null; initiatedAs: string | null }>;
-  shippingAddress: { city: string | null; province: string | null; country: string | null } | null;
+  disputes: Array<
+    { id: string; status: string | null; initiatedAs: string | null }
+  >;
+  shippingAddress: {
+    city: string | null;
+    province: string | null;
+    country: string | null;
+  } | null;
   lineItems: {
     nodes: Array<{
       title: string;
@@ -170,20 +194,30 @@ export interface AdminOrder {
     status: string | null;
     createdAt: string | null;
     updatedAt: string | null;
-    trackingInfo: Array<{ number: string | null; url: string | null; company: string | null }>;
+    trackingInfo: Array<
+      { number: string | null; url: string | null; company: string | null }
+    >;
   }>;
 }
 
 export const num = (v: unknown) => {
-  const n = typeof v === "string" ? parseFloat(v) : typeof v === "number" ? v : 0;
+  const n = typeof v === "string"
+    ? parseFloat(v)
+    : typeof v === "number"
+    ? v
+    : 0;
   return Number.isFinite(n) ? n : 0;
 };
 
 export function orderRow(o: AdminOrder) {
   const marketingAttribution = Object.fromEntries(
     (o.customAttributes ?? [])
-      .filter((attribute) => attribute.key.startsWith("marketing_") && attribute.value)
-      .map((attribute) => [attribute.key.slice("marketing_".length), attribute.value]),
+      .filter((attribute) =>
+        attribute.key.startsWith("marketing_") && attribute.value
+      )
+      .map((
+        attribute,
+      ) => [attribute.key.slice("marketing_".length), attribute.value]),
   );
 
   return {
@@ -205,7 +239,7 @@ export function orderRow(o: AdminOrder) {
     cancelled_at: o.cancelledAt,
     line_items: o.lineItems?.nodes ?? [],
     fulfillments: o.fulfillments ?? [],
-    raw: o as unknown as Record<string, unknown>,
+    raw: o as unknown as Json,
     updated_at: new Date().toISOString(),
   };
 }

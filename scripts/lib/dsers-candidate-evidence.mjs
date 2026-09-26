@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export const DSERS_EVIDENCE_SCHEMA_VERSION = 1;
+export const DSERS_EVIDENCE_SCHEMA_VERSION = 3;
 export const DSERS_EVIDENCE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 const REQUIRED_DUPLICATE_SCOPES = ["dsers-my-products", "shopify-active-catalog"];
@@ -39,14 +39,28 @@ function identityFor(candidate = {}) {
 }
 
 function sourceProjection(source = {}) {
+  const kind = asString(source.kind).toLowerCase();
   return {
     id: asString(source.id),
-    kind: asString(source.kind).toLowerCase(),
+    kind,
     reference: asString(source.reference),
     sha256: asString(source.sha256)
       .toLowerCase()
       .replace(/^sha256:/, ""),
     observedAt: asString(source.observedAt),
+    capture: kind === "supplier-listing"
+      ? {
+          supplierStatus: typeof source.capture?.supplierStatus === "string"
+            ? source.capture.supplierStatus
+            : null,
+          supplierListingStatus: typeof source.capture?.supplierListingStatus === "string"
+            ? source.capture.supplierListingStatus
+            : null,
+          supplierErrorCode: typeof source.capture?.supplierErrorCode === "string"
+            ? source.capture.supplierErrorCode
+            : null,
+        }
+      : null,
   };
 }
 
@@ -62,6 +76,7 @@ function imageProjection(image = {}) {
 }
 
 function variantProjection(variant = {}) {
+  const inventoryEvidence = variant.inventoryEvidence;
   return {
     id: asString(variant.id),
     sku: asString(variant.sku),
@@ -73,6 +88,12 @@ function variantProjection(variant = {}) {
       : [],
     optionValues: Array.isArray(variant.optionValues) ? variant.optionValues.map(asString) : [],
     stock: asFiniteNumber(variant.supplierStock ?? variant.stock ?? variant.inventory),
+    inventoryEvidence: {
+      quantity: Number.isSafeInteger(inventoryEvidence?.quantity)
+        ? inventoryEvidence.quantity
+        : null,
+      sourceRefId: asString(inventoryEvidence?.sourceRefId),
+    },
     imageIds: Array.isArray(variant.imageIds) ? variant.imageIds.map(asString) : [],
     sourceRefId: asString(variant.sourceRefId),
   };
@@ -97,6 +118,20 @@ function fingerprintPayload(candidate = {}, policyVersion = "") {
       searchFamily: asString(candidate.searchFamily),
       searchTerm: asString(candidate.searchTerm),
       collectionLane: asString(candidate.collectionLane),
+    },
+    supplierListing: {
+      supplierStatusPresent: Object.hasOwn(candidate, "supplierStatus"),
+      supplierStatus: typeof candidate.supplierStatus === "string"
+        ? candidate.supplierStatus
+        : null,
+      statusPresent: Object.hasOwn(candidate, "supplierListingStatus"),
+      status: typeof candidate.supplierListingStatus === "string"
+        ? candidate.supplierListingStatus
+        : null,
+      errorCodePresent: Object.hasOwn(candidate, "supplierErrorCode"),
+      errorCode: typeof candidate.supplierErrorCode === "string"
+        ? candidate.supplierErrorCode
+        : null,
     },
     stock: asFiniteNumber(candidate.supplierStock ?? candidate.stock ?? candidate.inventory),
     commercial: {
@@ -150,6 +185,33 @@ function decisionBase(decision, code, expectedDecision, now, maxAgeMs, reasons) 
     reasons.push(`stale-${code}-decision`);
   }
   return true;
+}
+
+function supplierListingFactIssues(candidate = {}) {
+  const reasons = [];
+  const supplierStatus = candidate?.supplierStatus;
+  const status = candidate?.supplierListingStatus;
+  const errorCode = candidate?.supplierErrorCode;
+  if (Object.hasOwn(candidate || {}, "supplierStatus")) {
+    if (typeof supplierStatus !== "string") {
+      reasons.push("invalid-supplier-record-status");
+    } else if (["error", "failed", "failure"].includes(supplierStatus.trim().toLowerCase())) {
+      reasons.push("supplier-record-error");
+    }
+  }
+  if (!Object.hasOwn(candidate || {}, "supplierListingStatus") || status === undefined) {
+    reasons.push("missing-supplier-listing-status");
+  } else if (status !== "ready") {
+    reasons.push("supplier-listing-not-ready");
+  }
+  if (!Object.hasOwn(candidate || {}, "supplierErrorCode") || errorCode === undefined) {
+    reasons.push("missing-supplier-error-code");
+  } else if (typeof errorCode !== "string") {
+    reasons.push("invalid-supplier-error-code");
+  } else if (errorCode !== "") {
+    reasons.push("supplier-error-code-present");
+  }
+  return reasons;
 }
 
 function validateSourceRefs(decision, code, sourcesById, expectedKinds, reasons) {
@@ -206,6 +268,7 @@ function validateImageAndVariantCoverage(
   const variants = Array.isArray(candidate.variants) ? candidate.variants : [];
   const imageDecision = decisions?.images;
   const variantDecision = decisions?.variants;
+  const inventoryDecision = decisions?.inventory;
 
   validateDecision(
     imageDecision,
@@ -223,6 +286,16 @@ function validateImageAndVariantCoverage(
     "approve",
     sourcesById,
     ["variant", "image"],
+    now,
+    maxAgeMs,
+    reasons,
+  );
+  validateDecision(
+    inventoryDecision,
+    "inventory",
+    "approve",
+    sourcesById,
+    ["inventory"],
     now,
     maxAgeMs,
     reasons,
@@ -288,6 +361,8 @@ function validateImageAndVariantCoverage(
   const variantIds = variants.map((variant) => asString(variant?.id));
   const variantItems = Array.isArray(variantDecision?.items) ? variantDecision.items : [];
   const variantItemIds = variantItems.map((item) => asString(item?.variantId));
+  const inventoryItems = Array.isArray(inventoryDecision?.items) ? inventoryDecision.items : [];
+  const inventoryItemIds = inventoryItems.map((item) => asString(item?.variantId));
   if (
     variants.length === 0 ||
     variantIds.some((id) => !id) ||
@@ -298,6 +373,41 @@ function validateImageAndVariantCoverage(
   if (!sameSet(variantIds, variantItemIds)) reasons.push("variant-evidence-coverage-incomplete");
   if (new Set(variantItemIds).size !== variantItemIds.length)
     reasons.push("duplicate-variant-evidence-item");
+  if (!sameSet(variantIds, inventoryItemIds)) reasons.push("inventory-evidence-coverage-incomplete");
+  if (new Set(inventoryItemIds).size !== inventoryItemIds.length)
+    reasons.push("duplicate-inventory-evidence-item");
+
+  const expectedInventorySourceRefs = [];
+  for (const variant of variants) {
+    const id = asString(variant?.id);
+    const item = inventoryItems.find((entry) => asString(entry?.variantId) === id);
+    const evidence = variant?.inventoryEvidence;
+    const quantity = evidence?.quantity;
+    const sourceRefId = asString(evidence?.sourceRefId);
+    const inventorySource = sourcesById.get(sourceRefId);
+    if (!Number.isSafeInteger(quantity) || quantity < 0) {
+      reasons.push("invalid-variant-inventory-quantity");
+    }
+    if (!sourceRefId || !inventorySource || inventorySource.kind !== "inventory") {
+      reasons.push("invalid-variant-inventory-source-association");
+    } else {
+      expectedInventorySourceRefs.push(sourceRefId);
+    }
+    const candidateStock = asFiniteNumber(variant?.supplierStock ?? variant?.stock ?? variant?.inventory);
+    if (quantity !== candidateStock) reasons.push("variant-stock-inventory-evidence-mismatch");
+    if (!item) continue;
+    if (item.decision !== "approve") reasons.push("unapproved-inventory-decision");
+    if (item.quantity !== quantity) reasons.push("inventory-quantity-mismatch");
+    if (asString(item.sourceRefId) !== sourceRefId) reasons.push("inventory-source-reference-mismatch");
+    if (asString(item.rationale).length < 12) reasons.push("incomplete-inventory-rationale");
+    if (!Array.isArray(item.sourceRefs) || !item.sourceRefs.includes(sourceRefId)) {
+      reasons.push("missing-inventory-item-source-reference");
+    }
+    validateSourceRefs(item, "inventory-item", sourcesById, ["inventory"], reasons);
+  }
+  if (!sameSet([...new Set(expectedInventorySourceRefs)], inventoryDecision?.sourceRefs)) {
+    reasons.push("inventory-decision-source-coverage-incomplete");
+  }
 
   for (const variant of variants) {
     const id = asString(variant?.id);
@@ -356,10 +466,14 @@ export function validateDsersEvidenceBundle(
   const ageLimit = Number.isFinite(maxAgeMs) && maxAgeMs > 0 ? maxAgeMs : DSERS_EVIDENCE_MAX_AGE_MS;
 
   if (!bundle || typeof bundle !== "object" || Array.isArray(bundle)) {
+    const supplierListingReasons = supplierListingFactIssues(candidate);
     return {
       valid: false,
-      reasonCodes: ["missing-structured-evidence-bundle"],
+      reasonCodes: ["missing-structured-evidence-bundle", ...supplierListingReasons],
       candidateFingerprint: computeDsersCandidateFingerprint(candidate, policyVersion),
+      supplierListingDisposition: supplierListingReasons.some((code) =>
+        ["supplier-listing-not-ready", "invalid-supplier-error-code", "supplier-error-code-present"].includes(code),
+      ) ? "reject" : "hold",
     };
   }
   if (!Number.isFinite(nowMs)) reasons.push("invalid-evidence-validation-time");
@@ -437,6 +551,59 @@ export function validateDsersEvidenceBundle(
     reasons.push("candidate-fingerprint-mismatch");
 
   const decisions = bundle.decisions;
+  const supplierListingReasons = supplierListingFactIssues(candidate);
+  const candidateListingStatus = candidate?.supplierListingStatus;
+  const candidateErrorCode = candidate?.supplierErrorCode;
+
+  const supplierListingDecision = decisions?.supplierListing;
+  const candidateSupplierStatus = Object.hasOwn(candidate || {}, "supplierStatus")
+    ? (typeof candidate.supplierStatus === "string" ? candidate.supplierStatus : null)
+    : undefined;
+  const supplierListingSources = validateDecision(
+    supplierListingDecision,
+    "supplier-listing",
+    "approve",
+    sourcesById,
+    ["supplier-listing"],
+    nowMs,
+    ageLimit,
+    supplierListingReasons,
+  );
+  if (
+    (candidateSupplierStatus !== undefined && supplierListingDecision?.supplierStatus !== candidateSupplierStatus) ||
+    (candidateSupplierStatus === undefined && supplierListingDecision?.supplierStatus !== undefined) ||
+    supplierListingDecision?.supplierListingStatus !== candidateListingStatus ||
+    supplierListingDecision?.supplierErrorCode !== candidateErrorCode
+  ) {
+    supplierListingReasons.push("supplier-listing-evidence-candidate-mismatch");
+  }
+  if (!Array.isArray(supplierListingDecision?.sourceRefs) || supplierListingDecision.sourceRefs.length !== 1) {
+    supplierListingReasons.push("supplier-listing-capture-count-mismatch");
+  }
+  if (supplierListingSources.length !== 1) {
+    supplierListingReasons.push("missing-supplier-listing-capture");
+  }
+  for (const source of supplierListingSources) {
+    if (
+      (candidateSupplierStatus !== undefined && source.capture?.supplierStatus !== candidateSupplierStatus) ||
+      (candidateSupplierStatus === undefined && source.capture?.supplierStatus != null) ||
+      source.capture?.supplierListingStatus !== candidateListingStatus ||
+      source.capture?.supplierErrorCode !== candidateErrorCode
+    ) {
+      supplierListingReasons.push("supplier-listing-capture-candidate-mismatch");
+    }
+    const observedAt = parseTimestamp(source.observedAt);
+    if (
+      observedAt == null ||
+      observedAt > nowMs ||
+      (reviewedAt != null && observedAt > reviewedAt) ||
+      nowMs - observedAt > ageLimit
+    ) {
+      supplierListingReasons.push("stale-supplier-listing-capture");
+    }
+  }
+  reasons.push(...supplierListingReasons);
+
   const productDecision = decisions?.product;
   const productSources = validateDecision(
     productDecision,
@@ -547,11 +714,23 @@ export function validateDsersEvidenceBundle(
   );
 
   const reasonCodes = [...new Set(reasons)];
+  const supplierListingRejectCodes = new Set([
+    "supplier-record-error",
+    "supplier-listing-not-ready",
+    "invalid-supplier-error-code",
+    "supplier-error-code-present",
+  ]);
+  const supplierListingDisposition = reasonCodes.some((code) => supplierListingRejectCodes.has(code))
+    ? "reject"
+    : reasonCodes.some((code) => code.startsWith("supplier-listing") || code.startsWith("missing-supplier-listing") || code.startsWith("missing-supplier-error-code") || code.startsWith("invalid-supplier-error-code") || code.startsWith("stale-supplier-listing"))
+      ? "hold"
+      : "ready";
   return {
     valid: reasonCodes.length === 0,
     reasonCodes,
     candidateFingerprint: expectedFingerprint,
     reviewedAt: bundle.reviewedAt ?? null,
     reviewerId: reviewer?.id ?? null,
+    supplierListingDisposition,
   };
 }

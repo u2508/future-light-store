@@ -26,13 +26,12 @@ import {
 import { classifyProductKnowledge, PRODUCT_KNOWLEDGE_BASE_VERSION } from "./product-knowledge-base.js";
 import { extractLabeledSpecificationFacts } from "./product-specifications.js";
 import { getCatalogTaxonomyDefinitions } from "./catalog-taxonomy.js";
-import { PRICE_REWORK_RULES, multiplierForCost } from "./shopify-price-rework-policy.js";
+import { PRICE_REWORK_RULES } from "./shopify-price-rework-policy.js";
 
 export const PER_PRODUCT_OVERHEAD = PRICE_REWORK_RULES.overhead;
 // Kept as a compatibility alias for older audit imports; pricing semantics are
 // explicitly per product/variant, not a checkout-level order fee.
 export const PER_ORDER_OVERHEAD = PER_PRODUCT_OVERHEAD;
-const MAX_REASONABLE_RETAIL_PRICE = 14999.99;
 
 const GENERIC_TITLE_WORDS = new Set([
   "a",
@@ -4323,26 +4322,6 @@ function shortenAtWordBoundary(value, maxLength) {
   return cut.replace(/[,-]+$/g, "");
 }
 
-function roundPsychologicalPrice(value) {
-  if (!Number.isFinite(value) || value <= 0) {
-    return "";
-  }
-
-  if (value < 10) {
-    return (Math.max(0.99, Math.round(value * 100) / 100)).toFixed(2);
-  }
-
-  if (value < 25) {
-    return (Math.floor(value) + 0.99).toFixed(2);
-  }
-
-  if (value < 100) {
-    return (Math.floor(value / 5) * 5 + 4.99).toFixed(2);
-  }
-
-  return (Math.floor(value / 10) * 10 + 9.99).toFixed(2);
-}
-
 function getAnchorPriceFromCatalog(catalogProduct) {
   const variants = Array.isArray(catalogProduct?.variants) ? catalogProduct.variants : [];
   const prices = variants
@@ -4375,103 +4354,16 @@ function getSourceExplicitPrice(rows) {
   return Math.min(...prices);
 }
 
-function suggestRetailPriceFromSignals({
-  cost,
-  anchorPrice,
-  currentPrice,
-  confidence,
-}) {
-  const numericCost = parseMoneyValue(cost);
-  const numericAnchor = Number.isFinite(anchorPrice) && anchorPrice > 0 ? anchorPrice : null;
-  const numericCurrent = Number.isFinite(currentPrice) && currentPrice > 0 ? currentPrice : null;
-  const canRaise = Number.isFinite(confidence) && confidence >= 45;
-
-  if (!canRaise) {
-    return "";
-  }
-
-  const productOverhead = PER_PRODUCT_OVERHEAD;
-  let derivedFromCost = null;
-  if (Number.isFinite(numericCost) && numericCost > 0) {
-    const multiplier = multiplierForCost(numericCost);
-    derivedFromCost = numericCost * multiplier + productOverhead;
-  }
-
-  const reference = [numericAnchor, numericCurrent]
-    .filter((value) => Number.isFinite(value) && value > 0)
-    .reduce((maximum, value) => Math.max(maximum, value), 0) || null;
-  const derivedFromAnchor = reference ? reference * 1.35 : null;
-
-  let target = derivedFromCost ?? derivedFromAnchor ?? null;
-  if (derivedFromCost && derivedFromAnchor) {
-    target = Math.max(derivedFromCost, derivedFromAnchor);
-  }
-
-  if (!Number.isFinite(target) || target <= 0) {
-    return "";
-  }
-
-  if (reference) {
-    target = Math.max(target, reference + PER_PRODUCT_OVERHEAD);
-  }
-  if (reference && target < reference * 1.15) {
-    target = reference * 1.15;
-  }
-
-  if (derivedFromCost) {
-    target = Math.max(target, numericCost + PER_PRODUCT_OVERHEAD);
-  }
-
-  const rounded = Number(roundPsychologicalPrice(target));
-  return Number.isFinite(rounded)
-    ? Math.min(rounded, MAX_REASONABLE_RETAIL_PRICE).toFixed(2)
-    : "";
+export function suggestRetailPriceFromSignals({ currentPrice }) {
+  // SEO/content regeneration is not an authorized pricing source. Keep the
+  // current live/catalog price intact; the separate market-pricing stage may
+  // propose a change only when its evidence and margin gates pass.
+  return formatMoneyValue(currentPrice);
 }
 
-function isEarringProductRow(row) {
-  const values = [
-    getRowValue(row, ["Handle"]),
-    getRowValue(row, ["Title"]),
-    getRowValue(row, ["Type", "Product Type"]),
-    getRowValue(row, ["Product Category", "Google Shopping / Google Product Category"]),
-    getRowValue(row, ["Tags"]),
-  ];
-
-  const combined = values.map((value) => normalizePlainText(value)).join(" ");
-  return /earrings?/i.test(combined) && !/(?:earbuds?|earphones?|headphones?|headsets?)/i.test(combined);
-}
-
-function enforceCompareAtValue(compareAtValue, price, row) {
-  const existing = parseMoneyValue(compareAtValue);
-  const sellPrice = parseMoneyValue(price);
-
-  if (isEarringProductRow(row)) {
-    const minimum = Number.isFinite(sellPrice) && sellPrice > 0 ? Math.max(28.99, sellPrice + 0.01) : 28.99;
-    if (!Number.isFinite(existing)) {
-      return minimum.toFixed(2);
-    }
-
-    return Math.max(existing, minimum).toFixed(2);
-  }
-
-  if (!Number.isFinite(existing)) {
-    return "";
-  }
-
-  if (Number.isFinite(sellPrice) && sellPrice > 0) {
-    const rounded = Math.min(
-      parseMoneyValue(roundPsychologicalPrice(sellPrice * 1.25)),
-      MAX_REASONABLE_RETAIL_PRICE * 1.4,
-    );
-    const minimum = Math.ceil(sellPrice * 1.2) - 0.01;
-    const maximum = Math.min(Math.floor(sellPrice * 1.4) - 0.01, MAX_REASONABLE_RETAIL_PRICE * 1.4);
-    const recommended = Math.min(Math.max(rounded, minimum), maximum);
-    if (!Number.isFinite(existing) || existing < sellPrice * 1.2 || existing > sellPrice * 1.4) {
-      return Number(recommended).toFixed(2);
-    }
-  }
-
-  return existing.toFixed(2);
+export function enforceCompareAtValue(compareAtValue) {
+  // Never invent a discount anchor as a side effect of SEO or merchandising.
+  return formatMoneyValue(compareAtValue);
 }
 
 function normalizeCatalogProducts(input) {
@@ -5141,10 +5033,7 @@ function buildProductProfile(signals) {
   }
 
   const price = suggestRetailPriceFromSignals({
-    cost: signals.sourceCost,
-    anchorPrice: signals.anchorPrice,
     currentPrice: signals.sourcePrice,
-    confidence,
   });
 
   return {
@@ -5202,13 +5091,9 @@ function buildProductProfile(signals) {
       price,
       compareAtPrice: "",
       rationale:
-        price && signals.sourceCost
-          ? `Cost-band retail target plus $${PER_PRODUCT_OVERHEAD} per-product overhead, with a 35%+ uplift guarded by the current catalog anchor`
-          : price && signals.anchorPrice
-            ? `Current catalog anchor lifted by 35% with psychological rounding`
-            : price
-              ? "Handle-first pricing heuristic"
-              : "No reliable pricing signal",
+        price
+          ? "Existing price preserved by the SEO planner; market pricing requires its own verified competitive and margin evidence"
+          : "No existing price; the SEO planner will not invent one",
     },
     productInput,
     desiredProductInput,
@@ -5216,7 +5101,7 @@ function buildProductProfile(signals) {
   };
 }
 
-function buildVariantPlanFromRow(row, profile, { includeAligned = false, preserveCurrentPrice = false } = {}) {
+function buildVariantPlanFromRow(row, { includeAligned = false } = {}) {
   const variantId = toShopifyGid("ProductVariant", getRowValue(row, ["Variant ID", "ID"]));
   const sku = normalizePlainText(getRowValue(row, ["Variant SKU"]));
   const optionValues = [
@@ -5236,25 +5121,13 @@ function buildVariantPlanFromRow(row, profile, { includeAligned = false, preserv
     firstNonEmpty(getRowValue(row, ["Variant Compare At Price"]), getRowValue(row, ["Compare At Price / International"])),
   );
   const sourceCost = parseMoneyValue(getRowValue(row, ["Cost per item"]));
-  const operationalAdjustment = profile?.knowledge?.family === "order-adjustment";
-  const price = preserveCurrentPrice || operationalAdjustment
-    ? formatMoneyValue(explicitPrice)
-    : suggestRetailPriceFromSignals({
-        cost: sourceCost,
-        anchorPrice: profile?.pricing?.anchorPrice ? parseMoneyValue(profile.pricing.anchorPrice) : null,
-        currentPrice: explicitPrice,
-        confidence: profile?.confidence ?? 0,
-      });
+  const price = suggestRetailPriceFromSignals({ currentPrice: explicitPrice });
 
   if (!hasVariantIdentity || !price) {
     return null;
   }
 
-  const compareAtPrice = preserveCurrentPrice || operationalAdjustment
-    ? formatMoneyValue(explicitCompareAt)
-    : explicitCompareAt != null
-      ? enforceCompareAtValue(explicitCompareAt, price, row)
-      : "";
+  const compareAtPrice = enforceCompareAtValue(explicitCompareAt);
   const normalizedExplicitPrice = formatMoneyValue(explicitPrice);
   const normalizedPrice = formatMoneyValue(price);
   const normalizedCompareAt = formatMoneyValue(compareAtPrice);
@@ -5475,7 +5348,7 @@ export async function buildSeoBatchPlan(
 
     const variantUpdates = dedupeByKey(
       group.rows
-        .map((entry) => buildVariantPlanFromRow(entry.row, profile))
+        .map((entry) => buildVariantPlanFromRow(entry.row))
         .filter(Boolean),
       (entry) => [
         entry.variantId || "",
@@ -5524,7 +5397,7 @@ export async function buildSeoBatchPlan(
 
     const desiredVariantUpdates = dedupeByKey(
       group.rows
-        .map((entry) => buildVariantPlanFromRow(entry.row, profile, { includeAligned: true, preserveCurrentPrice: true }))
+        .map((entry) => buildVariantPlanFromRow(entry.row, { includeAligned: true }))
         .filter(Boolean),
       (entry) => [entry.variantId || "", entry.sku || "", entry.label || ""].join("|"),
     );
@@ -5637,7 +5510,7 @@ function setPreferredField(row, candidates, value) {
 }
 
 function buildVariantRowUpdate(row, profile) {
-  const variantPlan = buildVariantPlanFromRow(row, profile);
+  const variantPlan = buildVariantPlanFromRow(row);
   if (!variantPlan) {
     return null;
   }

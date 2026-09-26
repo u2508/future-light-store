@@ -5,20 +5,24 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
+import { pathToFileURL } from "node:url";
 
 import { normalizePlainText } from "../src/lib/shopify-seo-batch.js";
 import { normalizeProductCustomData, normalizeCollectionCustomData, normalizeShopCustomData } from "../src/lib/product-custom-data.js";
+import {
+  FUTURE_LIGHT_SHOPIFY_ENV_KEYS,
+  futureLightChildEnv,
+  loadFutureLightEnv,
+} from "./lib/future-light-env.mjs";
+import { resolveFutureLightShopifyTarget } from "./lib/future-light-shopify-target.mjs";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 
 const execFileAsync = promisify(execFile);
-const DEFAULT_SHOP_BASE = "";
 const DEFAULT_INPUT_DIR = resolve(process.cwd(), "public", "data");
-const SHOP_BASE = process.env.SALT_SHOP_URL || DEFAULT_SHOP_BASE;
-const SHOP_DOMAIN = new URL(SHOP_BASE).hostname;
-const SHOPIFY_ADMIN_API_VERSION = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
-const SHOPIFY_CLI_AGENT_INFO = process.env.SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:openai";
-const SHOPIFY_CLI_AGENT_IDS =
-  process.env.SHOPIFY_CLI_AGENT_IDS || `s:future-light-store|r:${process.pid}|i:future-light-store`;
+let SHOP_DOMAIN = "";
+let SHOPIFY_ADMIN_API_VERSION = "2026-07";
+let SHOPIFY_CLI_AGENT_INFO = "n:future-light-store|v:1|p:openai";
+let SHOPIFY_CLI_AGENT_IDS = `s:future-light-store|r:${process.pid}|i:future-light-store`;
 const PRODUCT_FIELDS = [
   ["subtitle", "descriptors", "subtitle"],
   ["badgeText", "salt-marketing", "badge_text"],
@@ -52,14 +56,14 @@ function normalizeDomain(value) {
 
 function getShopifyCliEnv() {
   return {
-    ...process.env,
+    ...futureLightChildEnv(process.env),
     SHOPIFY_CLI_AGENT_INFO,
     SHOPIFY_CLI_AGENT_IDS,
   };
 }
 
 async function runShopifyStoreGraphQL(query, variables = {}) {
-  const tempDir = await mkdtemp(join(tmpdir(), "salt-shopify-verify-"));
+  const tempDir = await mkdtemp(join(tmpdir(), "future-light-shopify-verify-"));
   const queryFile = join(tempDir, "operation.graphql");
   const outputFile = join(tempDir, "result.json");
   const variableFile = join(tempDir, "variables.json");
@@ -411,6 +415,13 @@ async function verifyShop(shop) {
 }
 
 async function main() {
+  await loadFutureLightEnv({ rootDir: process.cwd(), allowedKeys: FUTURE_LIGHT_SHOPIFY_ENV_KEYS });
+  ({ shopDomain: SHOP_DOMAIN } = resolveFutureLightShopifyTarget(process.env));
+  SHOPIFY_ADMIN_API_VERSION = process.env.FUTURE_LIGHT_SHOPIFY_API_VERSION || process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
+  SHOPIFY_CLI_AGENT_INFO = process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:openai";
+  SHOPIFY_CLI_AGENT_IDS = process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_IDS ||
+    `s:future-light-store|r:${process.pid}|i:future-light-store`;
+
   const [productsPayload, collectionsPayload, shopPayload] = await Promise.all([
     readProductCatalogPayload(DEFAULT_INPUT_DIR),
     loadJson("collections.json"),
@@ -433,7 +444,7 @@ async function main() {
   }
 
   process.stdout.write(
-    `Verifying merchandising state for product ${productSample.handle}, collection ${collectionSample.handle}, and shop ${normalizePlainText(shopPayload.shop.name || "SALT")}.\n`,
+    `Verifying merchandising state for product ${productSample.handle}, collection ${collectionSample.handle}, and shop ${normalizePlainText(shopPayload.shop.name || "VS Store")}.\n`,
   );
 
   await verifyProduct(productSample);
@@ -443,7 +454,9 @@ async function main() {
   process.stdout.write("Shopify merchandising verification passed.\n");
 }
 
-main().catch((error) => {
-  console.error(`\n${error.message}`);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(`\n${error.message}`);
+    process.exit(1);
+  });
+}

@@ -844,6 +844,79 @@ const TAXONOMY_RULES = Object.freeze([
     shopifyCategory: "Electronics > Electronics Accessories > Power > Charging Cables",
   }),
   // Safety-critical conflicts. These must win before broad category rules.
+  rule("automotive-emergency-first-aid-kits", {
+    priority: 142,
+    familyId: "sports-fitness",
+    departmentId: "health-wellness",
+    categoryId: "health-wellness",
+    categoryLabel: "Health & Wellness",
+    subcategoryId: "first-aid-supplies",
+    subcategoryLabel: "First Aid & Emergency Supplies",
+    canonicalType: "First Aid Kit",
+    terms: [
+      "car first aid kit",
+      "first aid kit for car",
+      "automotive first aid kit",
+      "first aid supplies for car",
+      "emergency first aid kit",
+      "first aid supplies",
+      "first aid medical kit",
+      "medical emergency kit",
+    ],
+    requires: [["first aid", "medical kit"], ["kit", "supplies", "pouch"], ["car", "cars", "truck", "vehicle", "automotive"]],
+    aliases: ["automotive first aid kit", "vehicle emergency medical kit"],
+    collectionTargets: ["health-wellness"],
+    shopifyCategory: "Health & Beauty > Health Care",
+  }),
+  rule("airpods-max-carrying-cases", {
+    priority: 114,
+    familyId: "electronics",
+    departmentId: "electronic-accessories",
+    categoryId: "audio",
+    categoryLabel: "Audio",
+    subcategoryId: "headphones-headsets",
+    subcategoryLabel: "Headphones & Headsets",
+    canonicalType: "AirPods Max Carrying Case",
+    terms: ["airpods max carrying case", "airpods max headphone case", "airpods max protective case", "airpods max cover"],
+    requires: [["airpods max"], ["case", "cover", "bag", "pouch"]],
+    primaryTerms: ["case", "cover", "bag", "pouch"],
+    aliases: ["AirPods Max case", "AirPods Max storage case"],
+    collectionTargets: ["portable-gadgets"],
+    shopifyCategory: "Electronics > Audio > Headphones & Headsets",
+  }),
+  rule("airpods-protective-cases", {
+    priority: 113,
+    familyId: "electronics",
+    departmentId: "electronic-accessories",
+    categoryId: "covers-cases",
+    categoryLabel: "Covers & Cases",
+    subcategoryId: "earbuds-cases",
+    subcategoryLabel: "Earbuds Cases",
+    canonicalType: "AirPods Protective Case",
+    terms: ["airpods protective case", "airpods case", "airpods charging case cover", "airpods protective cover", "airpods shell"],
+    requires: [["airpods", "air pods"], ["case", "cover", "shell"]],
+    primaryTerms: ["case", "cover", "shell"],
+    excludes: ["airpods max"],
+    aliases: ["AirPods case cover", "AirPods earbud case"],
+    collectionTargets: ["covers-cases", "portable-gadgets"],
+    shopifyCategory: "Electronics > Electronics Accessories > Cases, Covers & Skins",
+  }),
+  rule("huawei-watch-protective-cases", {
+    priority: 113,
+    familyId: "electronics",
+    departmentId: "watches",
+    categoryId: "watches",
+    categoryLabel: "Watches",
+    subcategoryId: "watch-cases",
+    subcategoryLabel: "Watch Cases & Covers",
+    canonicalType: "Huawei Watch Protective Case",
+    terms: ["huawei watch protective case", "huawei watch case", "huawei watch cover", "honor watch case", "honor watch cover", "smartwatch protective case"],
+    requires: [["huawei", "honor"], ["watch", "smartwatch"], ["case", "cover", "shell", "frame", "protector"]],
+    primaryTerms: ["case", "cover", "shell", "frame", "protector"],
+    aliases: ["Huawei smartwatch case", "Huawei watch cover"],
+    collectionTargets: [],
+    shopifyCategory: "Electronics > Electronics Accessories > Wearable Technology",
+  }),
   rule("phone-case", {
     priority: 100,
     familyId: "electronics",
@@ -853,12 +926,12 @@ const TAXONOMY_RULES = Object.freeze([
     subcategoryId: "phone-cases",
     subcategoryLabel: "Phone Cases",
     canonicalType: "Phone Case",
-    terms: ["phone case", "phone cover", "mobile case", "mobile cover", "iphone case", "iphone cover", "samsung case", "huawei case", "honor case", "tablet case", "ipad case", "airpods case", "phone shell", "phone bumper", "magsafe magnetic case"],
-    requires: [["phone", "mobile", "iphone", "samsung", "huawei", "honor", "ipad", "tablet", "airpods", "magsafe"], ["case", "cover", "shell", "bumper"]],
+    terms: ["phone case", "phone cover", "mobile case", "mobile cover", "iphone case", "iphone cover", "samsung case", "huawei case", "honor case", "tablet case", "ipad case", "phone shell", "phone bumper", "magsafe magnetic case"],
+    requires: [["phone", "mobile", "iphone", "samsung", "huawei", "honor", "ipad", "tablet", "magsafe"], ["case", "cover", "shell", "bumper"]],
     primaryTerms: ["case", "cover", "bumper"],
     // A microphone can mention an iPhone and a windproof cover while still
     // being audio equipment, not a device case.
-    excludes: ["phone holder", "phone bag", "phone pouch", "case for pen", "pencil case", "microphone", "microphone cover", "mic cover", "windproof cover", "lavalier", "wireless mic"],
+    excludes: ["phone holder", "phone bag", "phone pouch", "case for pen", "pencil case", "microphone", "microphone cover", "mic cover", "windproof cover", "lavalier", "wireless mic", "watch case", "watch cover", "smartwatch case", "smartwatch cover"],
     aliases: ["mobile cover", "cell phone case", "smartphone case", "iphone cover"],
     collectionTargets: ["covers-cases", "portable-gadgets"],
     shopifyCategory: "Electronics > Electronics Accessories > Cases, Covers & Skins",
@@ -8934,6 +9007,21 @@ export function classifyCatalogTaxonomy(product, { ignoreOverride = false } = {}
   const attributes = extractCatalogAttributes(product, evidence);
   const override = ignoreOverride ? null : getCatalogTaxonomyOverride(product);
   if (override) return classificationFromApprovedOverride(override, evidence, audience, attributes);
+  const hasDirectPhrase = (phrases) => phrases.some((phrase) =>
+    ["title", "handle", "productType"].some((field) =>
+      includesPhrase(evidence.fields[field] || [], phraseTokens(phrase)),
+    ),
+  );
+  // Huawei/Honor accessories are sold for both phones and watches. A bare
+  // brand-plus-case title does not establish which device the shell fits, so
+  // hold that narrow ambiguity for review instead of guessing phone cases.
+  if (
+    hasDirectPhrase(["huawei", "honor"]) &&
+    hasDirectPhrase(["case", "cover", "shell", "bumper"]) &&
+    !hasDirectPhrase(["phone", "mobile phone", "cell phone", "smartphone", "tablet", "ipad", "watch", "smartwatch", "smart watch"])
+  ) {
+    return fallbackClassification(product, audience, attributes);
+  }
   const candidateMatches = candidateRules(evidence)
     .map((entry) => scoreRule(entry, evidence))
     .filter(Boolean)

@@ -4,8 +4,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { asArray, createShopifyAdminGraphQLClient, normalizeText } from "./shopify-admin-graphql-client.mjs";
+import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
+const args = { apply: process.argv.includes("--apply"), resume: process.argv.includes("--resume") };
+assertFutureLightDirectWriteDisabled({ runner: "curated-seo-apply", mode: args.apply ? "apply" : "dry-run" });
 const artifactPath = resolve(rootDir, process.env.FUTURE_LIGHT_CURATED_SEO_INPUT || "output/future-light-curated-product-seo-artifact-20260919.json");
 const outputDir = resolve(rootDir, process.env.FUTURE_LIGHT_CURATED_SEO_APPLY_DIR || "output/future-light-curated-seo-apply-20260920");
 const statePath = resolve(outputDir, "state.json");
@@ -50,10 +53,6 @@ const READBACK_QUERY = /* GraphQL */ `
     }
   }
 `;
-
-function parseArgs(argv) {
-  return { apply: argv.includes("--apply"), resume: argv.includes("--resume") };
-}
 
 function normalized(value) {
   return String(value ?? "").replace(/\r\n/g, "\n").trim();
@@ -193,7 +192,6 @@ function buildLocalSeoArtifact(artifact, liveProducts) {
 }
 
 async function main() {
-  const args = parseArgs(process.argv);
   await mkdir(outputDir, { recursive: true });
   const artifact = await readJson(artifactPath);
   const liveProducts = await fetchLiveProducts();

@@ -22,6 +22,7 @@ import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 import { envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
+import { collectionProductsCountIssue } from "./lib/collection-readback-guard.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const inputDir = resolve(rootDir, "public", "data");
@@ -99,6 +100,7 @@ const COLLECTIONS_QUERY = /* GraphQL */ `
         descriptionHtml
         productsCount {
           count
+          precision
         }
         sources {
           __typename
@@ -928,6 +930,15 @@ async function verifyCollectionReadback(targets) {
       if (!collectionSourceMatches(target.entry, source)) issues.push("source rule mismatch");
       if (!isOnlineStoreCollection(live)) issues.push("not published to Online Store");
     }
+    const membershipIssue = collectionProductsCountIssue({
+      isPublishedToOnlineStore: Boolean(live && isOnlineStoreCollection(live)),
+      count: live?.productsCount?.count,
+      precision: live?.productsCount?.precision,
+      allowEmpty: target.entry.allowEmpty === true,
+      allowEmptyReviewed: target.entry.allowEmptyReviewed === true,
+      allowEmptyReason: target.entry.allowEmptyReason,
+    });
+    if (membershipIssue) issues.push(membershipIssue);
     target.readback = {
       collectionId: live?.id || null,
       productsCount: live?.productsCount?.count ?? null,

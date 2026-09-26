@@ -9,7 +9,10 @@ import {
   DSERS_FAMILY_STORE_POLICY,
   inspectDsersProductCandidate,
 } from "../src/lib/dsers-product-policy.mjs";
-import { computeDsersCandidateFingerprint } from "./lib/dsers-candidate-evidence.mjs";
+import {
+  computeDsersCandidateFingerprint,
+  DSERS_EVIDENCE_SCHEMA_VERSION,
+} from "./lib/dsers-candidate-evidence.mjs";
 
 const NOW_CLOCK_MS = Date.now();
 const REVIEWED_AT = new Date(NOW_CLOCK_MS - 1_000).toISOString();
@@ -24,6 +27,8 @@ const HASHES = {
   imageSand: "d".repeat(64),
   variantSage: "e".repeat(64),
   variantSand: "f".repeat(64),
+  inventorySage: "7".repeat(64),
+  inventorySand: "8".repeat(64),
   commercial: "1".repeat(64),
   shipping: "2".repeat(64),
   duplicate: "3".repeat(64),
@@ -37,6 +42,14 @@ function sources() {
       reference: "https://supplier.example/products/bib-123",
       sha256: HASHES.product,
       observedAt: REVIEWED_AT,
+    },
+    {
+      id: "src-supplier-listing",
+      kind: "supplier-listing",
+      reference: "https://supplier.example/products/bib-123#listing-status",
+      sha256: "9".repeat(64),
+      observedAt: REVIEWED_AT,
+      capture: { supplierListingStatus: "ready", supplierErrorCode: "" },
     },
     {
       id: "src-image-primary",
@@ -74,6 +87,20 @@ function sources() {
       observedAt: REVIEWED_AT,
     },
     {
+      id: "src-inventory-sage",
+      kind: "inventory",
+      reference: "https://supplier.example/products/bib-123#inventory-sage",
+      sha256: HASHES.inventorySage,
+      observedAt: REVIEWED_AT,
+    },
+    {
+      id: "src-inventory-sand",
+      kind: "inventory",
+      reference: "https://supplier.example/products/bib-123#inventory-sand",
+      sha256: HASHES.inventorySand,
+      observedAt: REVIEWED_AT,
+    },
+    {
       id: "src-commercial",
       kind: "commercial",
       reference: "https://supplier.example/products/bib-123#price",
@@ -104,6 +131,10 @@ function approved(rationale, sourceRefs, extra = {}) {
 function evidenceFor(candidate, overrides = {}) {
   const identity = candidate.supplierProductId || candidate.productId || candidate.id;
   const decisions = {
+    supplierListing: approved("Supplier listing is ready with no supplier error.", ["src-supplier-listing"], {
+      supplierListingStatus: candidate.supplierListingStatus,
+      supplierErrorCode: candidate.supplierErrorCode,
+    }),
     product: approved("Verified product identity and complete retail item.", ["src-product"], {
       productId: identity,
       title: candidate.title,
@@ -140,6 +171,20 @@ function evidenceFor(candidate, overrides = {}) {
         })),
       },
     ),
+    inventory: approved(
+      "Verified a current supplier quantity for every exact option.",
+      ["src-inventory-sage", "src-inventory-sand"],
+      {
+        items: candidate.variants.map((variant) => ({
+          variantId: variant.id,
+          quantity: variant.inventoryEvidence?.quantity,
+          sourceRefId: variant.inventoryEvidence?.sourceRefId,
+          decision: "approve",
+          rationale: "The supplier stock row is explicitly tied to this option.",
+          sourceRefs: [variant.inventoryEvidence?.sourceRefId],
+        })),
+      },
+    ),
     commercial: approved(
       "Checked current supplier cost and proposed US selling price.",
       ["src-commercial"],
@@ -172,7 +217,7 @@ function evidenceFor(candidate, overrides = {}) {
     ...overrides,
   };
   return {
-    schemaVersion: 1,
+    schemaVersion: DSERS_EVIDENCE_SCHEMA_VERSION,
     policyVersion: POLICY_VERSION,
     candidateFingerprint: computeDsersCandidateFingerprint(candidate, POLICY_VERSION),
     reviewedAt: REVIEWED_AT,
@@ -190,6 +235,8 @@ function eligibleCandidate(overrides = {}) {
     searchTerm: "baby feeding bib silicone",
     collectionLane: "Baby care & baby wear",
     supplierProductId: "supplier-bib-123",
+    supplierListingStatus: "ready",
+    supplierErrorCode: "",
     supplierStock: 420,
     supplierCost: 3,
     proposedUsPrice: 35,
@@ -219,6 +266,7 @@ function eligibleCandidate(overrides = {}) {
         name: "Sage Green",
         selectedOptions: [{ name: "Color", value: "Sage Green" }],
         stock: 420,
+        inventoryEvidence: { quantity: 420, sourceRefId: "src-inventory-sage" },
         imageIds: ["image-sage"],
         sourceRefId: "src-variant-sage",
       },
@@ -227,6 +275,7 @@ function eligibleCandidate(overrides = {}) {
         name: "Sand",
         selectedOptions: [{ name: "Color", value: "Sand" }],
         stock: 300,
+        inventoryEvidence: { quantity: 300, sourceRefId: "src-inventory-sand" },
         imageIds: ["image-sand"],
         sourceRefId: "src-variant-sand",
       },
@@ -268,8 +317,36 @@ test("allows a fully evidenced candidate and preserves policy scoring and pricin
   assert.equal(result.storeOverheadUsd, 16);
   assert.equal(result.paidAcquisitionCostUsdPerOrder, 13);
   assert.equal(result.evidenceValid, true);
+  assert.equal(result.supplierListingDisposition, "ready");
   assert.match(result.candidateFingerprint, /^sha256:[a-f0-9]{64}$/);
   assert.equal(result.evidenceFreshnessHours, 24);
+});
+
+test("holds missing listing facts and rejects non-ready or supplier-error candidates", () => {
+  const missingStatus = eligibleCandidate();
+  delete missingStatus.supplierListingStatus;
+  missingStatus.evidenceBundle = evidenceFor(missingStatus);
+  const held = inspect(missingStatus);
+  assert.equal(held.allowed, false);
+  assert.equal(held.supplierListingDisposition, "hold");
+  assert.ok(held.reasonCodes.includes("missing-supplier-listing-status"));
+
+  const missingErrorCode = eligibleCandidate();
+  delete missingErrorCode.supplierErrorCode;
+  missingErrorCode.evidenceBundle = evidenceFor(missingErrorCode);
+  const missingError = inspect(missingErrorCode);
+  assert.equal(missingError.supplierListingDisposition, "hold");
+  assert.ok(missingError.reasonCodes.includes("missing-supplier-error-code"));
+
+  const notReady = eligibleCandidate({ supplierListingStatus: "paused" });
+  const rejectedStatus = inspect(notReady);
+  assert.equal(rejectedStatus.supplierListingDisposition, "reject");
+  assert.ok(rejectedStatus.reasonCodes.includes("supplier-listing-not-ready"));
+
+  const supplierError = eligibleCandidate({ supplierErrorCode: "OUT_OF_STOCK" });
+  const rejectedError = inspect(supplierError);
+  assert.equal(rejectedError.supplierListingDisposition, "reject");
+  assert.ok(rejectedError.reasonCodes.includes("supplier-error-code-present"));
 });
 
 test("keeps source-policy family lanes and all seven batch-capacity ceilings", () => {
@@ -367,11 +444,19 @@ test("requires stock evidence and applies the minimum conservatively across vari
   const missing = inspect(
     eligibleCandidate({
       supplierStock: undefined,
-      variants: eligibleCandidate().variants.map((variant) => ({ ...variant, stock: undefined })),
+      variants: eligibleCandidate().variants.map((variant) => ({
+        ...variant,
+        stock: undefined,
+        inventoryEvidence: undefined,
+      })),
     }),
   );
   assert.ok(missing.reasonCodes.includes("missing-stock-evidence"));
-  const low = inspect(eligibleCandidate({ supplierStock: 199 }));
+  const low = inspect(eligibleCandidate({
+    variants: eligibleCandidate().variants.map((variant, index) => index === 1
+      ? { ...variant, stock: 199, inventoryEvidence: { ...variant.inventoryEvidence, quantity: 199 } }
+      : variant),
+  }));
   assert.ok(low.reasonCodes.includes("stock-below-minimum"));
   assert.equal(DSERS_FAMILY_STORE_POLICY.minimumStock, 200);
   const hiddenLow = inspect(
@@ -381,6 +466,7 @@ test("requires stock evidence and applies the minimum conservatively across vari
           id: "variant-sage",
           name: "Sage",
           stock: 300,
+          inventoryEvidence: { quantity: 300, sourceRefId: "src-inventory-sage" },
           imageIds: ["image-sage"],
           sourceRefId: "src-variant-sage",
         },
@@ -388,6 +474,7 @@ test("requires stock evidence and applies the minimum conservatively across vari
           id: "variant-sand",
           name: "Sand",
           stock: 199,
+          inventoryEvidence: { quantity: 199, sourceRefId: "src-inventory-sand" },
           imageIds: ["image-sand"],
           sourceRefId: "src-variant-sand",
         },
@@ -537,7 +624,8 @@ test("requires one reviewed image decision and a hash-matched product associatio
   assert.ok(inspect(wrongProduct).reasonCodes.includes("image-product-association-mismatch"));
 
   const wrongSource = eligibleCandidate();
-  wrongSource.sourceReferences[1] = { ...wrongSource.sourceReferences[1], kind: "product" };
+  const primaryImageSource = wrongSource.sourceReferences.find((source) => source.id === "src-image-primary");
+  Object.assign(primaryImageSource, { kind: "product" });
   wrongSource.evidenceBundle = evidenceFor(wrongSource);
   assert.ok(inspect(wrongSource).reasonCodes.includes("invalid-image-source-association"));
 
@@ -677,11 +765,44 @@ test("CLI keeps boolean flags fail-closed and accepts structured candidate JSON 
       "true",
       "--duplicate-check-complete",
       "true",
+      "--supplier-listing-status",
+      "ready",
+      "--supplier-error-code",
+      "",
     ],
     { encoding: "utf8" },
   );
   assert.equal(booleansOnly.status, 1);
   assert.match(booleansOnly.stdout, /missing-structured-evidence-bundle/);
+  const explicitListingFlags = JSON.parse(booleansOnly.stdout);
+  assert.equal(explicitListingFlags.supplierListingDisposition, "hold");
+  assert.ok(!explicitListingFlags.reasonCodes.includes("missing-supplier-listing-status"));
+  assert.ok(!explicitListingFlags.reasonCodes.includes("missing-supplier-error-code"));
+
+  const missingStatusFlags = spawnSync(
+    process.execPath,
+    [script, "--supplier-error-code", ""],
+    { encoding: "utf8" },
+  );
+  assert.equal(missingStatusFlags.status, 1);
+  assert.match(missingStatusFlags.stdout, /missing-supplier-listing-status/);
+  assert.equal(JSON.parse(missingStatusFlags.stdout).supplierListingDisposition, "hold");
+
+  const explicitStatusOnly = spawnSync(
+    process.execPath,
+    [script, "--supplier-listing-status", "ready"],
+    { encoding: "utf8" },
+  );
+  assert.equal(explicitStatusOnly.status, 1);
+  assert.match(explicitStatusOnly.stdout, /missing-supplier-error-code/);
+
+  const nonReadyFlags = spawnSync(
+    process.execPath,
+    [script, "--supplier-listing-status", "pending", "--supplier-error-code", ""],
+    { encoding: "utf8" },
+  );
+  assert.equal(nonReadyFlags.status, 1);
+  assert.match(nonReadyFlags.stdout, /supplier-listing-not-ready/);
 
   const badJson = spawnSync(process.execPath, [script, "--candidate-json", "{broken"], {
     encoding: "utf8",

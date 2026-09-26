@@ -14,7 +14,13 @@ import { mapWithConcurrency, recommendedConcurrency, sleep } from "./lib/perform
 import { loadFutureLightEnv } from "./lib/future-light-env.mjs";
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
 import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
+import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
+import {
+  assertSeoManifestSourceFreshness,
+  bindSeoSourceSnapshot,
+  fingerprintSeoSource,
+} from "./lib/seo-source-freshness.mjs";
 import {
   canonicalImageUrl,
   FUTURE_LIGHT_SCOPE,
@@ -42,6 +48,7 @@ const ACTIVE_PRODUCTS_QUERY = /* GraphQL */ `
         title
         descriptionHtml
         productType
+        updatedAt
         status
         tags
         vendor
@@ -82,6 +89,7 @@ const PRODUCT_READBACK_QUERY = /* GraphQL */ `
         title
         descriptionHtml
         productType
+        updatedAt
         tags
         vendor
         status
@@ -1286,6 +1294,11 @@ async function fetchActiveProducts(client, state, persistState) {
   return unique;
 }
 
+function stableCatalogProductId(product) {
+  const raw = String(product?.legacyResourceId ?? product?.id ?? product?.productId ?? "");
+  return raw.match(/\d+$/)?.[0] || raw;
+}
+
 async function runWithNetworkWait(client, label, operation, state, persistState) {
   let attempt = 0;
   const pollBase = Math.max(5_000, Number(process.env.FUTURE_LIGHT_SEO_NETWORK_POLL_MS || 30_000));
@@ -1417,8 +1430,9 @@ async function loadImageHealthPreflight(liveProducts) {
   return base;
 }
 
-async function buildManifest({ liveProducts, plan, args, priorManifest, imagePreflight, overrides }) {
+async function buildManifest({ liveProducts, sourceProducts, plan, args, priorManifest, imagePreflight, overrides }) {
   const liveByHandle = new Map(liveProducts.map((product) => [normalizeHandleValue(product.handle), product]));
+  const sourceById = new Map(sourceProducts.map((product) => [stableCatalogProductId(product), product]));
   const priorByHandle = new Map((priorManifest?.items || []).map((item) => [item.handle, item]));
   const items = [];
   const warnings = [];
@@ -1431,6 +1445,9 @@ async function buildManifest({ liveProducts, plan, args, priorManifest, imagePre
       continue;
     }
     const baseline = candidateFromPlan(productPlan, liveProduct);
+    const sourceProduct = sourceById.get(stableCatalogProductId(liveProduct));
+    if (!sourceProduct) throw new Error(`SEO source preimage is missing for ${handle}; refusing to create an unbound manifest record`);
+    const sourceFingerprints = fingerprintSeoSource(sourceProduct);
     const imageAudit = imagePreflight.byProductId.get(String(liveProduct.id)) ||
       imagePreflight.byHandle.get(handle);
     const imageHealth = buildImageEvidence(imageAudit, imagePreflight);
@@ -1466,6 +1483,7 @@ async function buildManifest({ liveProducts, plan, args, priorManifest, imagePre
       productId: liveProduct.id,
       sourceTitle: liveProduct.title || "",
       sourceUpdatedAt: liveProduct.updatedAt || "",
+      ...sourceFingerprints,
       imageHealth,
       desired: copy,
       provider: override ? "approved-exact-override" : copyResult.provider,
@@ -1481,7 +1499,7 @@ async function buildManifest({ liveProducts, plan, args, priorManifest, imagePre
   ensureDistinctProductCopy(items, liveByHandle);
 
   return {
-    schemaVersion: "2026-09-14.future-light-seo-gpt-200.1",
+    schemaVersion: "2026-09-25.future-light-seo-gpt-200.2",
     generatedAt: now(),
     mode: args.mode,
     batchSize: args.batchSize,
@@ -1576,6 +1594,7 @@ async function processBatch({ batch, liveById, client, state, persistState, args
     if (!needsWrite(item, liveProduct)) {
       item.status = "verified";
       item.verifiedAt = now();
+      item.verifiedSourceUpdatedAt = liveProduct?.updatedAt || "";
       continue;
     }
     item.status = "pending";
@@ -1655,6 +1674,7 @@ async function processBatch({ batch, liveById, client, state, persistState, args
       if (quality.ok && exact) {
         item.status = "verified";
         item.verifiedAt = now();
+        item.verifiedSourceUpdatedAt = liveProduct?.updatedAt || "";
       } else {
         item.status = "failed";
         item.failures.push(`readback-mismatch:${[...(quality.issues || []), exact ? "" : "values-differ"].filter(Boolean).join(",")}`.slice(0, 600));
@@ -1673,6 +1693,13 @@ async function processBatch({ batch, liveById, client, state, persistState, args
 
 async function main() {
   const args = parseArgs(process.argv);
+  try {
+    assertFutureLightDirectWriteDisabled({ runner: "gpt-seo", mode: args.mode });
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 78;
+    return;
+  }
   await loadFutureLightEnv({ rootDir });
   await acquireLock();
 
@@ -1739,17 +1766,31 @@ async function main() {
     await persistState();
 
     const priorManifest = args.resume && !args.forceReplan ? await readJson(manifestPath, null) : null;
+    const localPayload = await readProductCatalogPayload(inputDir);
+    const sourceProducts = bindSeoSourceSnapshot(
+      limitedProducts,
+      localPayload.products,
+      priorManifest?.items || [],
+    );
+    if (priorManifest && Array.isArray(priorManifest.items)) {
+      // A resumed plan must remain attached to the exact source preimage. The
+      // helper permits title/body changes only when they are the exact output
+      // of a verified prior write and the variant/media structure is intact.
+      assertSeoManifestSourceFreshness(sourceProducts, priorManifest.items);
+    }
     const reusableManifest = priorManifest && priorManifest.items?.length === limitedProducts.length &&
-      priorManifest.schemaVersion === "2026-09-14.future-light-seo-gpt-200.1" &&
+      priorManifest.schemaVersion === "2026-09-25.future-light-seo-gpt-200.2" &&
       priorManifest.imagePreflight?.sourceFingerprint === imagePreflight.sourceFingerprint &&
       priorManifest.imagePreflight?.ready === imagePreflight.ready &&
       priorManifest.imagePreflight?.generatedAt === (imagePreflight.manifest?.generatedAt || "") &&
       priorManifest.items.every((item) => liveById.has(item.productId));
+    if (priorManifest && !reusableManifest) {
+      throw new Error("SEO resume manifest no longer matches the current catalog/image-preflight preimage; refusing to regenerate or replace approved copy during resume. Review the source drift, then explicitly replan if desired.");
+    }
     let manifest = reusableManifest
       ? priorManifest
       : null;
     if (!manifest) {
-      const localPayload = await readProductCatalogPayload(inputDir);
       const collections = await readOptionalJson(resolve(inputDir, "collections.json"));
       const collectionProducts = await readOptionalJson(resolve(inputDir, "collection-products.json"));
       const knowledgeModel = await readCatalogKnowledgeModel({ required: true });
@@ -1766,6 +1807,7 @@ async function main() {
       });
       manifest = await buildManifest({
         liveProducts: limitedProducts,
+        sourceProducts,
         plan,
         args,
         priorManifest: null,

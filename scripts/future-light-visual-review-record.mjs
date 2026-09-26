@@ -6,6 +6,7 @@
 
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { isShopifyGidOfType, sameProductGid, sha256Hex } from "./lib/visual-approval-integrity.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const queuePath = resolve(rootDir, "output", "future-light-visual-review", "queue.json");
@@ -65,6 +66,22 @@ async function run() {
   if (!queue || queue.targetStoreDomain !== targetStoreDomain) throw new Error("Queue is missing or targets a non-Future Light Store.");
   const sourceEntries = (queue.imageEntries || []).slice(args.offset, args.offset + args.limit);
   if (!sourceEntries.length) throw new Error(`No image entries at offset ${args.offset}.`);
+  if (args.action === "recreate" && sourceEntries.length !== 1) {
+    throw new Error("Recreate must be recorded one product image at a time so one generated asset cannot be reused across products.");
+  }
+  const generatedAssetPath = args.action === "recreate" ? resolve(rootDir, args.generatedAssetPath) : "";
+  let generatedAssetSha256 = "";
+  if (args.action === "recreate") {
+    if (!generatedAssetPath.startsWith(`${resolve(rootDir, "output", "imagegen")}/`)) {
+      throw new Error("Recreated image must be inside output/imagegen.");
+    }
+    const sourceProductId = sourceEntries[0]?.productId;
+    if (!sameProductGid(args.sourceProductId, sourceProductId)) {
+      throw new Error("Recreate sourceProductId must match the exact queued Shopify Product identity.");
+    }
+    const bytes = await readFile(generatedAssetPath);
+    generatedAssetSha256 = sha256Hex(bytes);
+  }
   const prior = await readJson(decisionsPath, {
     schemaVersion: "2026-09-16.future-light-chatgpt-image-decisions.1",
     targetStoreDomain,
@@ -126,6 +143,7 @@ async function run() {
       productIdentityPreserved: true,
       identityReviewNote: args.identityNote,
       generatedAssetPath: args.generatedAssetPath,
+      generatedAssetSha256,
     });
     decisions.set(imageKey(entry.handle, entry.imageUrl), decision);
     holds.delete(imageKey(entry.handle, entry.imageUrl));

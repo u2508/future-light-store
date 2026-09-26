@@ -1,4 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { collectCompleteVariantEdges } from "@/lib/shopify-variant-pagination.mjs";
+import { getProductAvailability } from "@/lib/product-availability.mjs";
+import { mergePublishedProductMedia } from "@/lib/product-variant-image.mjs";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY =
@@ -13,6 +16,7 @@ export const isShopifyConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_
 // generated catalog fallback behind it.
 const LIVE_CATALOG_REQUEST_TIMEOUT_MS = 12_000;
 const LIVE_INVENTORY_REQUEST_TIMEOUT_MS = 4_000;
+const LIVE_MEDIA_REQUEST_TIMEOUT_MS = 7_000;
 
 export interface ShopifyVariant {
   id: string;
@@ -24,7 +28,7 @@ export interface ShopifyVariant {
   // unauthenticated_read_product_inventory. Availability remains usable
   // without that optional scope.
   quantityAvailable?: number | null;
-  image?: { url: string; altText: string | null } | null;
+  image?: { id?: string | null; url: string; altText: string | null } | null;
   selectedOptions: Array<{ name: string; value: string }>;
 }
 
@@ -43,7 +47,10 @@ export interface ShopifyProductNode {
   compareAtPriceRange?: { minVariantPrice: { amount: string; currencyCode: string } };
   variantsCount?: { count: number };
   images: { edges: Array<{ node: { url: string; altText: string | null } }> };
-  variants: { edges: Array<{ node: ShopifyVariant }> };
+  variants: {
+    edges: Array<{ node: ShopifyVariant }>;
+    pageInfo?: { hasNextPage: boolean; endCursor: string | null };
+  };
   options: Array<{ name: string; values: string[] }>;
 }
 
@@ -67,13 +74,7 @@ export type ShopifyProductInventory = {
  * treated as sold out.
  */
 export function isProductAvailable(product: ShopifyProductNode) {
-  const variants = product.variants?.edges?.map((edge) => edge.node).filter(Boolean) ?? [];
-  if (product.availableForSale === true) return true;
-  if (variants.some((variant) => variant.availableForSale === true)) return true;
-  if (variants.length > 0 && variants.every((variant) => variant.availableForSale === false)) {
-    return false;
-  }
-  return product.availableForSale !== false;
+  return getProductAvailability(product) === "available";
 }
 
 /**
@@ -111,10 +112,11 @@ export const PRODUCT_FRAGMENT = `
   tags
   updatedAt
   availableForSale
+  variantsCount { count }
   priceRange { minVariantPrice { amount currencyCode } }
   compareAtPriceRange { minVariantPrice { amount currencyCode } }
   images(first: 250) { edges { node { url altText } } }
-  variants(first: 25) {
+  variants(first: 250) {
     edges {
       node {
         id
@@ -123,10 +125,11 @@ export const PRODUCT_FRAGMENT = `
         compareAtPrice { amount currencyCode }
         availableForSale
         quantityAvailable
-        image { url altText }
+        image { id url altText }
         selectedOptions { name value }
       }
     }
+    pageInfo { hasNextPage endCursor }
   }
   options { name values }
 `;
@@ -155,6 +158,7 @@ export const BROWSE_PRODUCTS_QUERY = `
           vendor
           productType
           tags
+          updatedAt
           availableForSale
           variantsCount { count }
           priceRange { minVariantPrice { amount currencyCode } }
@@ -168,6 +172,7 @@ export const BROWSE_PRODUCTS_QUERY = `
                 price { amount currencyCode }
                 compareAtPrice { amount currencyCode }
                 availableForSale
+                image { url altText }
                 selectedOptions { name value }
               }
             }
@@ -193,6 +198,41 @@ const PRODUCT_FRAGMENT_WITHOUT_INVENTORY = PRODUCT_FRAGMENT.replace(
 const PRODUCT_BY_HANDLE_WITHOUT_INVENTORY_QUERY = `
   query GetProduct($handle: String!) {
     product(handle: $handle) { ${PRODUCT_FRAGMENT_WITHOUT_INVENTORY} }
+  }
+`;
+
+const PRODUCT_VARIANT_PAGE_QUERY = `
+  query GetProductVariantPage($handle: String!, $after: String!) {
+    product(handle: $handle) {
+      id
+      variants(first: 250, after: $after) {
+        edges {
+          node {
+            id
+            title
+            price { amount currencyCode }
+            compareAtPrice { amount currencyCode }
+            availableForSale
+            image { url altText }
+            selectedOptions { name value }
+          }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`;
+
+// The edge proxy resolves this allowlisted operation with Shopify's public
+// product JSON endpoint, which preserves exact image.variant_ids associations
+// that the Storefront ProductVariant.image field can omit.
+const PRODUCT_VARIANT_MEDIA_QUERY = `
+  query GetProductVariantMedia($handle: String!) {
+    productVariantMedia(handle: $handle) {
+      productId
+      handle
+      images { id url altText variantIds }
+    }
   }
 `;
 
@@ -228,6 +268,7 @@ const COLLECTION_PRODUCT_FRAGMENT = `
   vendor
   productType
   tags
+  updatedAt
   availableForSale
   variantsCount { count }
   priceRange { minVariantPrice { amount currencyCode } }
@@ -365,7 +406,42 @@ export async function fetchProduct(handle: string): Promise<ShopifyProductNode |
     { handle },
     { timeout: LIVE_CATALOG_REQUEST_TIMEOUT_MS },
   );
-  return data?.data?.product ?? null;
+  const product = data?.data?.product as ShopifyProductNode | null | undefined;
+  if (!product) return null;
+  const publishedMediaPromise = storefrontApiRequest(
+    PRODUCT_VARIANT_MEDIA_QUERY,
+    { handle },
+    { timeout: LIVE_MEDIA_REQUEST_TIMEOUT_MS },
+  )
+    .then((mediaData) => mediaData?.data?.productVariantMedia ?? null)
+    .catch(() => null);
+  const initialVariants = product.variants;
+  if (!initialVariants?.pageInfo) {
+    throw new Error("Shopify product returned incomplete variant pagination metadata");
+  }
+  const completeInitialVariants = initialVariants as {
+    edges: Array<{ node: ShopifyVariant }>;
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+  const variantEdges = await collectCompleteVariantEdges(
+    completeInitialVariants,
+    async (cursor) => {
+      const pageData = await storefrontApiRequest(
+        PRODUCT_VARIANT_PAGE_QUERY,
+        { handle, after: cursor },
+        { timeout: LIVE_CATALOG_REQUEST_TIMEOUT_MS },
+      );
+      const pageProduct = pageData?.data?.product;
+      if (!pageProduct || pageProduct.id !== product.id) {
+        throw new Error("Shopify returned a variant page for a different product");
+      }
+      return pageProduct.variants;
+    },
+    product.variantsCount?.count,
+  );
+  const completeProduct = { ...product, variants: { ...product.variants, edges: variantEdges } };
+  const publishedMedia = await publishedMediaPromise;
+  return mergePublishedProductMedia(completeProduct, publishedMedia);
 }
 
 export async function fetchProductInventory(

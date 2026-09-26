@@ -7,16 +7,23 @@ import {
   normalizeCartForStandardEvent,
 } from "@/lib/shopifyStandardEvents";
 import { getMarketingAttributionAttributes } from "@/lib/marketingAnalytics";
+import { reconcileCartSnapshot } from "@/lib/cart-reconciliation.mjs";
 
 export interface CartItem {
   lineId: string | null;
   product: ShopifyProduct;
   variantId: string;
   variantTitle: string;
+  variantImageUrl?: string | null;
+  variantImageAlt?: string | null;
   price: { amount: string; currencyCode: string };
   quantity: number;
   selectedOptions: Array<{ name: string; value: string }>;
 }
+
+export type CartMutationResult =
+  | { success: true }
+  | { success: false; message: string; unavailable?: boolean | undefined };
 
 export const CART_OPEN_EVENT = "vs:cart-open";
 
@@ -26,7 +33,28 @@ export function requestCartOpen() {
 
 const CART_QUERY = `
   query cart($id: ID!) {
-    cart(id: $id) { id totalQuantity }
+    cart(id: $id) {
+      id
+      checkoutUrl
+      totalQuantity
+      lines(first: 100) {
+        edges {
+          node {
+            id
+            quantity
+            merchandise {
+              ... on ProductVariant {
+                id
+                title
+                price { amount currencyCode }
+                selectedOptions { name value }
+              }
+            }
+          }
+        }
+        pageInfo { hasNextPage }
+      }
+    }
   }
 `;
 
@@ -340,8 +368,8 @@ interface CartStore {
   isLoading: boolean;
   isSyncing: boolean;
   addItem: (item: Omit<CartItem, "lineId">) => Promise<CartAddResult>;
-  updateQuantity: (variantId: string, quantity: number) => Promise<void>;
-  removeItem: (variantId: string) => Promise<void>;
+  updateQuantity: (variantId: string, quantity: number) => Promise<CartMutationResult>;
+  removeItem: (variantId: string) => Promise<CartMutationResult>;
   clearCart: () => void;
   syncCart: () => Promise<void>;
   getCheckoutUrl: () => string | null;
@@ -469,12 +497,13 @@ export const useCartStore = create<CartStore>()(
 
       updateQuantity: async (variantId, quantity) => {
         if (quantity <= 0) {
-          await get().removeItem(variantId);
-          return;
+          return get().removeItem(variantId);
         }
         const { items, cartId, clearCart } = get();
         const item = items.find((i) => i.variantId === variantId);
-        if (!item?.lineId || !cartId) return;
+        if (!item?.lineId || !cartId) {
+          return { success: false, message: "Your bag is still syncing. Please try again." };
+        }
         set({ isLoading: true });
         try {
           const result = await updateShopifyCartLine(cartId, item.lineId, quantity);
@@ -483,11 +512,25 @@ export const useCartStore = create<CartStore>()(
             set({
               items: currentItems.map((i) => (i.variantId === variantId ? { ...i, quantity } : i)),
             });
+            return { success: true };
           } else if (result.cartNotFound) {
             clearCart();
+            return {
+              success: false,
+              message: "Your bag session expired. Please add the item again.",
+            };
           }
+          return {
+            success: false,
+            message: result.message ?? "We couldn’t update that quantity. Please try again.",
+            unavailable: result.unavailable,
+          };
         } catch (error) {
           console.error("Failed to update quantity:", error);
+          return {
+            success: false,
+            message: "We couldn’t reach checkout to update your bag. Please try again.",
+          };
         } finally {
           set({ isLoading: false });
         }
@@ -496,7 +539,9 @@ export const useCartStore = create<CartStore>()(
       removeItem: async (variantId) => {
         const { items, cartId, clearCart } = get();
         const item = items.find((i) => i.variantId === variantId);
-        if (!item?.lineId || !cartId) return;
+        if (!item?.lineId || !cartId) {
+          return { success: false, message: "Your bag is still syncing. Please try again." };
+        }
         set({ isLoading: true });
         try {
           const result = await removeLineFromShopifyCart(cartId, item.lineId);
@@ -504,11 +549,24 @@ export const useCartStore = create<CartStore>()(
             const newItems = get().items.filter((i) => i.variantId !== variantId);
             if (newItems.length === 0) clearCart();
             else set({ items: newItems });
+            return { success: true };
           } else if (result.cartNotFound) {
             clearCart();
+            return {
+              success: false,
+              message: "Your bag session expired and was refreshed. Please check the bag again.",
+            };
           }
+          return {
+            success: false,
+            message: result.message ?? "We couldn’t remove that item. Please try again.",
+          };
         } catch (error) {
           console.error("Failed to remove item:", error);
+          return {
+            success: false,
+            message: "We couldn’t reach checkout to update your bag. Please try again.",
+          };
         } finally {
           set({ isLoading: false });
         }
@@ -518,17 +576,45 @@ export const useCartStore = create<CartStore>()(
       getCheckoutUrl: () => get().checkoutUrl,
 
       syncCart: async () => {
-        const { cartId, isSyncing, clearCart } = get();
-        if (!cartId || isSyncing) return;
+        const { cartId, isSyncing, isLoading, clearCart } = get();
+        if (!cartId || isSyncing || isLoading) return;
+        const itemsAtRequestStart = get().items;
         set({ isSyncing: true });
         try {
           const data = await storefrontApiRequest(CART_QUERY, { id: cartId });
           // Keep the locally persisted bag intact when the proxy returns an
           // error, a partial payload, or a temporarily unavailable cart. A
           // missing response must never turn a visible bag into an empty one.
-          if (!data?.data || !Object.prototype.hasOwnProperty.call(data.data, "cart")) return;
+          if (
+            !data?.data ||
+            data.errors?.length ||
+            !Object.prototype.hasOwnProperty.call(data.data, "cart")
+          ) {
+            return;
+          }
           const cart = data.data.cart;
-          if (cart?.id === cartId && cart.totalQuantity === 0) clearCart();
+          if (cart && cart.id !== cartId) return;
+          const reconciliation = reconcileCartSnapshot(itemsAtRequestStart, cart);
+          if (reconciliation.status === "empty") {
+            if (get().items !== itemsAtRequestStart || get().cartId !== cartId) return;
+            clearCart();
+            return;
+          }
+          // Do not let a request started before an add/update overwrite the
+          // newer mutation result when its slower response arrives.
+          if (
+            reconciliation.status === "reconciled" &&
+            !get().isLoading &&
+            get().items === itemsAtRequestStart &&
+            get().cartId === cartId &&
+            typeof cart?.checkoutUrl === "string" &&
+            cart.checkoutUrl.length > 0
+          ) {
+            set({
+              items: reconciliation.items,
+              checkoutUrl: formatCheckoutUrl(cart.checkoutUrl),
+            });
+          }
         } catch (error) {
           console.error("Failed to sync cart:", error);
         } finally {

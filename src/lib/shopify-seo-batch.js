@@ -119,21 +119,6 @@ export function formatMoneyValue(input) {
   return value.toFixed(2);
 }
 
-function suggestRetailPriceFromCost(cost) {
-  if (!Number.isFinite(cost) || cost <= 0) {
-    return "";
-  }
-
-  const bandTarget =
-    cost < 5 ? cost * 4 : cost < 15 ? cost * 3 : cost < 30 ? cost * 2.5 : cost * 2;
-  const raw = Math.max(cost + 17, bandTarget);
-  if (!Number.isFinite(raw) || raw <= 0) {
-    return "";
-  }
-
-  return (Math.max(0.99, Math.round(raw) - 0.01)).toFixed(2);
-}
-
 function escapeHtml(value) {
   return normalizePlainText(value)
     .replace(/&/g, "&amp;")
@@ -300,47 +285,6 @@ function buildEnhancedDescriptionHtml(title, bodyHtml, productType, tags, seed =
   return parts.filter(Boolean).join("\n");
 }
 
-function isEarringProductRow(row) {
-  const values = [
-    getRowValue(row, ["Handle"]),
-    getRowValue(row, ["Title"]),
-    getRowValue(row, ["Type", "Product Type"]),
-    getRowValue(row, ["Product Category", "Google Shopping / Google Product Category"]),
-    getRowValue(row, ["Tags"]),
-  ];
-
-  return values.some((value) => /earring/i.test(normalizePlainText(value)));
-}
-
-function enforceMinimumSellPrice(price, row) {
-  const numeric = parseMoneyValue(price);
-  if (!Number.isFinite(numeric)) {
-    return "";
-  }
-
-  const floor = isEarringProductRow(row) ? 20 : 0;
-  return Math.max(numeric, floor).toFixed(2);
-}
-
-function enforceMinimumCompareAtPrice(price, row, sellPrice) {
-  const numeric = parseMoneyValue(price);
-  const sellNumeric = parseMoneyValue(sellPrice);
-  if (!isEarringProductRow(row)) {
-    return Number.isFinite(numeric) ? numeric.toFixed(2) : "";
-  }
-
-  const minimum =
-    Number.isFinite(sellNumeric) && sellNumeric > 0
-      ? Math.max(28.99, sellNumeric + 0.01)
-      : 28.99;
-
-  if (!Number.isFinite(numeric)) {
-    return minimum.toFixed(2);
-  }
-
-  return Math.max(numeric, minimum).toFixed(2);
-}
-
 export function toShopifyGid(typeOrValue, maybeValue) {
   const type = maybeValue === undefined ? "Product" : normalizePlainText(typeOrValue) || "Product";
   const value = maybeValue === undefined ? typeOrValue : maybeValue;
@@ -415,20 +359,14 @@ function buildVariantPlanFromRow(row) {
     variantTitle ||
     sku ||
     normalizePlainText(getRowValue(row, ["Title"]));
-  const sourceCostValue = parseMoneyValue(getRowValue(row, ["Cost per item"]));
-  const sourceCost = formatMoneyValue(sourceCostValue);
+  const sourceCost = formatMoneyValue(getRowValue(row, ["Cost per item"]));
   const explicitPrice = formatMoneyValue(firstNonEmpty(getRowValue(row, ["Variant Price"]), getRowValue(row, ["Price / International"])));
-  const derivedPrice = suggestRetailPriceFromCost(sourceCostValue);
-  const price = enforceMinimumSellPrice(derivedPrice || explicitPrice, row);
-  const compareAtPrice = enforceMinimumCompareAtPrice(
-    formatMoneyValue(
+  const price = explicitPrice;
+  const compareAtPrice = formatMoneyValue(
     firstNonEmpty(getRowValue(row, ["Variant Compare At Price"]), getRowValue(row, ["Compare At Price / International"])),
-    ),
-    row,
-    price,
   );
 
-  if (!hasVariantIdentity) {
+  if (!hasVariantIdentity || !price) {
     return null;
   }
 

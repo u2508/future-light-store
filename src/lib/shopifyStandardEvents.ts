@@ -289,43 +289,53 @@ export function beginProductCartAddEvent({
   resolve: (cart: StandardCartSnapshot | null, userErrors?: Array<Record<string, unknown>>) => void;
   reject: (error: unknown) => void;
 } | null {
-  const EventClass = getStandardEventsRuntime()?.CartLinesUpdateEvent;
-  if (!EventClass || !target || !variantId || quantity <= 0) return null;
+  try {
+    const EventClass = getStandardEventsRuntime()?.CartLinesUpdateEvent;
+    if (!EventClass || !target || !variantId || quantity <= 0) return null;
 
-  const deferred = EventClass.createPromise();
-  const eventPayload: CartLinesUpdatePayload = {
-    action: "add",
-    context: "product",
-    lines: [{ merchandiseId: variantId, quantity }],
-    promise: deferred.promise,
-  };
-  if (productId && productTitle && price) {
-    eventPayload.meta = {
-      productId,
-      productTitle,
-      unitPrice: price.amount,
-      currencyCode: price.currencyCode,
+    const deferred = EventClass.createPromise();
+    const eventPayload: CartLinesUpdatePayload = {
+      action: "add",
+      context: "product",
+      lines: [{ merchandiseId: variantId, quantity }],
+      promise: deferred.promise,
     };
-  }
-  target.dispatchEvent(new EventClass(eventPayload));
+    if (productId && productTitle && price) {
+      eventPayload.meta = {
+        productId,
+        productTitle,
+        unitPrice: price.amount,
+        currencyCode: price.currencyCode,
+      };
+    }
+    target.dispatchEvent(new EventClass(eventPayload));
 
-  return {
-    resolve: (cart, userErrors = []) => {
-      deferred.resolve({ cart, userErrors, warnings: [] });
-    },
-    reject: (error) => {
-      const CartErrorEvent = getStandardEventsRuntime()?.CartErrorEvent;
-      if (CartErrorEvent) {
-        target.dispatchEvent(
-          new CartErrorEvent({
-            error: error instanceof Error ? error.message : String(error),
-            code: "SERVICE_UNAVAILABLE",
-          }),
-        );
-      }
-      deferred.reject(error);
-    },
-  };
+    return {
+      resolve: (cart, userErrors = []) => {
+        deferred.resolve({ cart, userErrors, warnings: [] });
+      },
+      reject: (error) => {
+        try {
+          const CartErrorEvent = getStandardEventsRuntime()?.CartErrorEvent;
+          if (CartErrorEvent) {
+            target.dispatchEvent(
+              new CartErrorEvent({
+                error: error instanceof Error ? error.message : String(error),
+                code: "SERVICE_UNAVAILABLE",
+              }),
+            );
+          }
+        } catch {
+          // Optional Shopify event consumers must not strand the deferred result.
+        }
+        deferred.reject(error);
+      },
+    };
+  } catch {
+    // The Storefront API is authoritative; a broken analytics/pixel event must
+    // never prevent a customer from adding an item to the bag.
+    return null;
+  }
 }
 
 /**
@@ -349,7 +359,11 @@ export function dispatchFutureLightCartAdd(
     quantity: payload.quantity,
     currency: payload.price.currencyCode,
   });
-  target.dispatchEvent(new CustomEvent("future-light:cart-add-success", { detail: payload }));
+  try {
+    target.dispatchEvent(new CustomEvent("future-light:cart-add-success", { detail: payload }));
+  } catch {
+    // The successful Storefront API cart mutation remains successful.
+  }
 
   if (typeof window !== "undefined" && window.Shopify?.analytics?.publish) {
     try {

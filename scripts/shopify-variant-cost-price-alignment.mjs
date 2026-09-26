@@ -8,6 +8,7 @@ import { PRICE_REWORK_RULES } from "../src/lib/shopify-price-rework-policy.js";
 import { normalizePlainText } from "../src/lib/shopify-seo-batch.js";
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
 import { envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
+import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const defaultOutputPath = resolve(rootDir, "output", "shopify-variant-cost-price-alignment-manifest.json");
@@ -316,6 +317,7 @@ async function readPriorApplyManifest(path) {
 
 async function main() {
   const args = parseArgs(process.argv);
+  assertFutureLightDirectWriteDisabled({ runner: "variant-cost-price-alignment", mode: args.mode });
   const products = await fetchActiveProducts();
   const plan = buildVariantCostPriceAlignmentPlan(products, { tolerance, priceFloor });
   plan.products = products;

@@ -3,7 +3,7 @@ import { US_SHIPPING_PROMISE } from "@/lib/shipping-promise";
 export const FAQS = [
   {
     question: "How long does delivery take?",
-    answer: `For US addresses, the current standard profile shows ${US_SHIPPING_PROMISE.cost.toLowerCase()} shipping with an estimated ${US_SHIPPING_PROMISE.estimate} delivery window. Shopify confirms the final eligible option at checkout.`,
+    answer: `${US_SHIPPING_PROMISE.summary}. Shopify shows the eligible service and final charge for your address and cart before payment.`,
   },
   {
     question: "Can I return an item?",

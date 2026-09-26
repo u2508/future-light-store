@@ -346,31 +346,6 @@ function rawCategoryMetafield(product, definition) {
     product?.categoryMetafields?.[`${CATEGORY_METAFIELD_NAMESPACE}.${definition.key}`] || null;
 }
 
-function buildClearWrite(product, category, definition, currentReferenceIds) {
-  return {
-    productId: product.id,
-    productGid: product.admin_graphql_api_id || `gid://shopify/Product/${product.id}`,
-    handle: product.handle,
-    categoryId: category.id,
-    attributeId: null,
-    attributeName: definition.name || definition.key,
-    namespace: CATEGORY_METAFIELD_NAMESPACE,
-    key: definition.key,
-    type: definition.type?.name || definition.type || "list.metaobject_reference",
-    metaobjectDefinitionId: definition.metaobjectDefinitionId || null,
-    taxonomyValueId: null,
-    taxonomyValueName: null,
-    confidence: 100,
-    reason: "Cleared unsupported existing category value; no direct product evidence remains",
-    metaobjectType: categoryMetaobjectType(definition),
-    taxonomyFieldKey: "taxonomy_reference",
-    currentReferenceIds,
-    action: "clear-invalid",
-    clear: true,
-    requiresMetaobjectScopes: false,
-  };
-}
-
 export function buildCategoryMetafieldPlan({ product, category, definitions = [], attributes = [] }) {
   if (!product || !category?.id || !attributes.length) {
     return { productId: product?.id || null, categoryId: category?.id || null, writes: [], skipped: [{ reason: "category attributes unavailable" }] };
@@ -446,14 +421,9 @@ export function buildCategoryMetafieldPlan({ product, category, definitions = []
     }
   }
 
-  const keysWithWrites = new Set(writes.map((write) => `${write.namespace}.${write.key}`));
-  const relevantDefinitions = new Map();
-  for (const definition of definitionByAttribute.values()) relevantDefinitions.set(`${definition.namespace || CATEGORY_METAFIELD_NAMESPACE}.${definition.key}`, definition);
-  for (const [fieldId, definition] of relevantDefinitions) {
-    if (keysWithWrites.has(fieldId)) continue;
-    const currentReferenceIds = parseMetafieldReferenceIds(rawCategoryMetafield(product, definition));
-    if (currentReferenceIds.length) writes.push(buildClearWrite(product, category, definition, currentReferenceIds));
-  }
+  // Missing source evidence is not proof that an existing Shopify value is
+  // wrong. Preserve it and let the release evidence gate hold the product;
+  // never clear category references merely because a matcher found nothing.
 
   return { productId: product.id, categoryId: category.id, writes, skipped };
 }

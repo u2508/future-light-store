@@ -11,6 +11,7 @@
 import { createHash } from "node:crypto";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve, relative } from "node:path";
+import { isSha256Hex, isShopifyGidOfType, sameProductGid, sha256Hex } from "./lib/visual-approval-integrity.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const queueDir = resolve(rootDir, "output", "future-light-visual-review");
@@ -57,15 +58,6 @@ function normalize(value) {
 
 function idKey(value) {
   return normalize(value);
-}
-
-function sameShopifyId(left, right) {
-  const a = normalize(left);
-  const b = normalize(right);
-  if (a === b) return true;
-  const aNumeric = a.match(/(\d+)$/)?.[1];
-  const bNumeric = b.match(/(\d+)$/)?.[1];
-  return Boolean(aNumeric && bNumeric && aNumeric === bNumeric);
 }
 
 function imageKey(handle, url) {
@@ -294,6 +286,15 @@ async function validateApproved(queue, approved, reviewProgress) {
     for (const variant of entry.variants) {
       const decision = variantDecisions.get(idKey(variant.variantId));
       if (!decision?.mediaId) failures.push(`${entry.handle}: missing reviewed media mapping for ${variant.title}`);
+      if (decision && !sameProductGid(decision.productId, entry.productId)) {
+        failures.push(`${entry.handle}: variant media decision is not bound to the exact queued product`);
+      }
+      if (decision && !isShopifyGidOfType(decision.variantId, "ProductVariant")) {
+        failures.push(`${entry.handle}: variant decision requires a typed Shopify ProductVariant GID`);
+      }
+      if (decision?.mediaId && !isShopifyGidOfType(decision.mediaId, "MediaImage")) {
+        failures.push(`${entry.handle}: variant media decision requires a typed Shopify MediaImage GID`);
+      }
       if (decision?.mediaId && !entry.media.some((media) => media.id === decision.mediaId)) {
         failures.push(`${entry.handle}: media mapping for ${variant.title} is not one of the product's live media IDs`);
       }
@@ -308,6 +309,9 @@ async function validateApproved(queue, approved, reviewProgress) {
       failures.push(`${image.handle}: missing keep/recreate decision for image ${image.imageUrl}`);
       continue;
     }
+    if (!sameProductGid(decision.productId, image.productId)) {
+      failures.push(`${image.handle}: image decision is not bound to the exact queued product identity`);
+    }
     if (decision.action === "recreate") {
       if (!RECREATE_REASON_CODES.has(normalize(decision.reasonCode))) {
         failures.push(`${image.handle}: recreate requires an approved objective reasonCode; attractive/accurate images must be kept`);
@@ -315,7 +319,7 @@ async function validateApproved(queue, approved, reviewProgress) {
       if (normalize(decision.reviewNote).length < MIN_REVIEW_NOTE_LENGTH) {
         failures.push(`${image.handle}: recreate requires a concise visual review note; do not regenerate on preference alone`);
       }
-      if (decision.productIdentityPreserved !== true || !sameShopifyId(decision.sourceProductId, image.productId)) {
+      if (decision.productIdentityPreserved !== true || !sameProductGid(decision.sourceProductId, image.productId)) {
         failures.push(`${image.handle}: recreated asset is blocked unless the exact source product identity is confirmed and matches the queued product`);
       }
       if (normalize(decision.identityReviewNote).length < MIN_IDENTITY_NOTE_LENGTH) {
@@ -325,8 +329,14 @@ async function validateApproved(queue, approved, reviewProgress) {
       if (!assetPath.startsWith(`${resolve(rootDir, "output", "imagegen")}/`)) {
         failures.push(`${image.handle}: recreated image must live under output/imagegen`);
       } else {
-        try { await access(assetPath); }
-        catch { failures.push(`${image.handle}: recreated image asset is missing at ${relative(rootDir, assetPath)}`); }
+        try {
+          const assetBytes = await readFile(assetPath);
+          if (!isSha256Hex(decision.generatedAssetSha256)) {
+            failures.push(`${image.handle}: recreated image is missing its approved SHA-256 asset fingerprint`);
+          } else if (sha256Hex(assetBytes) !== decision.generatedAssetSha256.toLowerCase()) {
+            failures.push(`${image.handle}: recreated image bytes changed after visual approval`);
+          }
+        } catch { failures.push(`${image.handle}: recreated image asset is missing at ${relative(rootDir, assetPath)}`); }
       }
       if (rejectedAssets.has(normalize(decision.generatedAssetPath))) {
         failures.push(`${image.handle}: recreated asset was explicitly rejected by ChatGPT visual review and is not eligible for upload`);

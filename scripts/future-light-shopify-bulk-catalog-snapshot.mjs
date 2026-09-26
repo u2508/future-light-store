@@ -11,6 +11,7 @@ import {
   parseShopifyBulkJsonl,
   reconcileShopifyBulkCatalog,
 } from "./lib/shopify-catalog-bulk-transform.mjs";
+import { SHOPIFY_ALL_PRODUCT_STATUS_FILTER } from "./lib/shopify-product-status-scope.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const outputDir = join(rootDir, "output");
@@ -41,7 +42,7 @@ const READ_ONLY_ENV_KEYS = new Set([
 
 const CATALOG_QUERY = /* GraphQL */ `
   {
-    products {
+    products(query: "${SHOPIFY_ALL_PRODUCT_STATUS_FILTER}") {
       edges {
         node {
           __typename
@@ -588,10 +589,17 @@ async function pollOperation(client, checkpoint, name) {
 
 async function downloadResult(url, name) {
   let delayMs = 2000;
+  let attempts = 0;
   while (true) {
     assertNotInterrupted();
+    const progress = setInterval(() => {
+      log(`${name} result download is still in progress.`);
+    }, 30_000);
     try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(120_000) });
+      // Full-catalog bulk files can exceed 90 MB. The former two-minute total
+      // deadline repeatedly discarded otherwise healthy transfers on a slow
+      // storage connection, forcing the same large file to start over.
+      const response = await fetch(url, { signal: AbortSignal.timeout(600_000) });
       if (response.ok) return await response.text();
       if (response.status < 500 && response.status !== 429) {
         throw new Error(
@@ -602,11 +610,17 @@ async function downloadResult(url, name) {
     } catch (error) {
       if (!isTransientNetworkError(error) || error?.message?.includes("checkpoint retained"))
         throw error;
+      attempts += 1;
+      const detail = String(error?.cause?.code || error?.code || error?.message || "unknown network error")
+        .replace(/https?:\/\/[^\s]+/gi, "<url>")
+        .slice(0, 160);
       log(
-        `Network/API temporarily unavailable while downloading ${name}; retrying in ${Math.ceil(delayMs / 1000)}s.`,
+        `Network/API temporarily unavailable while downloading ${name} (attempt ${attempts}: ${detail}); retrying in ${Math.ceil(delayMs / 1000)}s.`,
       );
       await sleep(delayMs);
       delayMs = Math.min(60_000, delayMs * 2);
+    } finally {
+      clearInterval(progress);
     }
   }
 }
@@ -690,13 +704,14 @@ async function writeSnapshot(client, checkpoint) {
     apiVersion: client.apiVersion,
     source: "shopify-admin-graphql-completed-bulk-query",
     scope: "all Shopify product statuses",
+    queryFilters: { products: SHOPIFY_ALL_PRODUCT_STATUS_FILTER },
     coverage: {
       products: "complete",
+      productStatuses: "complete",
       productVariants: "complete",
       productMedia: "complete",
       variantMediaAssociations: "complete",
       productMetafields: "complete",
-      productMetafieldReferences: "complete",
       productMetafieldReferences: "complete",
       collectionMemberships: "complete",
       resourcePublications: "complete",

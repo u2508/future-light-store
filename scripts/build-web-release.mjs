@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync, spawn } from "node:child_process";
 import { readFreshLiveCatalogSnapshot } from "./lib/live-catalog-assertion.mjs";
+import { verifyBuiltWebEntrypoint } from "./lib/web-deep-link-assets.mjs";
 
 const rootDir = process.cwd();
 const distDir = resolve(rootDir, "dist");
@@ -186,6 +187,11 @@ async function removeStaticCatalogFromReleaseOutput() {
   await rm(resolve(distDir, "data"), { recursive: true, force: true });
 }
 
+async function verifyWebDeepLinks() {
+  const assetCount = await verifyBuiltWebEntrypoint(distDir);
+  process.stdout.write(`Verified root-absolute assets for direct web landings (${assetCount} assets).\n`);
+}
+
 async function main() {
   await readFreshLiveCatalogSnapshot(resolve(rootDir, "public", "data"), {
     context: "web release catalog",
@@ -237,6 +243,7 @@ async function main() {
     await run(nodeBin, [resolve(rootDir, "scripts", "postbuild-compat.mjs")], process.env, rootDir);
     await run(nodeBin, [resolve(rootDir, "scripts", "generate-seo-static-pages.mjs")], process.env, rootDir);
     await removeStaticCatalogFromReleaseOutput();
+    await verifyWebDeepLinks();
     return;
   }
 
@@ -250,6 +257,7 @@ async function main() {
     await run(nodeBin, [resolve(rootDir, "scripts", "postbuild-compat.mjs")], process.env, rootDir);
     await run(nodeBin, [resolve(rootDir, "scripts", "generate-seo-static-pages.mjs")], process.env, rootDir);
     await removeStaticCatalogFromReleaseOutput();
+    await verifyWebDeepLinks();
     return;
   }
 
@@ -320,6 +328,7 @@ async function main() {
     await syncDirectory(resolve(stageDir, "dist"), resolve(rootDir, "dist"));
     await run(nodeBin, [resolve(rootDir, "scripts", "generate-seo-static-pages.mjs")], process.env, rootDir);
     await removeStaticCatalogFromReleaseOutput();
+    await verifyWebDeepLinks();
   } finally {
     await rm(stageDir, { recursive: true, force: true });
   }

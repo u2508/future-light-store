@@ -13,13 +13,21 @@ import {
   selectLiveVariant,
 } from "../src/lib/shopify-orders-bundle.js";
 import { normalizePlainText } from "../src/lib/shopify-seo-batch.js";
+import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 
-const DEFAULT_SHOP_BASE = "";
-const SHOP_BASE = process.env.SALT_SHOP_URL || DEFAULT_SHOP_BASE;
-const STORE_DOMAIN = new URL(SHOP_BASE).hostname;
-const ADMIN_API_VERSION = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
+const ADMIN_API_VERSION = process.env.FUTURE_LIGHT_SHOPIFY_ADMIN_API_VERSION || "2026-07";
 const SHOPIFY_CLI_AGENT_INFO = process.env.SHOPIFY_CLI_AGENT_INFO || "n:Codex|v:5|p:openai";
 const SHOPIFY_CLI_AGENT_IDS = process.env.SHOPIFY_CLI_AGENT_IDS || "s:local|r:orders-bundle|i:local";
+
+function resolveFutureLightStoreDomain() {
+  const rawDomain = String(process.env.FUTURE_LIGHT_SHOPIFY_STORE_DOMAIN || "").trim();
+  if (!rawDomain) throw new Error("FUTURE_LIGHT_SHOPIFY_STORE_DOMAIN is required for Shopify access.");
+  const url = new URL(/^https?:\/\//i.test(rawDomain) ? rawDomain : `https://${rawDomain}`);
+  if (url.protocol !== "https:" || !url.hostname.endsWith(".myshopify.com")) {
+    throw new Error("FUTURE_LIGHT_SHOPIFY_STORE_DOMAIN must identify the verified Future Light myshopify.com store.");
+  }
+  return url.hostname;
+}
 
 const PRODUCT_BY_IDENTIFIER_QUERY = /* GraphQL */ `
   query OrdersBundleProductByIdentifier($identifier: ProductIdentifierInput!) {
@@ -224,7 +232,7 @@ async function executeStoreGraphQL(query, variables, { allowMutations = false } 
     "store",
     "execute",
     "--store",
-    STORE_DOMAIN,
+    resolveFutureLightStoreDomain(),
     "--query",
     query,
     "--variables",
@@ -374,6 +382,7 @@ async function writeManifest(outputFile, manifest) {
 
 async function main() {
   const args = parseArgs(process.argv);
+  assertFutureLightDirectWriteDisabled({ runner: "orders-bundle", mode: args.apply ? "apply" : "dry-run" });
   const inputFile = requireInputPath(args.input);
   const outputFile = requireOutputPath(inputFile, args.output);
   const rows = await readRowsFromCsv(inputFile);

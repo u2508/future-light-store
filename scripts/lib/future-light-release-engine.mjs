@@ -1,4 +1,8 @@
-import { isRetryableNetworkFailure, runStageWithNetworkRecovery, waitForNetworkRestoration } from "./future-light-network-recovery.mjs";
+import {
+  isRetryableNetworkFailure,
+  runStageWithNetworkRecovery,
+  waitForNetworkRestoration,
+} from "./future-light-network-recovery.mjs";
 import { access } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import {
@@ -20,49 +24,83 @@ function safeFailure(error) {
 }
 
 function assertGraph(graph) {
-  if (!graph || graph.target !== "shopify" || !Array.isArray(graph.stages) || graph.stages.length === 0) {
+  if (
+    !graph ||
+    graph.target !== "shopify" ||
+    !Array.isArray(graph.stages) ||
+    graph.stages.length === 0
+  ) {
     throw new TypeError("A non-empty Shopify-only release graph is required");
   }
   const ids = new Set();
   for (const stage of graph.stages) {
-    if (stage?.target !== "shopify" || typeof stage.id !== "string" || !stage.id.trim() ||
-        typeof stage.resumeFingerprint !== "string" || !/^[a-f0-9]{64}$/.test(stage.resumeFingerprint)) {
+    if (
+      stage?.target !== "shopify" ||
+      typeof stage.id !== "string" ||
+      !stage.id.trim() ||
+      typeof stage.resumeFingerprint !== "string" ||
+      !/^[a-f0-9]{64}$/.test(stage.resumeFingerprint)
+    ) {
       throw new Error("Release graph contains an invalid stage or a non-Shopify target");
     }
     if (ids.has(stage.id)) throw new Error(`Duplicate release stage: ${stage.id}`);
     ids.add(stage.id);
   }
   const [targetStage, snapshotStage] = graph.stages;
-  if (targetStage.id !== "shopify.preflight.target" || targetStage.kind !== "shopify-read" ||
-      targetStage.operation !== "verify-target" || targetStage.scope !== "configured-shopify-store" ||
-      !Array.isArray(targetStage.mutates) || targetStage.mutates.length !== 0 ||
-      !Array.isArray(targetStage.dependsOn) || targetStage.dependsOn.length !== 0) {
-    throw new Error("Release graph must begin at Step 1 with the canonical read-only Shopify target verification");
+  if (
+    targetStage.id !== "shopify.preflight.target" ||
+    targetStage.kind !== "shopify-read" ||
+    targetStage.operation !== "verify-target" ||
+    targetStage.scope !== "configured-shopify-store" ||
+    !Array.isArray(targetStage.mutates) ||
+    targetStage.mutates.length !== 0 ||
+    !Array.isArray(targetStage.dependsOn) ||
+    targetStage.dependsOn.length !== 0
+  ) {
+    throw new Error(
+      "Release graph must begin at Step 1 with the canonical read-only Shopify target verification",
+    );
   }
-  if (snapshotStage.id !== "shopify.read.approved-product-snapshot" || snapshotStage.kind !== "shopify-read" ||
-      snapshotStage.operation !== "read-approved-product-snapshot" ||
-      !Array.isArray(snapshotStage.mutates) || snapshotStage.mutates.length !== 0 ||
-      !Array.isArray(snapshotStage.dependsOn) || snapshotStage.dependsOn.length !== 1 ||
-      snapshotStage.dependsOn[0] !== targetStage.id) {
-    throw new Error("Release graph Step 2 must read the approved snapshot after target verification");
+  if (
+    snapshotStage.id !== "shopify.read.approved-product-snapshot" ||
+    snapshotStage.kind !== "shopify-read" ||
+    snapshotStage.operation !== "read-approved-product-snapshot" ||
+    !Array.isArray(snapshotStage.mutates) ||
+    snapshotStage.mutates.length !== 0 ||
+    !Array.isArray(snapshotStage.dependsOn) ||
+    snapshotStage.dependsOn.length !== 1 ||
+    snapshotStage.dependsOn[0] !== targetStage.id
+  ) {
+    throw new Error(
+      "Release graph Step 2 must read the approved snapshot after target verification",
+    );
   }
   return graph.stages;
 }
 
 function assertReceipt(receipt, stage) {
-  if (!receipt || typeof receipt !== "object" || Array.isArray(receipt) ||
-      receipt.target !== "shopify" || receipt.stageId !== stage.id ||
-      receipt.stageFingerprint !== stage.resumeFingerprint || receipt.readbackVerified !== true ||
-      !/^[a-f0-9]{64}$/.test(String(receipt.readbackFingerprint || "")) ||
-      !Number.isFinite(Date.parse(receipt.verifiedAt))) {
+  if (
+    !receipt ||
+    typeof receipt !== "object" ||
+    Array.isArray(receipt) ||
+    receipt.target !== "shopify" ||
+    receipt.stageId !== stage.id ||
+    receipt.stageFingerprint !== stage.resumeFingerprint ||
+    receipt.readbackVerified !== true ||
+    !/^[a-f0-9]{64}$/.test(String(receipt.readbackFingerprint || "")) ||
+    !Number.isFinite(Date.parse(receipt.verifiedAt))
+  ) {
     throw new Error(`Stage ${stage.id} did not return a complete, exact live-readback receipt`);
   }
   return receipt;
 }
 
 function assertReconciliation(result, stage) {
-  const exact = result?.target === "shopify" && result?.stageId === stage.id &&
-    result?.stageFingerprint === stage.resumeFingerprint && result?.readbackVerified === true;
+  const exact =
+    result?.target === "shopify" &&
+    result?.stageId === stage.id &&
+    result?.stageFingerprint === stage.resumeFingerprint &&
+    result?.readbackVerified === true;
   if (result?.status === "completed" && exact) {
     return { status: "completed", receipt: assertReceipt(result.receipt, stage) };
   }
@@ -79,11 +117,17 @@ function assertIdentity(checkpoint, identity, stages) {
     manifestFingerprint: identity.manifestFingerprint,
     graphFingerprint: identity.graphFingerprint,
   })) {
-    if (checkpoint[key] !== value) throw new Error(`Resume refused: ${key} does not match the saved checkpoint`);
+    if (checkpoint[key] !== value)
+      throw new Error(`Resume refused: ${key} does not match the saved checkpoint`);
   }
   const stageIds = stages.map(({ id }) => id);
-  if (checkpoint.stageIds.length !== stageIds.length || checkpoint.stageIds.some((id, index) => id !== stageIds[index])) {
-    throw new Error("Resume refused: release stage graph does not exactly match the saved checkpoint");
+  if (
+    checkpoint.stageIds.length !== stageIds.length ||
+    checkpoint.stageIds.some((id, index) => id !== stageIds[index])
+  ) {
+    throw new Error(
+      "Resume refused: release stage graph does not exactly match the saved checkpoint",
+    );
   }
 }
 
@@ -109,8 +153,10 @@ export async function runFutureLightReleaseGraph({
   onStateChange = () => {},
 } = {}) {
   const stages = assertGraph(graph);
-  if (typeof projectRoot !== "string" || !projectRoot.trim()) throw new TypeError("projectRoot is required");
-  if (typeof checkpointPath !== "string" || !checkpointPath.trim()) throw new TypeError("checkpointPath is required");
+  if (typeof projectRoot !== "string" || !projectRoot.trim())
+    throw new TypeError("projectRoot is required");
+  if (typeof checkpointPath !== "string" || !checkpointPath.trim())
+    throw new TypeError("checkpointPath is required");
   if (typeof shopDomain !== "string" || !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i.test(shopDomain)) {
     throw new TypeError("An explicit Shopify myshopify.com target is required");
   }
@@ -120,8 +166,12 @@ export async function runFutureLightReleaseGraph({
   if (!handlers || typeof handlers !== "object") throw new TypeError("Stage handlers are required");
   for (const stage of stages) {
     const handler = handlers[stage.id];
-    if (!handler || typeof handler.run !== "function" || typeof handler.probe !== "function" ||
-        typeof handler.reconcile !== "function") {
+    if (
+      !handler ||
+      typeof handler.run !== "function" ||
+      typeof handler.probe !== "function" ||
+      typeof handler.reconcile !== "function"
+    ) {
       throw new TypeError(`Stage ${stage.id} requires run, probe, and reconcile handlers`);
     }
   }
@@ -133,7 +183,8 @@ export async function runFutureLightReleaseGraph({
     checkpoint.updatedAt = now();
     await writeFutureLightReleaseCheckpoint(activeCheckpointPath, checkpoint);
   };
-  const report = async (event) => onStateChange(Object.freeze({ ...event, runId: checkpoint?.runId }));
+  const report = async (event) =>
+    onStateChange(Object.freeze({ ...event, runId: checkpoint?.runId }));
 
   try {
     const identity = {
@@ -152,46 +203,77 @@ export async function runFutureLightReleaseGraph({
         assertReceipt(checkpoint.receiptsByStage[stageId], stage);
       }
 
-      const targetStage = stages[0];
-      const targetHandler = handlers[targetStage.id];
-      const targetExecution = await runStageWithNetworkRecovery({
-        stageId: targetStage.id,
-        stageFingerprint: targetStage.resumeFingerprint,
-        mutating: false,
-        run: ({ signal: stageSignal }) => targetHandler.run({ stage: targetStage, checkpoint, signal: stageSignal }),
-        reconcile: ({ stageId, error, signal: stageSignal }) => targetHandler.reconcile({
-          stage: targetStage,
-          checkpoint,
-          error,
-          signal: stageSignal,
-        }),
-        probe: targetHandler.probe,
-        signal,
-        sleep,
-        minDelayMs,
-        maxDelayMs,
-        onStateChange: async (event) => {
-          checkpoint.status = event.state === "waiting_for_network" ? "waiting_for_network" : "running";
-          checkpoint.failure = event.error ? { code: "NETWORK_WAIT", message: event.error } : null;
-          await persist();
-          await report({ ...event, stageId: targetStage.id, stageIndex: 0, stageCount: stages.length });
-        },
-      });
-      const targetReceipt = targetExecution?.status === "reconciled_completed"
-        ? assertReceipt(targetExecution.receipt, targetStage)
-        : targetExecution?.status === "completed"
-          ? assertReceipt(targetExecution.receipt, targetStage)
-          : assertReceipt(null, targetStage);
-      if (!checkpoint.completedStageIds.includes(targetStage.id)) {
-        checkpoint.completedStageIds.unshift(targetStage.id);
+      for (const [stageIndex, stage] of stages.slice(0, 2).entries()) {
+        const handler = handlers[stage.id];
+        const execution = await runStageWithNetworkRecovery({
+          stageId: stage.id,
+          stageFingerprint: stage.resumeFingerprint,
+          mutating: false,
+          run: ({ signal: stageSignal }) => handler.run({ stage, checkpoint, signal: stageSignal }),
+          reconcile: ({ stageId, error, signal: stageSignal }) =>
+            handler.reconcile({
+              stage,
+              checkpoint,
+              error,
+              signal: stageSignal,
+            }),
+          probe: handler.probe,
+          signal,
+          sleep,
+          minDelayMs,
+          maxDelayMs,
+          onStateChange: async (event) => {
+            checkpoint.status =
+              event.state === "waiting_for_network" ? "waiting_for_network" : "running";
+            checkpoint.failure = event.error
+              ? { code: "NETWORK_WAIT", message: event.error }
+              : null;
+            await persist();
+            await report({ ...event, stageId: stage.id, stageIndex, stageCount: stages.length });
+          },
+        });
+        const receipt =
+          execution?.status === "reconciled_completed"
+            ? assertReceipt(execution.receipt, stage)
+            : execution?.status === "completed"
+              ? assertReceipt(execution.receipt, stage)
+              : assertReceipt(null, stage);
+        if (!checkpoint.completedStageIds.includes(stage.id))
+          checkpoint.completedStageIds.push(stage.id);
+        checkpoint.receiptsByStage ||= {};
+        checkpoint.receiptsByStage[stage.id] = receipt;
+        if (checkpoint.inProgressStageId === stage.id) checkpoint.inProgressStageId = null;
+        checkpoint.status = "running";
+        checkpoint.failure = null;
+        await persist();
+        await report({
+          state: "stage_reverified",
+          stageId: stage.id,
+          stageIndex,
+          stageCount: stages.length,
+        });
       }
-      checkpoint.receiptsByStage ||= {};
-      checkpoint.receiptsByStage[targetStage.id] = targetReceipt;
-      if (checkpoint.inProgressStageId === targetStage.id) checkpoint.inProgressStageId = null;
-      checkpoint.status = "running";
-      checkpoint.failure = null;
-      await persist();
-      await report({ state: "stage_reverified", stageId: targetStage.id, stageIndex: 0, stageCount: stages.length });
+
+      for (const stageId of checkpoint.completedStageIds.slice(2)) {
+        const stage = stages.find(({ id }) => id === stageId);
+        const handler = handlers[stage.id];
+        const outcome = assertReconciliation(
+          await handler.reconcile({
+            stage,
+            checkpoint,
+            signal,
+            phase: "resume-verify-completed-stage",
+          }),
+          stage,
+        );
+        if (outcome.status !== "completed") {
+          throw new Error(
+            `Resume refused: previously completed stage ${stage.id} no longer matches live Shopify state`,
+          );
+        }
+        checkpoint.receiptsByStage[stage.id] = outcome.receipt;
+        await persist();
+      }
 
       if (checkpoint.inProgressStageId) {
         const stage = stages.find(({ id }) => id === checkpoint.inProgressStageId);
@@ -199,14 +281,21 @@ export async function runFutureLightReleaseGraph({
         let outcome;
         for (;;) {
           try {
-            outcome = assertReconciliation(await handler.reconcile({ stage, checkpoint, signal }), stage);
+            outcome = assertReconciliation(
+              await handler.reconcile({ stage, checkpoint, signal }),
+              stage,
+            );
             break;
           } catch (error) {
             if (!isRetryableNetworkFailure(error)) throw error;
             checkpoint.status = "waiting_for_network";
             checkpoint.failure = safeFailure(error);
             await persist();
-            await report({ state: "waiting_for_network", stageId: stage.id, error: checkpoint.failure.message });
+            await report({
+              state: "waiting_for_network",
+              stageId: stage.id,
+              error: checkpoint.failure.message,
+            });
             await waitForNetworkRestoration({
               probe: handler.probe,
               signal,
@@ -214,8 +303,11 @@ export async function runFutureLightReleaseGraph({
               minDelayMs,
               maxDelayMs,
               onStateChange: async (event) => {
-                checkpoint.status = event.state === "waiting_for_network" ? "waiting_for_network" : "running";
-                checkpoint.failure = event.error ? { code: "NETWORK_WAIT", message: event.error } : null;
+                checkpoint.status =
+                  event.state === "waiting_for_network" ? "waiting_for_network" : "running";
+                checkpoint.failure = event.error
+                  ? { code: "NETWORK_WAIT", message: event.error }
+                  : null;
                 await persist();
                 await report({ ...event, stageId: stage.id });
               },
@@ -253,7 +345,12 @@ export async function runFutureLightReleaseGraph({
       checkpoint.failure = null;
       checkpoint.inProgressStageId = stage.id;
       await persist();
-      await report({ state: "running", stageId: stage.id, stageIndex: index, stageCount: stages.length });
+      await report({
+        state: "running",
+        stageId: stage.id,
+        stageIndex: index,
+        stageCount: stages.length,
+      });
 
       try {
         const mutating = Array.isArray(stage.mutates) && stage.mutates.length > 0;
@@ -262,29 +359,39 @@ export async function runFutureLightReleaseGraph({
           stageFingerprint: stage.resumeFingerprint,
           mutating,
           run: ({ signal: stageSignal }) => handler.run({ stage, checkpoint, signal: stageSignal }),
-          reconcile: ({ stageId, error, signal: stageSignal }) => handler.reconcile({
-            stage,
-            checkpoint,
-            error,
-            signal: stageSignal,
-          }),
+          reconcile: ({ stageId, error, signal: stageSignal }) =>
+            handler.reconcile({
+              stage,
+              checkpoint,
+              error,
+              signal: stageSignal,
+            }),
           probe: handler.probe,
           signal,
           sleep,
           minDelayMs,
           maxDelayMs,
           onStateChange: async (event) => {
-            checkpoint.status = event.state === "waiting_for_network" ? "waiting_for_network" : "running";
-            checkpoint.failure = event.error ? { code: "NETWORK_WAIT", message: event.error } : null;
+            checkpoint.status =
+              event.state === "waiting_for_network" ? "waiting_for_network" : "running";
+            checkpoint.failure = event.error
+              ? { code: "NETWORK_WAIT", message: event.error }
+              : null;
             await persist();
-            await report({ ...event, stageId: stage.id, stageIndex: index, stageCount: stages.length });
+            await report({
+              ...event,
+              stageId: stage.id,
+              stageIndex: index,
+              stageCount: stages.length,
+            });
           },
         });
-        const receipt = execution?.status === "reconciled_completed"
-          ? assertReceipt(execution.receipt, stage)
-          : execution?.status === "completed"
+        const receipt =
+          execution?.status === "reconciled_completed"
             ? assertReceipt(execution.receipt, stage)
-            : assertReceipt(null, stage);
+            : execution?.status === "completed"
+              ? assertReceipt(execution.receipt, stage)
+              : assertReceipt(null, stage);
         checkpoint.receiptsByStage ||= {};
         checkpoint.receiptsByStage[stage.id] = receipt;
         checkpoint.completedStageIds.push(stage.id);
@@ -292,12 +399,21 @@ export async function runFutureLightReleaseGraph({
         checkpoint.status = "running";
         checkpoint.failure = null;
         await persist();
-        await report({ state: "stage_completed", stageId: stage.id, stageIndex: index, stageCount: stages.length });
+        await report({
+          state: "stage_completed",
+          stageId: stage.id,
+          stageIndex: index,
+          stageCount: stages.length,
+        });
       } catch (error) {
         checkpoint.status = isRetryableNetworkFailure(error) ? "waiting_for_network" : "failed";
         checkpoint.failure = safeFailure(error);
         await persist();
-        await report({ state: checkpoint.status, stageId: stage.id, error: checkpoint.failure.message });
+        await report({
+          state: checkpoint.status,
+          stageId: stage.id,
+          error: checkpoint.failure.message,
+        });
         throw error;
       }
     }

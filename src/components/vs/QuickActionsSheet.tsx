@@ -13,6 +13,13 @@ import { discountPercent, fetchProduct, formatMoney, type ShopifyProduct } from 
 import { requestCartOpen, useCartStore } from "@/stores/cartStore";
 import { useWishlistStore } from "@/stores/wishlistStore";
 import { cn } from "@/lib/utils";
+import {
+  getProductGalleryImages,
+  getVariantImage,
+  preserveSelectedVariantId,
+  selectVariantGalleryIndex,
+} from "@/lib/product-variant-image.mjs";
+import { US_SHIPPING_PROMISE } from "@/lib/shipping-promise";
 
 export function QuickActionsSheet({
   product,
@@ -49,6 +56,7 @@ export function QuickActionsSheet({
   const [unavailableVariantIds, setUnavailableVariantIds] = useState<Set<string>>(new Set());
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
+  const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
   const addItem = useCartStore((s) => s.addItem);
   const isLoading = useCartStore((s) => s.isLoading);
   const wishlisted = useWishlistStore((s) => s.items.some((i) => i.node.handle === n.handle));
@@ -58,24 +66,40 @@ export function QuickActionsSheet({
     if (open) {
       setQuantity(1);
       setImageIndex(0);
+      setFailedImageUrls(new Set());
       setHasSelectedVariant(false);
       setUnavailableVariantIds(new Set());
     }
   }, [open, n.handle]);
 
   useEffect(() => {
-    if (open) setSelectedId(defaultVariantId);
-  }, [open, defaultVariantId]);
+    if (open) {
+      setSelectedId((current) => preserveSelectedVariantId(current, variants, defaultVariantId));
+    }
+  }, [open, variants, defaultVariantId]);
 
-  const images = Array.from(
-    new Map(
-      [
-        ...activeNode.images.edges.map((edge) => edge.node),
-        ...variants.flatMap((variant) => (variant.image ? [variant.image] : [])),
-      ].map((image) => [image.url, image] as const),
-    ).values(),
+  const images = useMemo(
+    () => getProductGalleryImages(activeNode, variants),
+    [activeNode, variants],
   );
+  const activeImage =
+    (images[imageIndex] && !failedImageUrls.has(images[imageIndex].url) && images[imageIndex]) ||
+    images.find((image) => !failedImageUrls.has(image.url)) ||
+    null;
+  const visibleImages = images
+    .map((image, originalIndex) => ({ image, originalIndex }))
+    .filter(({ image }) => !failedImageUrls.has(image.url));
   const selected = variants.find((v) => v.id === selectedId) ?? null;
+  const selectedImage = getVariantImage(selected);
+  useEffect(() => {
+    if (!open || !selected) return;
+    setImageIndex(
+      selectVariantGalleryIndex(
+        images.map((image) => image.url),
+        selectedImage?.url,
+      ),
+    );
+  }, [open, selected, selectedImage?.url, images]);
   const selectedAvailable =
     Boolean(selected?.availableForSale) && !unavailableVariantIds.has(selected?.id ?? "");
   const selectedLowStock =
@@ -102,6 +126,8 @@ export function QuickActionsSheet({
       product: activeProduct,
       variantId: selected.id,
       variantTitle: selected.title,
+      variantImageUrl: selectedImage?.url ?? null,
+      variantImageAlt: selectedImage?.altText ?? null,
       price: selected.price,
       quantity,
       selectedOptions: selected.selectedOptions ?? [],
@@ -140,11 +166,14 @@ export function QuickActionsSheet({
         <div className="grid gap-6 pt-4 sm:grid-cols-2">
           <div className="space-y-3">
             <div className="aspect-square overflow-hidden rounded-2xl border border-border bg-secondary">
-              {images[imageIndex] ? (
+              {activeImage ? (
                 <img
-                  src={images[imageIndex]!.url}
-                  alt={images[imageIndex]!.altText ?? activeNode.title}
+                  src={activeImage.url}
+                  alt={activeImage.altText ?? activeNode.title}
                   className="h-full w-full object-cover"
+                  onError={() =>
+                    setFailedImageUrls((current) => new Set(current).add(activeImage.url))
+                  }
                 />
               ) : (
                 <div className="grid h-full place-items-center text-xs text-muted-foreground">
@@ -152,19 +181,26 @@ export function QuickActionsSheet({
                 </div>
               )}
             </div>
-            {images.length > 1 && (
+            {visibleImages.length > 1 && (
               <div className="flex gap-2 overflow-x-auto">
-                {images.map((img, i) => (
+                {visibleImages.map(({ image: img, originalIndex }) => (
                   <button
+                    type="button"
                     key={img.url}
-                    onClick={() => setImageIndex(i)}
-                    aria-label={`View image ${i + 1}`}
+                    onClick={() => setImageIndex(originalIndex)}
+                    aria-label={`View image ${originalIndex + 1}`}
                     className={cn(
                       "h-14 w-14 shrink-0 overflow-hidden rounded-lg border",
-                      i === imageIndex ? "border-primary" : "border-border",
+                      originalIndex === imageIndex ? "border-primary" : "border-border",
                     )}
                   >
-                    <img src={img.url} alt="" className="h-full w-full object-cover" />
+                    <img
+                      src={img.url}
+                      alt=""
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                      onError={() => setFailedImageUrls((current) => new Set(current).add(img.url))}
+                    />
                   </button>
                 ))}
               </div>
@@ -201,15 +237,19 @@ export function QuickActionsSheet({
                 <div className="flex flex-wrap gap-2">
                   {variants.map((v) => (
                     <button
+                      type="button"
                       key={v.id}
                       disabled={!v.availableForSale || unavailableVariantIds.has(v.id)}
                       onClick={() => {
                         setSelectedId(v.id);
                         setHasSelectedVariant(true);
-                        const variantImageIndex = images.findIndex(
-                          (image) => image.url === v.image?.url,
+                        const variantImage = getVariantImage(v);
+                        setImageIndex(
+                          selectVariantGalleryIndex(
+                            images.map((image) => image.url),
+                            variantImage?.url,
+                          ),
                         );
-                        if (variantImageIndex >= 0) setImageIndex(variantImageIndex);
                       }}
                       className={cn(
                         "rounded-xl border px-3 py-2 text-sm transition-colors",
@@ -233,6 +273,7 @@ export function QuickActionsSheet({
               </span>
               <div className="flex items-center gap-1 rounded-xl border border-border p-1">
                 <button
+                  type="button"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                   aria-label="Decrease quantity"
                   className="grid h-7 w-7 place-items-center rounded-lg hover:bg-muted"
@@ -241,6 +282,7 @@ export function QuickActionsSheet({
                 </button>
                 <span className="w-8 text-center text-sm">{quantity}</span>
                 <button
+                  type="button"
                   onClick={() => setQuantity((q) => q + 1)}
                   aria-label="Increase quantity"
                   className="grid h-7 w-7 place-items-center rounded-lg hover:bg-muted"
@@ -258,6 +300,7 @@ export function QuickActionsSheet({
 
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={handleAdd}
                 disabled={
                   isLoading || fullProductLoading || Boolean(fullProductError) || !selectedAvailable
@@ -267,6 +310,7 @@ export function QuickActionsSheet({
                 {isLoading ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Add to bag"}
               </button>
               <button
+                type="button"
                 onClick={() => {
                   const added = toggleWishlist(product);
                   toast(added ? "Saved to wishlist" : "Removed from wishlist", {
@@ -282,7 +326,10 @@ export function QuickActionsSheet({
 
             <div className="space-y-1.5 text-xs text-muted-foreground">
               <p className="flex items-center gap-2">
-                <Truck className="h-3.5 w-3.5" /> Delivery estimate shown at checkout
+                <Truck className="h-3.5 w-3.5" /> {US_SHIPPING_PROMISE.summary}
+              </p>
+              <p className="pl-5 text-[11px] leading-5">
+                Taxes and address-specific delivery exceptions are confirmed at checkout.
               </p>
               <p className="flex items-center gap-2">
                 <ShieldCheck className="h-3.5 w-3.5" /> Secure Shopify checkout

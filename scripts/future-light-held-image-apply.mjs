@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 
 import { FUTURE_LIGHT_SHOP_DOMAIN } from "./lib/product-image-health.mjs";
+import { assertCompleteProductMediaPagination } from "./lib/product-media-pagination.mjs";
 
 const execFileAsync = promisify(execFile);
 const rootDir = resolve(import.meta.dirname, "..");
@@ -46,7 +47,7 @@ const PRODUCT_QUERY = /* GraphQL */ `
           nodes {
             id
             title
-            media(first: 10) { nodes { __typename id ... on MediaImage { image { url } } } }
+            media(first: 10) { nodes { __typename id ... on MediaImage { image { url } } } pageInfo { hasNextPage } }
           }
           pageInfo { hasNextPage }
         }
@@ -212,8 +213,7 @@ async function readProduct(productId) {
   if (!product) throw new Error(`Future Light product not found: ${productId}`);
   if (normalize(product.vendor) !== "VS Store") throw new Error(`Refused non-VS Store product: ${product.handle}`);
   if (normalize(product.status).toUpperCase() !== "ACTIVE") throw new Error(`Refused non-active product: ${product.handle}`);
-  if (product.media?.pageInfo?.hasNextPage || product.variants?.pageInfo?.hasNextPage) throw new Error(`Incomplete media or variant pagination for ${product.handle}`);
-  return product;
+  return assertCompleteProductMediaPagination(product);
 }
 
 async function stageAsset(filePath) {

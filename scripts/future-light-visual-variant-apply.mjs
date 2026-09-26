@@ -7,10 +7,13 @@
 import { execFile } from "node:child_process";
 import { basename, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import { FUTURE_LIGHT_SHOP_DOMAIN } from "./lib/product-image-health.mjs";
+import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
+import { assertCompleteProductMediaPagination } from "./lib/product-media-pagination.mjs";
+import { isSha256Hex, isShopifyGidOfType, sameProductGid, sha256Hex } from "./lib/visual-approval-integrity.mjs";
 
 const execFileAsync = promisify(execFile);
 const rootDir = resolve(import.meta.dirname, "..");
@@ -33,7 +36,7 @@ const PRODUCT_QUERY = /* GraphQL */ `
           pageInfo { hasNextPage }
         }
         variants(first: 250) {
-          nodes { id title sku selectedOptions { name value } media(first: 1) { nodes { __typename id ... on MediaImage { image { url width height } } } } }
+          nodes { id title sku selectedOptions { name value } media(first: 1) { nodes { __typename id ... on MediaImage { image { url width height } } } pageInfo { hasNextPage } } }
           pageInfo { hasNextPage }
         }
       }
@@ -47,7 +50,7 @@ const PRODUCT_BY_HANDLE_QUERY = /* GraphQL */ `
       nodes {
         id handle title vendor status
         media(first: 250) { nodes { __typename id alt ... on MediaImage { image { url width height } } } pageInfo { hasNextPage } }
-        variants(first: 250) { nodes { id title media(first: 1) { nodes { __typename id } } } pageInfo { hasNextPage } }
+        variants(first: 250) { nodes { id title media(first: 1) { nodes { __typename id } pageInfo { hasNextPage } } } pageInfo { hasNextPage } }
       }
     }
   }
@@ -101,14 +104,6 @@ const DELETE_MEDIA_MUTATION = /* GraphQL */ `
 
 function asArray(value) { return Array.isArray(value) ? value : []; }
 function normalize(value) { return String(value ?? "").replace(/\s+/g, " ").trim(); }
-function sameShopifyId(left, right) {
-  const a = normalize(left);
-  const b = normalize(right);
-  if (a === b) return true;
-  const aNumeric = a.match(/(\d+)$/)?.[1];
-  const bNumeric = b.match(/(\d+)$/)?.[1];
-  return Boolean(aNumeric && bNumeric && aNumeric === bNumeric);
-}
 function safeChildEnv() { return Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^SALT_/i.test(key))); }
 
 function parseEnvValue(value) {
@@ -189,8 +184,7 @@ async function readProduct(id) {
   if (!product) throw new Error(`Future Light product not found: ${id}`);
   if (normalize(product.vendor) !== "VS Store") throw new Error(`Refused non-VS Store product: ${product.handle}`);
   if (normalize(product.status).toUpperCase() !== "ACTIVE") throw new Error(`Refused non-active product: ${product.handle}`);
-  if (product.media?.pageInfo?.hasNextPage || product.variants?.pageInfo?.hasNextPage) throw new Error(`Incomplete media or variant pagination for ${product.handle}`);
-  return product;
+  return assertCompleteProductMediaPagination(product);
 }
 
 async function readProductByHandle(handle) {
@@ -198,7 +192,7 @@ async function readProductByHandle(handle) {
   const product = data?.products?.nodes?.[0];
   if (!product) throw new Error(`Future Light product not found: ${handle}`);
   if (normalize(product.vendor) !== "VS Store") throw new Error(`Refused non-VS Store product: ${handle}`);
-  return product;
+  return assertCompleteProductMediaPagination(product);
 }
 
 async function stageAsset(filePath) {
@@ -218,15 +212,23 @@ async function stageAsset(filePath) {
 }
 
 async function createReplacementMedia(product, decision) {
-  if (decision.productIdentityPreserved !== true || !sameShopifyId(decision.sourceProductId, product.id)) {
+  if (decision.productIdentityPreserved !== true
+    || !sameProductGid(decision.productId, product.id)
+    || !sameProductGid(decision.sourceProductId, product.id)) {
     throw new Error(`${product.handle}: refused replacement image without exact source-product identity confirmation`);
+  }
+  if (!asArray(product.media?.nodes).some((media) => normalize(media.image?.url) === normalize(decision.imageUrl))) {
+    throw new Error(`${product.handle}: refused replacement because the reviewed source image is not in the current product media readback`);
   }
   if (normalize(decision.identityReviewNote).length < 30) {
     throw new Error(`${product.handle}: refused replacement image without a substantive identity review note`);
   }
   const assetPath = resolve(rootDir, normalize(decision.generatedAssetPath || ""));
   if (!assetPath.startsWith(`${resolve(rootDir, "output", "imagegen")}/`)) throw new Error(`Refused generated asset outside output/imagegen: ${decision.generatedAssetPath}`);
-  await access(assetPath);
+  const assetBytes = await readFile(assetPath);
+  if (!isSha256Hex(decision.generatedAssetSha256) || sha256Hex(assetBytes) !== decision.generatedAssetSha256.toLowerCase()) {
+    throw new Error(`${product.handle}: generated asset is missing its approved SHA-256 fingerprint or changed after visual review`);
+  }
   const originalSource = await stageAsset(assetPath);
   const data = await runGraphql(CREATE_MEDIA_MUTATION, {
     productId: product.id,
@@ -263,6 +265,12 @@ async function updateVariants(product, decisions, replacements) {
     const mediaId = decision.sourceImageUrl && replacements.get(normalize(decision.sourceImageUrl))
       ? replacements.get(normalize(decision.sourceImageUrl))
       : decision.mediaId;
+    if (!isShopifyGidOfType(decision.variantId, "ProductVariant") || !isShopifyGidOfType(mediaId, "MediaImage")) {
+      throw new Error(`${product.handle}: variant assignment requires typed Shopify ProductVariant and MediaImage GIDs`);
+    }
+    if (decision.productId && !sameProductGid(decision.productId, product.id)) {
+      throw new Error(`${product.handle}: variant assignment is bound to a different product`);
+    }
     const variant = product.variants?.nodes?.find((candidate) => candidate.id === decision.variantId);
     if (!variant) throw new Error(`${product.handle}: variant ${decision.variantId} is not present in live readback`);
     if (!product.media?.nodes?.some((media) => media.id === mediaId) && !replacementsHasValue(replacements, mediaId)) {
@@ -320,6 +328,7 @@ async function runCheck() {
 }
 
 async function main() {
+  assertFutureLightDirectWriteDisabled({ runner: "visual-variant-apply", mode: "apply" });
   await loadFutureEnv();
   await runCheck();
   const queue = await readJson(queuePath);

@@ -1,13 +1,18 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { adminGraphql, ORDER_FIELDS, orderRow, num, type AdminOrder } from "../_shared/shopify.ts";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+import type { Database, Json } from "../../../src/integrations/supabase/types.ts";
+import { adminGraphql, type AdminOrder, num, ORDER_FIELDS, orderRow } from "../_shared/shopify.ts";
 import { sendMetaPurchase } from "../_shared/meta.ts";
 import { sendGooglePurchase } from "../_shared/google.ts";
 import {
   shopifyWebhookSignatureHeader,
   verifyShopifyWebhookRequest,
 } from "../_shared/shopify-webhook-signature.ts";
-import { webhookFailureStatus, webhookReceiptKey } from "../_shared/shopify-webhook-reliability.ts";
+import {
+  webhookReceiptDecision,
+  webhookReceiptKey,
+  webhookReceiptOutcome,
+} from "../_shared/shopify-webhook-reliability.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -22,8 +27,17 @@ function toGid(id: unknown): string | null {
   return null;
 }
 
-type Receipt = { status: string; attempts: number };
-type ServiceClient = ReturnType<typeof createClient>;
+function isJsonObject(value: Json | undefined): value is Record<string, Json | undefined> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+type Receipt = {
+  status: string;
+  attempts: number;
+  last_error: string | null;
+  updated_at: string;
+};
+type ServiceClient = SupabaseClient<Database>;
 
 async function claimReceipt(
   service: ServiceClient,
@@ -40,23 +54,23 @@ async function claimReceipt(
       status: "processing",
       attempts: 1,
     })
-    .select("status, attempts")
+    .select("status, attempts, last_error, updated_at")
     .maybeSingle();
   if (!inserted.error) return "process";
   if (inserted.error.code !== "23505") throw inserted.error;
 
   const existing = await service
     .from("shopify_webhook_receipts")
-    .select("status, attempts")
+    .select("status, attempts, last_error, updated_at")
     .eq("dedupe_key", dedupeKey)
     .maybeSingle();
   if (existing.error) throw existing.error;
   const receipt = existing.data as Receipt | null;
-  if (!receipt) throw new Error(`Webhook receipt ${dedupeKey} disappeared during retry claim`);
-  if (receipt.status === "processed" || receipt.status === "processed_with_warnings") {
-    return "duplicate";
+  if (!receipt) {
+    throw new Error(`Webhook receipt ${dedupeKey} disappeared during retry claim`);
   }
-  if (receipt.status === "processing") return "in_flight";
+  const decision = webhookReceiptDecision(receipt);
+  if (decision !== "process") return decision;
 
   const updated = await service
     .from("shopify_webhook_receipts")
@@ -66,9 +80,27 @@ async function claimReceipt(
       last_error: null,
       updated_at: new Date().toISOString(),
     })
-    .eq("dedupe_key", dedupeKey);
+    .eq("dedupe_key", dedupeKey)
+    .eq("status", receipt.status)
+    .eq("updated_at", receipt.updated_at)
+    .select("dedupe_key")
+    .maybeSingle();
   if (updated.error) throw updated.error;
-  return "process";
+  if (updated.data) return "process";
+
+  // Another delivery won the compare-and-set race. Re-read once and either
+  // suppress a completed duplicate or return 409 so Shopify can retry later.
+  const latestResult = await service
+    .from("shopify_webhook_receipts")
+    .select("status, attempts, last_error, updated_at")
+    .eq("dedupe_key", dedupeKey)
+    .maybeSingle();
+  if (latestResult.error) throw latestResult.error;
+  const latest = latestResult.data as Receipt | null;
+  if (!latest) {
+    throw new Error(`Webhook receipt ${dedupeKey} disappeared during retry claim`);
+  }
+  return webhookReceiptDecision(latest) === "duplicate" ? "duplicate" : "in_flight";
 }
 
 async function updateReceipt(
@@ -79,15 +111,25 @@ async function updateReceipt(
 ) {
   const result = await service
     .from("shopify_webhook_receipts")
-    .update({ status, last_error: lastError, updated_at: new Date().toISOString() })
+    .update({
+      status,
+      last_error: lastError,
+      updated_at: new Date().toISOString(),
+    })
     .eq("dedupe_key", dedupeKey);
   if (result.error) throw result.error;
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST")
-    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", {
+      status: 405,
+      headers: corsHeaders,
+    });
+  }
 
   const topic = req.headers.get("x-shopify-topic") ?? "unknown";
   const rawBody = await req.text();
@@ -104,15 +146,18 @@ Deno.serve(async (req) => {
         ok: false,
         error: webhookSecret ? "invalid_signature" : "webhook_secret_not_configured",
       }),
-      { status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      {
+        status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 
-  const service = createClient(SUPABASE_URL, SERVICE_ROLE);
-  let payload: Record<string, unknown> = {};
+  const service = createClient<Database>(SUPABASE_URL, SERVICE_ROLE);
+  let payload: Record<string, Json | undefined> = {};
 
   try {
-    payload = JSON.parse(rawBody) as Record<string, unknown>;
+    payload = JSON.parse(rawBody) as Record<string, Json | undefined>;
   } catch {
     payload = {};
   }
@@ -123,12 +168,18 @@ Deno.serve(async (req) => {
     toGid(payload["admin_graphql_api_id"]) ??
     toGid(payload["id"]) ??
     toGid(payload["order_id"]) ??
-    toGid((payload["order"] as Record<string, unknown> | undefined)?.["id"]);
+    toGid(isJsonObject(payload["order"]) ? payload["order"]["id"] : undefined);
 
   if (!orderGid) {
     return new Response(
-      JSON.stringify({ ok: false, error: "Webhook payload has no resolvable order id" }),
-      { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify({
+        ok: false,
+        error: "Webhook payload has no resolvable order id",
+      }),
+      {
+        status: 422,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 
@@ -137,7 +188,7 @@ Deno.serve(async (req) => {
   const eventInsert = {
     topic,
     shopify_id: orderGid,
-    payload: payload as Record<string, unknown>,
+    payload,
     status: "received",
     error: null as string | null,
   };
@@ -149,7 +200,11 @@ Deno.serve(async (req) => {
     console.error("shopify-webhook receipt claim failed", error);
     return new Response(JSON.stringify({ ok: false, error: "receipt_claim_failed" }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "5" },
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Retry-After": "5",
+      },
     });
   }
   if (receiptClaim === "duplicate") {
@@ -160,12 +215,18 @@ Deno.serve(async (req) => {
   if (receiptClaim === "in_flight") {
     return new Response(JSON.stringify({ ok: false, error: "webhook_processing_in_flight" }), {
       status: 409,
-      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "5" },
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Retry-After": "5",
+      },
     });
   }
 
   try {
-    const data: { order: AdminOrder | null } = await adminGraphql(ORDER_QUERY, { id: orderGid });
+    const data: { order: AdminOrder | null } = await adminGraphql(ORDER_QUERY, {
+      id: orderGid,
+    });
     const order = data.order;
     if (!order) throw new Error(`Order ${orderGid} not found in Shopify`);
 
@@ -180,7 +241,7 @@ Deno.serve(async (req) => {
       currency: r.totalRefundedSet?.shopMoney?.currencyCode ?? "USD",
       reason: r.note,
       processed_at: r.createdAt,
-      raw: r as unknown as Record<string, unknown>,
+      raw: r as unknown as Json,
     }));
     if (refundRows.length > 0) {
       const mirroredRefunds = await service.from("shopify_refunds").upsert(refundRows);
@@ -195,7 +256,7 @@ Deno.serve(async (req) => {
       currency: order.currentTotalPriceSet?.shopMoney?.currencyCode ?? "USD",
       reason: d.status,
       processed_at: order.processedAt ?? order.createdAt,
-      raw: d as unknown as Record<string, unknown>,
+      raw: d as unknown as Json,
     }));
     if (disputeRows.length > 0) {
       const mirroredDisputes = await service.from("shopify_refunds").upsert(disputeRows);
@@ -204,7 +265,7 @@ Deno.serve(async (req) => {
 
     let metaPurchase: Awaited<ReturnType<typeof sendMetaPurchase>>;
     try {
-      metaPurchase = await sendMetaPurchase(order, topic);
+      metaPurchase = await sendMetaPurchase(order);
     } catch (error) {
       // Meta is a downstream analytics sink. Never turn a successfully mirrored
       // Shopify order into a failed webhook just because CAPI is unavailable.
@@ -224,7 +285,7 @@ Deno.serve(async (req) => {
     }
     let googlePurchase: Awaited<ReturnType<typeof sendGooglePurchase>>;
     try {
-      googlePurchase = await sendGooglePurchase(order, topic);
+      googlePurchase = await sendGooglePurchase(order);
     } catch (error) {
       googlePurchase = {
         sent: false,
@@ -237,7 +298,8 @@ Deno.serve(async (req) => {
       eventInsert.error = eventInsert.error ? `${eventInsert.error}; ${warning}` : warning;
       console.error("Google Purchase event not sent", topic, googlePurchase.reason);
     }
-    await updateReceipt(service, dedupeKey, eventInsert.status, eventInsert.error);
+    const receiptOutcome = webhookReceiptOutcome(eventInsert.status, eventInsert.error);
+    await updateReceipt(service, dedupeKey, receiptOutcome.receiptStatus, eventInsert.error);
   } catch (error) {
     eventInsert.status = "failed";
     eventInsert.error = error instanceof Error ? error.message : String(error);
@@ -250,14 +312,22 @@ Deno.serve(async (req) => {
     console.error("shopify-webhook event log write failed", eventWrite.error.message);
     return new Response(JSON.stringify({ ok: false, error: "webhook_event_log_failed" }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "5" },
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Retry-After": "5",
+      },
     });
   }
 
-  const failureStatus =
-    eventInsert.status === "failed" ? webhookFailureStatus(eventInsert.error) : 200;
+  const receiptOutcome = webhookReceiptOutcome(eventInsert.status, eventInsert.error);
+  const failureStatus = receiptOutcome.httpStatus;
   return new Response(
-    JSON.stringify({ ok: eventInsert.status !== "failed", status: eventInsert.status }),
+    JSON.stringify({
+      ok: eventInsert.status !== "failed" && !receiptOutcome.retryable,
+      status: eventInsert.status,
+      ...(receiptOutcome.retryable ? { retryable: true } : {}),
+    }),
     {
       status: failureStatus,
       headers: {

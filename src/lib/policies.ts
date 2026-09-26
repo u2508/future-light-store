@@ -32,14 +32,12 @@ export const POLICIES: Record<string, StorePolicy> = {
     sections: [
       {
         heading: "Order processing",
-        paragraphs: [
-          "Orders are usually prepared within 1–2 business days. Processing begins after payment and order details have been confirmed.",
-        ],
+        paragraphs: ["Processing begins after payment and order details have been confirmed."],
       },
       {
         heading: "Delivery estimates and charges",
         paragraphs: [
-          `For US addresses, the current standard profile shows ${US_SHIPPING_PROMISE.cost.toLowerCase()} shipping with an estimated ${US_SHIPPING_PROMISE.estimate} delivery window. Shopify confirms the eligible service, taxes and any address-specific exceptions at checkout based on your delivery address and the items in your order.`,
+          `${US_SHIPPING_PROMISE.summary}. The available service, charge, taxes, and any address-specific exceptions depend on your delivery address and the items in your order. Review the final details Shopify shows before you pay.`,
           "Delivery estimates are not guaranteed. Carrier, customs or other events outside our control can affect the final delivery date.",
         ],
       },

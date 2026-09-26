@@ -4,9 +4,12 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  // Relative URLs let the same build run at the web root and Shopify's CDN
-  // asset directory, including dynamic imports and imported collection art.
-  base: "./",
+  // The web app is served from the domain root. Root-absolute asset URLs are
+  // required for direct product/collection landings (ads, search, bookmarks);
+  // relative URLs resolve beneath `/products/...` and can leave those pages blank.
+  // The Shopify theme bundler separately rewrites emitted assets to Liquid CDN
+  // URLs, so the web build does not need a relative base for theme hosting.
+  base: "/",
   plugins: [tanstackRouter({ target: "react", autoCodeSplitting: true }), tailwindcss(), react()],
   // The OneDrive build runner copies public assets with rsync after Vite has
   // compiled. Skipping Vite's provider-backed recursive copy avoids stalls

@@ -101,6 +101,20 @@ test("catalog release removes missing-cost products before pricing", () => {
   assert.equal(missingCostIndex >= 0 && missingCostIndex < pricingIndex, true);
 });
 
+test("category-metafield completeness readback runs immediately after all-active backfill", () => {
+  const steps = buildReleaseSteps({ rootDir: "/tmp/future-light-store-test", includeMobile: false, profile: "daily" });
+  const labels = steps.map((step) => step.label);
+  const applyIndex = labels.indexOf("Apply all-active-catalog product categories and merchandising metafields");
+  assert.deepEqual(labels.slice(applyIndex, applyIndex + 3), [
+    "Apply all-active-catalog product categories and merchandising metafields",
+    "Verify exact category-metafield completeness readback",
+    "Refresh Shopify data after merchandising backfill",
+  ]);
+  const verifier = steps[applyIndex + 1];
+  assert.equal(verifier.command, "npm");
+  assert.deepEqual(verifier.args, ["run", "shopify:category-metafield:readback:verify"]);
+});
+
 test("known guarded failures route to their supported repair ranges", () => {
   const previousVisionSetting = process.env.SALT_CATALOG_VISION_SUPERVISED;
   process.env.SALT_CATALOG_VISION_SUPERVISED = "1";
@@ -112,6 +126,7 @@ test("known guarded failures route to their supported repair ranges", () => {
     ["Verify every active product has product-specific SEO and metafields", "insufficient-product-evidence", "Run local SEO and product-content quality audit"],
     ["Apply all-active-catalog product categories and merchandising metafields", "metafield export failed", "Refresh Shopify data after final product publication"],
     ["Verify Shopify merchandising backfill", "Collection all-products mismatch", "Apply all-active-catalog product categories and merchandising metafields"],
+    ["Verify exact category-metafield completeness readback", "unmapped required category metafield", "Apply all-active-catalog product categories and merchandising metafields"],
     ["Automatically clear visual classification review with guarded evidence", "visual classification review failed", "Build visual taxonomy review queue"],
     ["Require complete ChatGPT visual variant and image decisions", "visual variant approval incomplete", "Build Future Light ChatGPT visual variant and image review queue"],
     ["Apply approved ChatGPT visual variant and image decisions with live readback", "variant media readback mismatch", "Require complete ChatGPT visual variant and image decisions"],

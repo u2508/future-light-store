@@ -10,10 +10,12 @@ import {
 } from "@/components/ui/sheet";
 import { CART_OPEN_EVENT, useCartStore } from "@/stores/cartStore";
 import { formatMoney } from "@/lib/shopify";
-import { trackBeginCheckout } from "@/lib/marketingAnalytics";
+import { normalizeMetaCatalogId, trackBeginCheckout } from "@/lib/marketingAnalytics";
+import { US_SHIPPING_PROMISE } from "@/lib/shipping-promise";
 
 export function CartDrawer() {
   const [isOpen, setIsOpen] = useState(false);
+  const [mutationMessage, setMutationMessage] = useState("");
   const { items, isLoading, isSyncing, updateQuantity, removeItem, getCheckoutUrl, syncCart } =
     useCartStore();
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
@@ -40,7 +42,7 @@ export function CartDrawer() {
         currency,
         value: totalPrice,
         items: items.map((item) => ({
-          item_id: item.product.node.handle || item.product.node.id,
+          item_id: normalizeMetaCatalogId(item.variantId),
           item_name: item.product.node.title,
           price: Number(item.price.amount),
           quantity: item.quantity,
@@ -52,6 +54,18 @@ export function CartDrawer() {
       window.open(checkoutUrl, "_blank");
       setIsOpen(false);
     }
+  };
+
+  const changeQuantity = async (variantId: string, quantity: number) => {
+    setMutationMessage("");
+    const result = await updateQuantity(variantId, quantity);
+    if (!result.success) setMutationMessage(result.message);
+  };
+
+  const removeCartItem = async (variantId: string) => {
+    setMutationMessage("");
+    const result = await removeItem(variantId);
+    if (!result.success) setMutationMessage(result.message);
   };
 
   return (
@@ -90,14 +104,24 @@ export function CartDrawer() {
             </div>
           ) : (
             <>
+              {mutationMessage && (
+                <p role="alert" aria-live="polite" className="mb-3 text-sm text-signal">
+                  {mutationMessage}
+                </p>
+              )}
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
                 {items.map((item) => (
                   <div key={item.variantId} className="flex gap-4">
                     <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-border bg-secondary">
-                      {item.product.node.images?.edges?.[0]?.node && (
+                      {(item.variantImageUrl || item.product.node.images?.edges?.[0]?.node) && (
                         <img
-                          src={item.product.node.images.edges[0].node.url}
-                          alt={item.product.node.title}
+                          src={
+                            item.variantImageUrl ?? item.product.node.images?.edges?.[0]?.node.url
+                          }
+                          alt={
+                            item.variantImageAlt ||
+                            `${item.product.node.title} — ${item.variantTitle}`
+                          }
                           className="h-full w-full object-cover"
                         />
                       )}
@@ -105,7 +129,9 @@ export function CartDrawer() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{item.product.node.title}</p>
                       <p className="text-xs text-muted-foreground">
-                        {item.selectedOptions.map((o) => o.value).join(" • ")}
+                        {item.selectedOptions
+                          .map((option) => `${option.name}: ${option.value}`)
+                          .join(" · ") || item.variantTitle}
                       </p>
                       <p className="text-sm font-semibold">
                         {formatMoney(item.price.amount, item.price.currencyCode)}
@@ -113,25 +139,28 @@ export function CartDrawer() {
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
                       <button
-                        onClick={() => removeItem(item.variantId)}
+                        onClick={() => void removeCartItem(item.variantId)}
                         aria-label="Remove item"
-                        className="rounded-lg p-1 text-muted-foreground hover:text-signal"
+                        disabled={isLoading || isSyncing}
+                        className="rounded-lg p-1 text-muted-foreground hover:text-signal disabled:opacity-40"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                       <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
                         <button
-                          onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
+                          onClick={() => void changeQuantity(item.variantId, item.quantity - 1)}
                           aria-label="Decrease quantity"
-                          className="grid h-6 w-6 place-items-center rounded hover:bg-muted"
+                          disabled={isLoading || isSyncing}
+                          className="grid h-6 w-6 place-items-center rounded hover:bg-muted disabled:opacity-40"
                         >
                           <Minus className="h-3 w-3" />
                         </button>
                         <span className="w-6 text-center text-sm">{item.quantity}</span>
                         <button
-                          onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
+                          onClick={() => void changeQuantity(item.variantId, item.quantity + 1)}
                           aria-label="Increase quantity"
-                          className="grid h-6 w-6 place-items-center rounded hover:bg-muted"
+                          disabled={isLoading || isSyncing}
+                          className="grid h-6 w-6 place-items-center rounded hover:bg-muted disabled:opacity-40"
                         >
                           <Plus className="h-3 w-3" />
                         </button>
@@ -162,7 +191,8 @@ export function CartDrawer() {
                   )}
                 </button>
                 <p className="text-center text-[11px] text-muted-foreground">
-                  Taxes and shipping calculated at checkout
+                  {US_SHIPPING_PROMISE.summary}. Taxes and address-specific exceptions are
+                  confirmed at checkout.
                 </p>
               </div>
             </>

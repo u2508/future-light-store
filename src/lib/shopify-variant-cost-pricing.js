@@ -1,6 +1,11 @@
 import { formatMoneyValue, normalizePlainText, parseMoneyValue } from "./shopify-seo-batch.js";
 import { extractVariantQuantity, variantLabel } from "./shopify-variant-pricing.js";
-import { compareAtPriceFor, nominalMarketPriceFor, PRICE_REWORK_STRATEGY_ID } from "./shopify-price-rework-policy.js";
+import {
+  compareAtPriceFor,
+  nominalMarketPriceFor,
+  PRICE_REWORK_RULES,
+  PRICE_REWORK_STRATEGY_ID,
+} from "./shopify-price-rework-policy.js";
 
 const DEFAULT_COST_TOLERANCE = 2;
 
@@ -45,7 +50,10 @@ function groupByCost(variants, tolerance) {
   return groups;
 }
 
-export function buildVariantCostPriceAlignmentPlan(products = [], { tolerance = DEFAULT_COST_TOLERANCE, priceFloor = 35 } = {}) {
+export function buildVariantCostPriceAlignmentPlan(
+  products = [],
+  { tolerance = DEFAULT_COST_TOLERANCE, priceFloor = PRICE_REWORK_RULES.minimumSellPrice } = {},
+) {
   const byHandle = new Map();
   const held = [];
   const blockingHeld = [];
@@ -95,7 +103,14 @@ export function buildVariantCostPriceAlignmentPlan(products = [], { tolerance = 
           referencePrices: variants.map((item) => item?.price),
           minimumSellPrice: priceFloor,
         });
-        if (!pricing.price) continue;
+        if (!pricing.price) {
+          blockingHeld.push({
+            handle: normalizePlainText(product?.handle),
+            reason: pricing.blockedReason || "current exact-comparable and contribution evidence is required",
+            variantIds: [entry.id],
+          });
+          continue;
+        }
         const targetPrice = Math.max(priceFloor, Number(pricing.price));
         const compareAt = parseMoneyValue(entry.variant?.compare_at_price ?? entry.variant?.compareAtPrice);
         const targetCompareAt = Number.isFinite(compareAt) && compareAt > 0
@@ -110,9 +125,6 @@ export function buildVariantCostPriceAlignmentPlan(products = [], { tolerance = 
           costPerItem: formatMoneyValue(entry.cost),
           currentPrice: formatMoneyValue(entry.price),
           price: normalizedTargetPrice,
-          marketBand: pricing.marketBand?.id || "",
-          effectiveCost: formatMoneyValue(pricing.effectiveCost),
-          costScaleFactor: pricing.scaleFactor,
           marketBand: pricing.marketBand?.id || "",
           effectiveCost: formatMoneyValue(pricing.effectiveCost),
           costScaleFactor: pricing.scaleFactor,

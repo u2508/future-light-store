@@ -17,7 +17,7 @@ import { trackCollectionView } from "@/lib/marketingAnalytics";
 const WORLDS = [
   { handle: "portable-gadgets", title: "Everyday, upgraded.", label: "Tech & accessories" },
   { handle: "home-decor", title: "Make room for better.", label: "Home & living" },
-  { handle: "beauty-makeup-essentials", title: "Your kind of glow.", label: "Beauty & self-care" },
+  { handle: "beauty-bestsellers", title: "Your kind of glow.", label: "Beauty & self-care" },
   { handle: "travel-outdoor", title: "Go a little further.", label: "Travel & outdoors" },
   { handle: "pet-essentials", title: "For your favourite company.", label: "Pet essentials" },
   { handle: "gifts", title: "Give something unexpected.", label: "Gifts & discoveries" },
@@ -28,7 +28,7 @@ const QUICK_DISCOVERY = [
   { handle: "portable-gadgets", label: "Portable Gadgets", title: "Everyday, upgraded." },
   { handle: "kitchen-gadgets", label: "Kitchen", title: "Make it easier." },
   {
-    handle: "beauty-makeup-essentials",
+    handle: "beauty-bestsellers",
     label: "Beauty Essentials",
     title: "Your kind of glow.",
   },

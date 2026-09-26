@@ -1,10 +1,11 @@
 {
   "schemaVersion": 2,
-  "policyVersion": "2026-09-24.1",
+  "policyVersion": "2026-09-25.1",
   "sourceDocument": "docs/future-light-dsers-family-store-search-terms.docx",
   "sourceSha256": "e3c958c6a4159204d921d43b665f03709c2dd59fadb348be764ce852fd2c8b3f",
   "sourceObjective": "This document is the working search library for the next Future Light Store catalog expansion. It is designed for US shoppers and for a clean, family-safe store mix across everyday utility, style, care, gifts, hobbies, and safe electronics accessories. Search terms are intentionally product-led so DSers results can be reviewed against actual images, stock, supplier cost, and variant clarity before import.",
   "sourcePlanningNote": "The current Shopify catalog boundary leaves 679 planning slots before the 3,000-product target. The allocation below is a planning ceiling, not a promise to import every result. Quality gates may reduce the final count.",
+  "executionCapacityRule": "The DOCX's 679 is a source planning ceiling, not current Shopify headroom. Refresh a complete active catalog snapshot before every candidate batch; the latest recorded 2026-09-25 snapshot left only 11 nominal slots.",
   "sourceOperatingBoundary": "Operating boundary: add only family-store products with stock ≥200, no batteries, no portable chargers, no logic boards, no adult/erotic products, and no replacement/repair parts. Keep existing Shopify products out of new batches.",
   "sourceReferenceNote": "The library follows current ecommerce discovery guidance: product-led category selection, clear product facts, structured-data alignment and answer-ready copy. Sources used for trend/category orientation and search presentation:",
   "sourceReferences": [
@@ -15,9 +16,19 @@
     { "label": "Google Search Central — Product structured data", "url": "https://developers.google.com/search/docs/appearance/structured-data/product" }
   ],
   "targetMarket": "US",
+  "shopDomain": "vs-future-store-0jl2t-jxu6tnr3.myshopify.com",
   "productTarget": 3000,
   "planningSlots": 679,
   "planningSlotsAreCeiling": true,
+  "laneToBatchCrosswalkApproval": {
+    "status": "unapproved",
+    "policyVersion": "2026-09-25.1",
+    "sourceSha256": "e3c958c6a4159204d921d43b665f03709c2dd59fadb348be764ce852fd2c8b3f",
+    "crosswalkSha256": "6e5c88cd4426b2a96a5e171e7fa1a047e15923332b0bb222a5546b25e2226dbf",
+    "approvedBy": null,
+    "approvedAt": null,
+    "note": "The source DOCX does not allocate its ten lanes to the seven batches; this local split is only a proposal."
+  },
   "existingShopifyProductsAreNotNewCandidates": true,
   "minimumStock": 200,
   "pricingAssumptions": {

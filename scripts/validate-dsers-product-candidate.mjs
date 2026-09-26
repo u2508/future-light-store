@@ -10,6 +10,11 @@ function readArg(name) {
   return index >= 0 ? process.argv[index + 1] || "" : "";
 }
 
+function readOptionalArg(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] ?? "" : undefined;
+}
+
 function readBoolean(name) {
   const value = readArg(name).trim().toLowerCase();
   if (value === "true" || value === "yes" || value === "1") return true;
@@ -28,6 +33,8 @@ function candidateFromFlags() {
     description: readArg("--description"),
     sku: readArg("--sku"),
     supplierProductId: readArg("--supplier-product-id"),
+    supplierListingStatus: readOptionalArg("--supplier-listing-status"),
+    supplierErrorCode: readOptionalArg("--supplier-error-code"),
     searchFamily: readArg("--search-family"),
     searchTerm: readArg("--search-term"),
     collectionLane: readArg("--collection-lane"),

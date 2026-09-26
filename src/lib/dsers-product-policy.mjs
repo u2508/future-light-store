@@ -51,20 +51,20 @@ function numeric(value) {
 }
 
 function stockEvidence(candidate = {}) {
-  const direct = [candidate.supplierStock, candidate.stock, candidate.inventory, candidate.inventoryCount,
-    candidate.totalStock, candidate.availableStock].map(numeric).filter((value) => value != null);
   const variants = Array.isArray(candidate.variants) ? candidate.variants : [];
-  const objectVariants = variants.filter((variant) => typeof variant === "object" && variant != null);
-  const variantStockValues = objectVariants.map((variant) => {
-    return [variant.supplierStock, variant.stock, variant.inventory, variant.inventoryCount, variant.availableStock]
-      .map(numeric).filter((value) => value != null);
+  if (variants.length === 0 || variants.some((variant) => !variant || typeof variant !== "object")) {
+    return null;
+  }
+  // Product totals and scraped numeric fields are not stock evidence. Each
+  // sellable option must bind its quantity to a fresh, reviewed inventory source
+  // in the structured evidence bundle; use the lowest verified option quantity.
+  const quantities = variants.map((variant) => {
+    const quantity = variant.inventoryEvidence?.quantity;
+    const reported = numeric(variant.supplierStock ?? variant.stock ?? variant.inventory);
+    if (!Number.isSafeInteger(quantity) || quantity < 0 || reported !== quantity) return null;
+    return quantity;
   });
-  // A product-level total cannot conceal an understocked option. If variant
-  // records are supplied, every option must carry inventory evidence and the
-  // lowest conflicting value is the conservative result.
-  if (variantStockValues.some((values) => values.length === 0)) return null;
-  const allStockValues = [...direct, ...variantStockValues.flat()];
-  return allStockValues.length ? Math.min(...allStockValues) : null;
+  return quantities.some((quantity) => quantity == null) ? null : Math.min(...quantities);
 }
 
 function parseQualificationScores(candidate = {}) {
@@ -199,6 +199,7 @@ export function inspectDsersProductCandidate(candidate = {}, evidenceOptions = {
     qualificationPassThreshold: DSERS_FAMILY_STORE_POLICY.qualificationScore.minimumPassingTotal,
     candidateFingerprint: evidence.candidateFingerprint,
     evidenceValid: evidence.valid,
+    supplierListingDisposition: evidence.supplierListingDisposition,
     evidenceReviewedAt: evidence.reviewedAt,
     evidenceReviewerId: evidence.reviewerId,
     evidenceFreshnessHours: 24,

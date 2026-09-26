@@ -5,6 +5,12 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
+import {
+  FUTURE_LIGHT_PRODUCT_METAFIELD_ENV_KEYS,
+  futureLightShopifyCliEnv,
+  loadFutureLightEnv,
+} from "./lib/future-light-env.mjs";
+import { resolveFutureLightShopifyTarget } from "./lib/future-light-shopify-target.mjs";
 
 import { normalizeHandleValue, normalizePlainText, toShopifyGid } from "../src/lib/shopify-seo-batch.js";
 import {
@@ -30,60 +36,57 @@ import {
 } from "../src/lib/shopify-category-metafield-backfill.js";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
+import {
+  assertCategoryMetafieldPlanMappings,
+  buildCategoryMetafieldReadbackInput,
+  validateCategoryMetafieldReadback,
+} from "./lib/category-metafield-release-gate.mjs";
 
-const DEFAULT_SHOP_BASE = "";
+const projectRoot = resolve(import.meta.dirname, "..");
+await loadFutureLightEnv({ rootDir: projectRoot, allowedKeys: FUTURE_LIGHT_PRODUCT_METAFIELD_ENV_KEYS });
+const { shopDomain: SHOP_DOMAIN } = resolveFutureLightShopifyTarget();
 const DEFAULT_OUTPUT_FILE = resolve(process.cwd(), "output", "product-metafield-backfill-manifest.json");
 const DEFAULT_INPUT_DIR = resolve(process.cwd(), "public", "data");
 const PRODUCT_CATALOG_CHECKPOINT = resolve(process.cwd(), "output", ".shopify-metafield-live-catalog.json");
 const PRODUCT_CUSTOM_DATA_CHECKPOINT = resolve(process.cwd(), "output", ".shopify-metafield-custom-data.json");
 const PRODUCT_CUSTOM_DATA_BULK_RESULT = resolve(process.cwd(), "output", ".shopify-metafield-custom-data-bulk.jsonl");
-const SHOP_BASE = process.env.SALT_SHOP_URL || DEFAULT_SHOP_BASE;
-const SHOP_DOMAIN = new URL(SHOP_BASE).hostname;
-const SHOPIFY_ADMIN_API_VERSION = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
-const SHOPIFY_ADMIN_ACCESS_TOKEN = String(process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim();
-const SHOPIFY_ADMIN_GRAPHQL_URL = `${new URL(SHOP_BASE).origin}/admin/api/${SHOPIFY_ADMIN_API_VERSION}/graphql.json`;
-const SHOPIFY_CLI_AGENT_INFO = process.env.SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:openai";
+const SHOP_BASE = `https://${SHOP_DOMAIN}`;
+const SHOPIFY_ADMIN_API_VERSION = process.env.FUTURE_LIGHT_SHOPIFY_API_VERSION || process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
+const SHOPIFY_ADMIN_ACCESS_TOKEN = String(process.env.FUTURE_LIGHT_SHOPIFY_ADMIN_ACCESS_TOKEN || "").trim();
+const SHOPIFY_ADMIN_GRAPHQL_URL = `${SHOP_BASE}/admin/api/${SHOPIFY_ADMIN_API_VERSION}/graphql.json`;
+const SHOPIFY_CLI_AGENT_INFO = process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:openai";
 const SHOPIFY_CLI_AGENT_IDS =
-  process.env.SHOPIFY_CLI_AGENT_IDS || `s:future-light-store|r:${process.pid}|i:future-light-store`;
-const JUDGEME_PROXY_BASE_URL = process.env.SALT_JUDGEME_PROXY_BASE_URL || "";
-const JUDGEME_PUBLIC_TOKEN =
-  process.env.VITE_JUDGEME_PUBLIC_TOKEN ||
-  process.env.JUDGEME_PUBLIC_TOKEN ||
-  process.env.SALT_JUDGEME_PUBLIC_TOKEN ||
-  "";
-const BACKFILL_APPLY_CONCURRENCY = envInteger("SALT_BACKFILL_APPLY_CONCURRENCY", 4, { min: 1, max: 4 });
+  process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_IDS || `s:future-light-store|r:${process.pid}|i:future-light-store`;
+const JUDGEME_PROXY_BASE_URL = process.env.FUTURE_LIGHT_JUDGEME_PROXY_BASE_URL || "";
+const JUDGEME_PUBLIC_TOKEN = process.env.FUTURE_LIGHT_JUDGEME_PUBLIC_TOKEN || "";
+const BACKFILL_APPLY_CONCURRENCY = envInteger("FUTURE_LIGHT_BACKFILL_APPLY_CONCURRENCY", 4, { min: 1, max: 4 });
 const BACKFILL_READ_CONCURRENCY = envInteger(
-  "SALT_BACKFILL_READ_CONCURRENCY",
+  "FUTURE_LIGHT_BACKFILL_READ_CONCURRENCY",
   recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
   { min: 1, max: 8 },
 );
-const BACKFILL_BULK_THRESHOLD = Math.max(1, Number(process.env.SALT_BACKFILL_BULK_THRESHOLD || 500));
+const BACKFILL_BULK_THRESHOLD = Math.max(1, Number(process.env.FUTURE_LIGHT_BACKFILL_BULK_THRESHOLD || 500));
 const JUDGEME_SHOP_DOMAINS = Array.from(
   new Set(
     [
-      process.env.SALT_JUDGEME_SHOP_DOMAIN,
-      process.env.VITE_JUDGEME_SHOP_DOMAIN,
-      process.env.SALT_SHOP_URL,
-      process.env.VITE_SALT_SHOP_URL,
-      process.env.VITE_SHOPIFY_STOREFRONT_URL,
-      DEFAULT_SHOP_BASE,
+      process.env.FUTURE_LIGHT_JUDGEME_SHOP_DOMAIN || SHOP_BASE,
     ]
       .map((value) => normalizeDomain(value))
       .filter(Boolean),
   ),
 );
-const JUDGEME_FETCH_ENABLED = process.env.SALT_BACKFILL_LIVE_JUDGEME !== "0";
+const JUDGEME_FETCH_ENABLED = process.env.FUTURE_LIGHT_BACKFILL_LIVE_JUDGEME !== "0";
 const JUDGEME_CONCURRENCY = envInteger(
-  "SALT_BACKFILL_JUDGEME_CONCURRENCY",
+  "FUTURE_LIGHT_BACKFILL_JUDGEME_CONCURRENCY",
   recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
   { min: 1, max: 8 },
 );
 const SHOPIFY_REQUEST_CONCURRENCY = envInteger(
-  "SALT_SHOPIFY_REQUEST_CONCURRENCY",
+  "FUTURE_LIGHT_SHOPIFY_REQUEST_CONCURRENCY",
   recommendedConcurrency({ kind: "io", reserve: 2, max: 8 }),
   { min: 1, max: 8 },
 );
-const SHOPIFY_REQUEST_DELAY_MS = Math.max(0, Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS || 125));
+const SHOPIFY_REQUEST_DELAY_MS = Math.max(0, Number(process.env.FUTURE_LIGHT_SHOPIFY_REQUEST_DELAY_MS || 125));
 const shopifyRequestScheduler = createRequestScheduler({
   concurrency: SHOPIFY_REQUEST_CONCURRENCY,
   minIntervalMs: SHOPIFY_REQUEST_DELAY_MS,
@@ -487,7 +490,7 @@ function normalizeDomain(value) {
 
 function getShopifyCliEnv() {
   return {
-    ...process.env,
+    ...futureLightShopifyCliEnv(),
     SHOPIFY_CLI_AGENT_INFO,
     SHOPIFY_CLI_AGENT_IDS,
   };
@@ -591,7 +594,7 @@ async function runShopifyStoreGraphQLInternal(query, variables = {}, { allowMuta
   }
 
   const serializedVariables = variables && Object.keys(variables).length ? variables : null;
-  const tempDir = await mkdtemp(join(tmpdir(), "salt-shopify-cli-"));
+  const tempDir = await mkdtemp(join(tmpdir(), "future-light-shopify-cli-"));
   const queryFile = join(tempDir, "operation.graphql");
   const outputFile = join(tempDir, "result.json");
   const variableFile = join(tempDir, "variables.json");
@@ -1167,6 +1170,27 @@ function buildLiveCustomDataRecord(node, customData) {
   };
 }
 
+function categoryMetafieldReadbackProduct(productId, record) {
+  const metafields = Object.values(record?.customData?.metafields || {}).map((metafield) => {
+    const references = Array.isArray(metafield?.references)
+      ? metafield.references.map((reference) => reference?.id).filter(Boolean)
+      : [];
+    return {
+      namespace: metafield?.namespace,
+      key: metafield?.key,
+      type: metafield?.type,
+      value: metafield?.value,
+      ...(metafield?.reference?.id ? { reference: { id: metafield.reference.id } } : {}),
+      ...(references.length ? { references: { nodes: references.map((id) => ({ id })) } } : {}),
+    };
+  });
+  return {
+    id: toShopifyGid("Product", productId),
+    category: record?.category ? { id: record.category.id } : null,
+    metafields,
+  };
+}
+
 function parseMetafieldReferenceNodes(field) {
   const raw = field?.jsonValue ?? field?.value ?? [];
   let values = raw;
@@ -1346,7 +1370,7 @@ function normalizeLiveCatalogProduct(node) {
 }
 
 async function fetchLiveProductCatalog() {
-  const useCatalogCheckpoint = process.env.SALT_BACKFILL_USE_CATALOG_CHECKPOINT === "1";
+  const useCatalogCheckpoint = process.env.FUTURE_LIGHT_BACKFILL_USE_CATALOG_CHECKPOINT === "1";
   let checkpoint = null;
   try {
     checkpoint = await loadJson(PRODUCT_CATALOG_CHECKPOINT, "metafield live catalog checkpoint");
@@ -2097,7 +2121,7 @@ async function fetchCategoryAttributesMap(categoryIds) {
   const chunks = chunkArray(ids, 50);
   let nextChunk = 0;
   const concurrency = envInteger(
-    "SALT_CATEGORY_READ_CONCURRENCY",
+    "FUTURE_LIGHT_CATEGORY_READ_CONCURRENCY",
     recommendedConcurrency({ kind: "io", reserve: 2, max: 4 }),
     { min: 1, max: 4 },
   );
@@ -2522,7 +2546,7 @@ async function uploadBackfillBulkInput(inputPath) {
   const curlArgs = ["-sS", "-X", "POST", target.url];
   for (const parameter of target.parameters || []) curlArgs.push("-F", `${parameter.name}=${parameter.value}`);
   curlArgs.push("-F", `file=@${inputPath};type=text/jsonl`);
-  await execFileAsync("curl", curlArgs, { maxBuffer: 20 * 1024 * 1024 });
+  await execFileAsync("curl", curlArgs, { env: futureLightShopifyCliEnv(), maxBuffer: 20 * 1024 * 1024 });
   const stagedUploadPath = (target.parameters || []).find((parameter) => parameter.name === "key")?.value;
   if (!stagedUploadPath) throw new Error("Shopify metafield staged upload target did not include a key");
   return stagedUploadPath;
@@ -2779,7 +2803,7 @@ async function main() {
   }
   const productsPath = resolve(args.inputDir, "products.json");
   const releaseCatalogPath =
-    process.env.SALT_SHOPIFY_SEO_LIVE_CATALOG || resolve(process.cwd(), "output", ".shopify-seo-live-catalog.json");
+    process.env.FUTURE_LIGHT_SHOPIFY_SEO_LIVE_CATALOG || resolve(process.cwd(), "output", ".shopify-seo-live-catalog.json");
   const collectionsPath = resolve(args.inputDir, "collections.json");
   const collectionProductsPath = resolve(args.inputDir, "collection-products.json");
   const shopPath = resolve(args.inputDir, "shop.json");
@@ -2909,6 +2933,10 @@ async function main() {
         },
       }));
   const categoryMetafieldWrites = categoryMetafieldPlanResult.writes;
+  const categoryMetafieldReadbackEnabled = !args.productOnly && !onlyFields.size;
+  const expectedCategoryProductIds = categoryMetafieldReadbackEnabled
+    ? hydratedProducts.map((product) => Number(product.id)).filter((id) => Number.isFinite(id) && id > 0)
+    : [];
   const categoryMetafieldProductCount = new Set(
     categoryMetafieldWrites
       .map((entry) => Number(entry.productId))
@@ -3026,7 +3054,19 @@ async function main() {
     throw new Error(`Category metafield discovery gate blocked live apply: ${categoryMetafieldPlanResult.summary.error}`);
   }
 
-  if (!batches.length && !categoryPlans.length && !categoryMetafieldWrites.length) {
+  if (categoryMetafieldReadbackEnabled) {
+    assertCategoryMetafieldPlanMappings({
+      plans: categoryMetafieldPlanResult.plans,
+      expectedProductIds: expectedCategoryProductIds,
+    });
+  }
+
+  if (
+    !batches.length &&
+    !categoryPlans.length &&
+    !categoryMetafieldWrites.length &&
+    !categoryMetafieldPlanResult.plans.length
+  ) {
     process.stdout.write("No metafield or category writes were needed.\n");
     return;
   }
@@ -3043,6 +3083,13 @@ async function main() {
   const resolvedCategoryEntries = categoryMetafieldWrites.length
     ? await resolveCategoryMetafieldWrites(categoryMetafieldWrites)
     : [];
+  const categoryMetafieldReadbackInput = categoryMetafieldReadbackEnabled
+    ? buildCategoryMetafieldReadbackInput({
+        plans: categoryMetafieldPlanResult.plans,
+        resolvedWrites: resolvedCategoryEntries,
+        expectedProductIds: expectedCategoryProductIds,
+      })
+    : null;
   const categoryMetafieldBatchResult = categoryMetafieldBatches(resolvedCategoryEntries, 25);
   const applyResults = batches.length || categoryMetafieldBatchResult.length
     ? await applyBatches([...batches, ...categoryMetafieldBatchResult], args.outputFile)
@@ -3057,8 +3104,55 @@ async function main() {
     categories: categoryResults,
     bulkOperation: applyResults.bulkOperation || null,
   };
+  if (categoryMetafieldReadbackInput) {
+    await rm(PRODUCT_CUSTOM_DATA_CHECKPOINT, { force: true });
+    const expectedReadbackIds = new Set(
+      categoryMetafieldReadbackInput.expectedProducts.map((product) =>
+        Number(product.productId.match(/(\d+)$/)?.[1] || 0),
+      ),
+    );
+    const categoryProductsForReadback = hydratedProducts.filter((product) =>
+      expectedReadbackIds.has(Number(product.id)),
+    );
+    const liveReadbackById = await fetchLiveProductCustomDataMap(categoryProductsForReadback);
+    const readbackProducts = categoryProductsForReadback.map((product) =>
+      categoryMetafieldReadbackProduct(
+        product.id,
+        liveReadbackById.get(Number(product.id)),
+      ),
+    );
+    const validation = validateCategoryMetafieldReadback({
+      ...categoryMetafieldReadbackInput,
+      readbackProducts,
+    });
+    const checkedRequiredFields = categoryMetafieldReadbackInput.expectedProducts.reduce(
+      (sum, product) => sum + product.requiredDefinitionKeys.length,
+      0,
+    );
+    const failedChecks = validation.checks.filter((check) => check.status !== "match");
+    manifest.categoryMetafieldReadback = {
+      generatedAt: new Date().toISOString(),
+      status: validation.status,
+      expectedProducts: validation.summary.expectedProducts,
+      readbackProducts: validation.summary.readbackProducts,
+      checkedRequiredFields,
+      unmappedRequiredFields: 0,
+      missing: validation.summary.missing,
+      mismatch: validation.summary.mismatch,
+      unexpected: validation.summary.unexpected,
+      failureSamples: failedChecks.slice(0, 50),
+    };
+  }
   await writeManifest(args.outputFile, manifest);
   await rm(PRODUCT_CUSTOM_DATA_CHECKPOINT, { force: true });
+  if (
+    categoryMetafieldReadbackEnabled &&
+    manifest.categoryMetafieldReadback?.status !== "pass"
+  ) {
+    throw new Error(
+      `Category-metafield completeness readback failed: ${manifest.categoryMetafieldReadback?.missing || 0} missing, ${manifest.categoryMetafieldReadback?.mismatch || 0} mismatched, ${manifest.categoryMetafieldReadback?.unexpected || 0} unexpected field(s).`,
+    );
+  }
   process.stdout.write(`Apply complete. Updated manifest written to ${args.outputFile}\n`);
 }
 

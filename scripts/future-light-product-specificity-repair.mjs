@@ -10,6 +10,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
 import { FUTURE_LIGHT_BRAND, FUTURE_LIGHT_SHOP_DOMAIN } from "./lib/product-image-health.mjs";
+import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const verifyPath = resolve(rootDir, "output/future-light-product-specificity-live-verify.json");
@@ -96,6 +97,7 @@ async function readJson(path) { return JSON.parse(await readFile(path, "utf8"));
 
 async function main() {
   const apply = process.argv.includes("--apply");
+  assertFutureLightDirectWriteDisabled({ runner: "specificity-repair", mode: apply ? "apply" : "dry-run" });
   const verify = await readJson(verifyPath);
   if (verify.targetStoreDomain !== FUTURE_LIGHT_SHOP_DOMAIN || verify.liveMutation !== false) throw new Error("Refused a non-read-only or wrong-target specificity manifest.");
   const targets = (verify.products || []).filter((product) => REPAIRS.has(product.handle));

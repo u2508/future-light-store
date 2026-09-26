@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 
 import { FUTURE_LIGHT_SHOP_DOMAIN } from "./lib/product-image-health.mjs";
+import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 
 const execFileAsync = promisify(execFile);
 const rootDir = resolve(import.meta.dirname, "..");
@@ -255,6 +256,7 @@ async function readback(ids) {
 
 async function main() {
   const args = parseArgs(process.argv);
+  assertFutureLightDirectWriteDisabled({ runner: "seo-final-artifact", mode: args.apply ? "apply" : "dry-run" });
   await loadFutureEnv();
   await mkdir(outputDir, { recursive: true });
   const artifact = await readJson(artifactPath);

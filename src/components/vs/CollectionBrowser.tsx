@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import type { ShopifyProduct } from "@/lib/shopify";
-import { discountPercent, isProductAvailable, type ShopifyCollection } from "@/lib/shopify";
+import { discountPercent, type ShopifyCollection } from "@/lib/shopify";
+import { getProductAvailability } from "@/lib/product-availability.mjs";
 import { searchProducts } from "@/lib/vs-search";
 import { cn } from "@/lib/utils";
 import {
@@ -31,8 +32,6 @@ const SORTS = [
   { value: "newest", label: "Newest" },
   { value: "price-asc", label: "Price: low to high" },
   { value: "price-desc", label: "Price: high to low" },
-  { value: "discount", label: "Biggest discount" },
-  { value: "best-selling", label: "Best selling" },
 ];
 
 function variantOptionValues(products: ShopifyProduct[], optionName: string) {
@@ -130,12 +129,20 @@ export function CollectionBrowser({
 
       if (search.min_price && price < search.min_price) return false;
       if (search.max_price && price > search.max_price) return false;
-      const productAvailable = isProductAvailable(n);
+      const productAvailability = getProductAvailability(n);
+      const productAvailable = productAvailability === "available";
       if (search.availability === "in-stock" && !productAvailable) return false;
-      if (search.availability === "out-of-stock" && productAvailable) return false;
+      if (
+        search.availability === "out-of-stock" &&
+        productAvailability !== "unavailable"
+      ) return false;
+      const completeStock =
+        n.variantsCount?.count != null &&
+        variants.length === n.variantsCount.count &&
+        variants.every((variant) => variant.quantityAvailable != null);
       if (
         search.availability === "low-stock" &&
-        !(productAvailable && stockQty > 0 && stockQty <= 5)
+        !(productAvailable && completeStock && stockQty > 0 && stockQty <= 5)
       )
         return false;
       if (search.tag && !(n.tags ?? []).includes(search.tag)) return false;
@@ -160,21 +167,20 @@ export function CollectionBrowser({
     });
 
     const priceOf = (p: ShopifyProduct) => parseFloat(p.node.priceRange.minVariantPrice.amount);
+    const requestedSort = SORTS.some((option) => option.value === search.sort)
+      ? search.sort
+      : "featured";
     const sorted = [...list];
-    if (search.sort === "price-asc") sorted.sort((a, b) => priceOf(a) - priceOf(b));
-    else if (search.sort === "price-desc") sorted.sort((a, b) => priceOf(b) - priceOf(a));
-    else if (search.sort === "discount")
-      sorted.sort(
-        (a, b) =>
-          discountPercent(
-            b.node.priceRange.minVariantPrice.amount,
-            b.node.variants.edges[0]?.node.compareAtPrice?.amount ?? null,
-          ) -
-          discountPercent(
-            a.node.priceRange.minVariantPrice.amount,
-            a.node.variants.edges[0]?.node.compareAtPrice?.amount ?? null,
-          ),
-      );
+    if (requestedSort === "newest") {
+      sorted.sort((a, b) => {
+        const parsedA = Date.parse(a.node.updatedAt ?? "");
+        const parsedB = Date.parse(b.node.updatedAt ?? "");
+        const timeA = Number.isFinite(parsedA) ? parsedA : Number.NEGATIVE_INFINITY;
+        const timeB = Number.isFinite(parsedB) ? parsedB : Number.NEGATIVE_INFINITY;
+        return timeB - timeA || a.node.id.localeCompare(b.node.id);
+      });
+    } else if (requestedSort === "price-asc") sorted.sort((a, b) => priceOf(a) - priceOf(b));
+    else if (requestedSort === "price-desc") sorted.sort((a, b) => priceOf(b) - priceOf(a));
     return sorted;
   }, [products, search]);
 
@@ -253,7 +259,6 @@ export function CollectionBrowser({
         label="Availability"
         options={[
           { value: "in-stock", label: "In stock" },
-          { value: "low-stock", label: "Low stock" },
           { value: "out-of-stock", label: "Out of stock" },
         ]}
         value={search.availability}
@@ -392,7 +397,9 @@ export function CollectionBrowser({
                   : `${filtered.length} result${filtered.length === 1 ? "" : "s"}`}
             </p>
             <select
-              value={search.sort}
+              value={
+                SORTS.some((option) => option.value === search.sort) ? search.sort : "featured"
+              }
               onChange={(e) => setFilter({ sort: e.target.value })}
               aria-label="Sort products"
               className="ml-auto rounded-full border border-border bg-card px-4 py-2 text-sm shadow-sm"

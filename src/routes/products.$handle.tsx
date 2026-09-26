@@ -12,15 +12,14 @@ import { normalizeMetaCatalogId, trackViewItem } from "@/lib/marketingAnalytics"
 import { US_SHIPPING_PROMISE } from "@/lib/shipping-promise";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { JudgeMeReviews } from "@/components/vs/JudgeMeReviews";
+import {
+  getProductGalleryImages,
+  getVariantImage,
+  selectVariantGalleryIndex,
+} from "@/lib/product-variant-image.mjs";
+import { chooseProductVariantId } from "@/lib/product-variant-selection.mjs";
 
 const PRODUCT_DESCRIPTION_TAGS = new Set(["h2", "h3", "p", "ul", "ol", "li", "strong", "em", "br"]);
-
-function matchesVariantParameter(variantId: string, requestedVariant: string | null) {
-  if (!requestedVariant) return false;
-  const requestedId = requestedVariant.split("/").pop() ?? requestedVariant;
-  const actualId = variantId.split("/").pop() ?? variantId;
-  return actualId === requestedId;
-}
 
 function sanitizeProductDescriptionHtml(value: string) {
   return String(value || "")
@@ -134,7 +133,6 @@ function ProductPage() {
     data: product,
     isLoading,
     isError,
-    isFetching,
     refetch: refetchProduct,
   } = useQuery({
     queryKey: ["product", handle],
@@ -163,6 +161,10 @@ function ProductPage() {
   const [unavailableVariantIds, setUnavailableVariantIds] = useState<Set<string>>(new Set());
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
+  const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
+  const selectionRouteKey = `${handle}:${requestedVariant ?? ""}`;
+  const selectionRouteKeyRef = useRef(selectionRouteKey);
+  const userSelectedVariant = useRef(false);
   const addItem = useCartStore((s) => s.addItem);
   const isAdding = useCartStore((s) => s.isLoading);
   const toggleWishlist = useWishlistStore((s) => s.toggle);
@@ -171,22 +173,34 @@ function ProductPage() {
   const trackedProductView = useRef<string>("");
 
   useEffect(() => {
+    if (selectionRouteKeyRef.current !== selectionRouteKey) {
+      selectionRouteKeyRef.current = selectionRouteKey;
+      userSelectedVariant.current = false;
+      setSelectedId(null);
+      setHasSelectedVariant(false);
+    }
+  }, [selectionRouteKey]);
+
+  useEffect(() => {
     setUnavailableVariantIds(new Set());
     setHasSelectedVariant(false);
+    setFailedImageUrls(new Set());
   }, [handle]);
 
   useEffect(() => {
     if (product) {
       pushRecent(product.handle);
       const variants = product.variants.edges.map((e) => e.node);
-      // Merchant Center and Shopify product feeds append the exact variant ID
-      // to the landing URL. Keep that advertised variant selected instead of
-      // silently switching to the first available option; otherwise price and
-      // availability can disagree with the listing Google sent the shopper to.
-      const feedVariant = variants.find((v) => matchesVariantParameter(v.id, requestedVariant));
-      const preferred = feedVariant ?? variants.find((v) => v.availableForSale) ?? variants[0];
+      // Product feeds append a variant ID to the landing URL. Always honor it
+      // on entry, even if a cached/default selection is already valid. Once a
+      // shopper picks an option, keep that choice through background refreshes.
       setSelectedId((current) =>
-        current && variants.some((v) => v.id === current) ? current : (preferred?.id ?? null),
+        chooseProductVariantId({
+          variants,
+          requestedVariant,
+          currentId: current,
+          userSelected: userSelectedVariant.current,
+        }),
       );
     }
   }, [product, pushRecent, requestedVariant]);
@@ -196,12 +210,15 @@ function ProductPage() {
     const selectedVariant = product.variants.edges
       .map((edge) => edge.node)
       .find((variant) => variant.id === selectedId);
-    const variantImageUrl = selectedVariant?.image?.url;
-    if (!variantImageUrl) return;
-    const matchingImageIndex = product.images.edges.findIndex(
-      (edge) => edge.node.url === variantImageUrl,
-    );
-    if (matchingImageIndex >= 0) setImageIndex(matchingImageIndex);
+    const variantImageUrl = getVariantImage(selectedVariant)?.url;
+    const galleryUrls = getProductGalleryImages(
+      product,
+      product.variants.edges.map((edge) => edge.node),
+    ).map((image) => image.url);
+    // Never leave the previous variant's photo selected when the newly
+    // selected option has no exact mapped image. Use this product's primary
+    // image as a neutral fallback instead of implying a wrong variant match.
+    setImageIndex(selectVariantGalleryIndex(galleryUrls, variantImageUrl));
   }, [product, selectedId]);
 
   useEffect(() => {
@@ -272,10 +289,23 @@ function ProductPage() {
   if (!product) {
     return (
       <div className="mx-auto max-w-xl px-4 py-24 text-center">
-        <h1 className="font-display text-2xl font-bold">Product unavailable</h1>
+        <h1 className="font-display text-2xl font-bold">
+          {isError ? "This product didn’t load" : "Product unavailable"}
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          This item may have been removed from the catalog.
+          {isError
+            ? "A temporary connection issue may have interrupted this page. Try again, or browse the store while we reconnect."
+            : "This item may have been removed from the catalog."}
         </p>
+        {isError && (
+          <button
+            type="button"
+            onClick={() => void refetchProduct()}
+            className="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Try again
+          </button>
+        )}
         <Link
           to="/shop"
           className="mt-4 inline-block text-sm font-semibold text-primary hover:underline"
@@ -293,14 +323,14 @@ function ProductPage() {
     const inventoryVariant = inventoryById.get(e.node.id);
     return inventoryVariant ? { ...e.node, ...inventoryVariant } : e.node;
   });
-  const images = Array.from(
-    new Map(
-      [
-        ...product.images.edges.map((edge) => edge.node),
-        ...variants.flatMap((variant) => (variant.image ? [variant.image] : [])),
-      ].map((image) => [image.url, image] as const),
-    ).values(),
-  );
+  const images = getProductGalleryImages(product, variants);
+  const activeImage =
+    (images[imageIndex] && !failedImageUrls.has(images[imageIndex].url) && images[imageIndex]) ||
+    images.find((image) => !failedImageUrls.has(image.url)) ||
+    null;
+  const visibleImages = images
+    .map((image, originalIndex) => ({ image, originalIndex }))
+    .filter(({ image }) => !failedImageUrls.has(image.url));
   const selected = variants.find((v) => v.id === selectedId) ?? null;
   const selectedAvailable =
     Boolean(selected?.availableForSale) && !unavailableVariantIds.has(selected?.id ?? "");
@@ -331,6 +361,8 @@ function ProductPage() {
       product: { node: product },
       variantId: selected.id,
       variantTitle: selected.title,
+      variantImageUrl: getVariantImage(selected)?.url ?? null,
+      variantImageAlt: getVariantImage(selected)?.altText ?? null,
       price: selected.price,
       quantity,
       selectedOptions: selected.selectedOptions ?? [],
@@ -418,11 +450,15 @@ function ProductPage() {
         <div className="min-w-0 space-y-3 lg:sticky lg:top-24">
           <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-border/70 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),rgba(241,245,249,0.98))] shadow-[var(--shadow-lift)]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.14),transparent_32%),radial-gradient(circle_at_80%_80%,rgba(14,165,233,0.12),transparent_28%)]" />
-            {images[imageIndex] ? (
+            {activeImage ? (
               <img
-                src={images[imageIndex]!.url}
-                alt={images[imageIndex]!.altText ?? product.title}
+                src={activeImage.url}
+                alt={activeImage.altText ?? product.title}
+                fetchPriority="high"
                 className="h-full w-full object-cover"
+                onError={() =>
+                  setFailedImageUrls((current) => new Set(current).add(activeImage.url))
+                }
               />
             ) : (
               <div className="grid h-full place-items-center p-10 text-center">
@@ -437,19 +473,28 @@ function ProductPage() {
               </div>
             )}
           </div>
-          {images.length > 1 && (
+          {visibleImages.length > 1 && (
             <div className="flex gap-2 overflow-x-auto pb-1">
-              {images.map((img, i) => (
+              {visibleImages.map(({ image: img, originalIndex }) => (
                 <button
+                  type="button"
                   key={img.url}
-                  onClick={() => setImageIndex(i)}
-                  aria-label={`View image ${i + 1}`}
+                  onClick={() => setImageIndex(originalIndex)}
+                  aria-label={`View image ${originalIndex + 1}`}
                   className={cn(
                     "h-16 w-16 shrink-0 overflow-hidden rounded-xl border bg-card shadow-sm",
-                    i === imageIndex ? "border-primary ring-2 ring-primary/15" : "border-border",
+                    originalIndex === imageIndex
+                      ? "border-primary ring-2 ring-primary/15"
+                      : "border-border",
                   )}
                 >
-                  <img src={img.url} alt="" className="h-full w-full object-cover" />
+                  <img
+                    src={img.url}
+                    alt=""
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                    onError={() => setFailedImageUrls((current) => new Set(current).add(img.url))}
+                  />
                 </button>
               ))}
             </div>
@@ -505,15 +550,20 @@ function ProductPage() {
               <div className="flex flex-wrap gap-2">
                 {variants.map((v) => (
                   <button
+                    type="button"
                     key={v.id}
                     disabled={!v.availableForSale || unavailableVariantIds.has(v.id)}
                     onClick={() => {
+                      userSelectedVariant.current = true;
                       setSelectedId(v.id);
                       setHasSelectedVariant(true);
-                      const variantImageIndex = images.findIndex(
-                        (image) => image.url === v.image?.url,
+                      const variantImage = getVariantImage(v);
+                      setImageIndex(
+                        selectVariantGalleryIndex(
+                          images.map((image) => image.url),
+                          variantImage?.url,
+                        ),
                       );
-                      if (variantImageIndex >= 0) setImageIndex(variantImageIndex);
                     }}
                     className={cn(
                       "rounded-xl border px-4 py-2 text-sm transition-colors",
@@ -534,6 +584,7 @@ function ProductPage() {
           <div className="flex items-center gap-3 rounded-[1.5rem] border border-border bg-card px-4 py-3 shadow-[var(--shadow-card)]">
             <div className="flex items-center gap-1 rounded-xl border border-border/70 bg-background p-1">
               <button
+                type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                 aria-label="Decrease quantity"
                 className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted"
@@ -542,6 +593,7 @@ function ProductPage() {
               </button>
               <span className="w-8 text-center text-sm">{quantity}</span>
               <button
+                type="button"
                 onClick={() => setQuantity((q) => q + 1)}
                 aria-label="Increase quantity"
                 className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted"
@@ -561,11 +613,12 @@ function ProductPage() {
 
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={handleAdd}
-              disabled={isAdding || isFetching || !selectedAvailable}
+              disabled={isAdding || !selectedAvailable}
               className="flex-1 rounded-xl bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
             >
-              {isAdding || isFetching ? (
+              {isAdding ? (
                 <Loader2 className="mx-auto h-4 w-4 animate-spin" />
               ) : selectedAvailable ? (
                 "Add to cart"
@@ -574,6 +627,7 @@ function ProductPage() {
               )}
             </button>
             <button
+              type="button"
               onClick={() => {
                 const added = toggleWishlist({ node: product });
                 toast(added ? "Saved to wishlist" : "Removed from wishlist", {
@@ -586,8 +640,6 @@ function ProductPage() {
               <Heart className={cn("h-4 w-4", wishlisted && "fill-signal text-signal")} />
             </button>
           </div>
-
-          <ProductInformationTabs product={product} />
 
           <div className="grid gap-2 rounded-[1.5rem] border border-border bg-card p-4 text-xs text-muted-foreground shadow-[var(--shadow-card)]">
             <p className="flex items-center gap-2">
@@ -604,6 +656,8 @@ function ProductPage() {
               <ShieldCheck className="h-3.5 w-3.5" /> Secure Shopify checkout
             </p>
           </div>
+
+          <ProductInformationTabs product={product} />
 
           <section className="rounded-[1.5rem] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">

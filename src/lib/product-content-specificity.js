@@ -34,7 +34,42 @@ const GENERIC_FILLER_PATTERNS = [
   /\bcatalog tag:\s*/i,
   /\bsource specifications\b/i,
   /\bhigh concerned chemical:\s*/i,
+  /\bgive your pet a more engaging addition to their routine\b/i,
+  /\bshape, texture, and finish shown are the details to compare\b/i,
+  /\bplay or outfit option you choose\b/i,
+  /\bbuild a more considered beauty routine with this\b/i,
+  /\btexture, shade, size, and application format shown\b/i,
+  /\bchoose the shade, size, and format shown for your needs\b/i,
+  /\ba practical addition to a beauty routine in the format shown\b/i,
+  /\bchoose the shade or format that suits your routine\b/i,
 ];
+
+// These narrowly defined domains catch a dangerous failure mode in generated
+// copy: enough matching nouns to pass a keyword check, while describing a
+// completely different kind of product. Identity is derived only from the
+// handle, title, and product type; category/tags are deliberately excluded
+// because those fields can themselves be misclassified.
+const PRODUCT_CONTENT_DOMAINS = {
+  pet: /\b(?:dog|dogs|cat|cats|puppy|puppies|kitten|kittens|pet|pets|canine|feline)\b/i,
+  beauty: /\b(?:makeup|cosmetic|cosmetics|lipstick|lip gloss|lip mask|lip brush|foundation|mascara|skincare|skin care|beauty)\b/i,
+};
+
+function findCrossDomainContentIssue(value, product = {}) {
+  const identity = normalizeSpecificityText([
+    product?.handle,
+    product?.title || product?.name,
+    product?.product_type || product?.productType || product?.specificType,
+  ].filter(Boolean).join(" "));
+  const content = decodeEntities(value);
+  const isPetProduct = PRODUCT_CONTENT_DOMAINS.pet.test(identity);
+  const isBeautyProduct = PRODUCT_CONTENT_DOMAINS.beauty.test(identity);
+  const describesPetUse = PRODUCT_CONTENT_DOMAINS.pet.test(content);
+  const describesBeautyUse = PRODUCT_CONTENT_DOMAINS.beauty.test(content);
+
+  if (isBeautyProduct && !isPetProduct && describesPetUse) return "cross-domain-product-copy";
+  if (isPetProduct && !isBeautyProduct && describesBeautyUse) return "cross-domain-product-copy";
+  return "";
+}
 
 function decodeEntities(value) {
   return String(value || "")
@@ -145,6 +180,7 @@ export function assessProductContentSpecificity(
   const genericPatterns = GENERIC_FILLER_PATTERNS
     .filter((pattern) => pattern.test(decodeEntities(value)))
     .map((pattern) => pattern.source);
+  const crossDomainIssue = findCrossDomainContentIssue(value, product);
   const issues = [];
 
   if (!normalized) issues.push("missing-content");
@@ -159,6 +195,7 @@ export function assessProductContentSpecificity(
   }
   if (valueTokens.length === 0 && normalized) issues.push("generic-filler-only");
   if (rejectGenericPatterns && genericPatterns.length) issues.push("generic-filler-pattern");
+  if (crossDomainIssue) issues.push(crossDomainIssue);
 
   return {
     field,

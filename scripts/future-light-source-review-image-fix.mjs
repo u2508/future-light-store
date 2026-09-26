@@ -16,6 +16,7 @@ import { promisify } from "node:util";
 
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
 import { FUTURE_LIGHT_BRAND, FUTURE_LIGHT_SHOP_DOMAIN, canonicalImageUrl } from "./lib/product-image-health.mjs";
+import { assertCompleteProductMediaPagination } from "./lib/product-media-pagination.mjs";
 
 const execFileAsync = promisify(execFile);
 const rootDir = resolve(import.meta.dirname, "..");
@@ -39,7 +40,7 @@ const PRODUCT_QUERY = /* GraphQL */ `
         variants(first: 250) {
           nodes {
             id title
-            media(first: 20) { nodes { __typename id ... on MediaImage { image { url } } } }
+            media(first: 20) { nodes { __typename id ... on MediaImage { image { url } } } pageInfo { hasNextPage } }
           }
           pageInfo { hasNextPage }
         }
@@ -200,8 +201,7 @@ async function readProduct(client, productId) {
   if (!sameId(product.id, productId)) throw new Error(`Product ID readback mismatch: ${productId}`);
   if (normalize(product.vendor) !== FUTURE_LIGHT_BRAND) throw new Error(`Refused non-${FUTURE_LIGHT_BRAND} product: ${product.handle}`);
   if (normalize(product.status).toUpperCase() !== "ACTIVE") throw new Error(`Refused non-active product: ${product.handle}`);
-  if (product.media?.pageInfo?.hasNextPage || product.variants?.pageInfo?.hasNextPage) throw new Error(`Incomplete media or variant pagination for ${product.handle}`);
-  return product;
+  return assertCompleteProductMediaPagination(product);
 }
 
 function sourceFor(product, fix) {

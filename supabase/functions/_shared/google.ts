@@ -1,3 +1,5 @@
+import { shopifyPurchaseEligibility } from "./shopify-purchase-eligibility.ts";
+
 type Money = { amount: string; currencyCode: string };
 
 export interface GooglePurchaseOrder {
@@ -6,6 +8,8 @@ export interface GooglePurchaseOrder {
   customAttributes?: Array<{ key: string; value: string }>;
   createdAt: string;
   processedAt: string | null;
+  cancelledAt?: string | null;
+  test?: boolean | null;
   displayFinancialStatus: string | null;
   currentTotalPriceSet: { shopMoney: Money };
   currentTotalTaxSet?: { shopMoney: { amount: string } } | null;
@@ -39,33 +43,45 @@ function numericId(value: unknown) {
   return raw.match(/\d+$/)?.[0] ?? raw;
 }
 
-function isPaidTopic(topic: string) {
-  return topic.toLowerCase().replaceAll("_", "/") === "orders/paid";
-}
-
-function isPaidStatus(status: string | null) {
-  return ["PAID", "PARTIALLY_PAID"].includes(String(status ?? "").toUpperCase());
+export function purchaseCatalogItemId(
+  line: GooglePurchaseOrder["lineItems"]["nodes"][number],
+) {
+  return numericId(
+    line.variant?.id || line.product?.id || line.sku || line.title,
+  );
 }
 
 function orderAttribute(order: GooglePurchaseOrder, key: string) {
-  return (order.customAttributes ?? []).find((attribute) => attribute.key === key)?.value || "";
+  return (order.customAttributes ?? []).find((attribute) =>
+    attribute.key === key
+  )?.value || "";
 }
 
-export function buildGooglePurchasePayload(order: GooglePurchaseOrder, clientId: string) {
+export function buildGooglePurchasePayload(
+  order: GooglePurchaseOrder,
+  clientId: string,
+) {
   const eventId = `shopify-order-${numericId(order.id)}`;
   const lines = order.lineItems?.nodes ?? [];
   const items = lines.map((line) => {
-    const id = numericId(line.product?.id || line.variant?.id || line.sku || line.title);
+    const id = purchaseCatalogItemId(line);
     const quantity = Math.max(1, Math.floor(numberValue(line.quantity)));
     const lineTotal = numberValue(line.discountedTotalSet?.shopMoney?.amount);
     return {
       item_id: id,
       item_name: line.title,
       quantity,
-      ...(lineTotal > 0 ? { price: Number((lineTotal / quantity).toFixed(2)) } : {}),
+      price: Number(lineTotal / quantity),
     };
   });
-  const total = numberValue(order.currentTotalPriceSet?.shopMoney?.amount);
+  // GA4's purchase `value` is item revenue: sum of discounted line totals.
+  // Keep tax and shipping in their own parameters below instead of inflating
+  // purchase revenue with the order grand total.
+  const itemRevenue = lines.reduce(
+    (sum, line) =>
+      sum + numberValue(line.discountedTotalSet?.shopMoney?.amount),
+    0,
+  );
   const currency = order.currentTotalPriceSet?.shopMoney?.currencyCode ?? "USD";
 
   return {
@@ -75,18 +91,25 @@ export function buildGooglePurchasePayload(order: GooglePurchaseOrder, clientId:
         name: "purchase",
         params: {
           transaction_id: order.name || numericId(order.id),
-          value: Number(total.toFixed(2)),
+          value: Number(itemRevenue.toFixed(2)),
           currency,
           event_id: eventId,
           ...(order.currentTotalTaxSet
-            ? { tax: Number(numberValue(order.currentTotalTaxSet.shopMoney.amount).toFixed(2)) }
+            ? {
+              tax: Number(
+                numberValue(order.currentTotalTaxSet.shopMoney.amount).toFixed(
+                  2,
+                ),
+              ),
+            }
             : {}),
           ...(order.totalShippingPriceSet
             ? {
-                shipping: Number(
-                  numberValue(order.totalShippingPriceSet.shopMoney.amount).toFixed(2),
-                ),
-              }
+              shipping: Number(
+                numberValue(order.totalShippingPriceSet.shopMoney.amount)
+                  .toFixed(2),
+              ),
+            }
             : {}),
           items,
         },
@@ -97,23 +120,29 @@ export function buildGooglePurchasePayload(order: GooglePurchaseOrder, clientId:
 
 export async function sendGooglePurchase(
   order: GooglePurchaseOrder,
-  topic: string,
 ): Promise<GooglePurchaseResult> {
-  if (!isPaidTopic(topic) && !isPaidStatus(order.displayFinancialStatus)) {
-    return { sent: false, skipped: true, reason: "order_not_paid" };
+  const eligibility = shopifyPurchaseEligibility(order);
+  if (!eligibility.eligible) {
+    return { sent: false, skipped: true, reason: eligibility.reason };
   }
 
-  const measurementId = Deno.env.get("GOOGLE_ANALYTICS_MEASUREMENT_ID")?.trim() ?? "";
+  const measurementId =
+    Deno.env.get("GOOGLE_ANALYTICS_MEASUREMENT_ID")?.trim() ?? "";
   const apiSecret = Deno.env.get("GOOGLE_ANALYTICS_API_SECRET")?.trim() ?? "";
   if (!measurementId || !apiSecret) {
-    return { sent: false, reason: "missing_google_measurement_protocol_secrets" };
+    return {
+      sent: false,
+      reason: "missing_google_measurement_protocol_secrets",
+    };
   }
 
-  const clientId =
-    orderAttribute(order, "marketing_ga_client_id") || `vs-shopify-${numericId(order.id)}`;
+  const clientId = orderAttribute(order, "marketing_ga_client_id") ||
+    `vs-shopify-${numericId(order.id)}`;
   const payload = buildGooglePurchasePayload(order, clientId);
   const response = await fetch(
-    `https://www.google-analytics.com/mp/collect?measurement_id=${encodeURIComponent(measurementId)}&api_secret=${encodeURIComponent(apiSecret)}`,
+    `https://www.google-analytics.com/mp/collect?measurement_id=${
+      encodeURIComponent(measurementId)
+    }&api_secret=${encodeURIComponent(apiSecret)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -121,6 +150,8 @@ export async function sendGooglePurchase(
       signal: AbortSignal.timeout(8_000),
     },
   );
-  if (!response.ok) throw new Error(`Google purchase event rejected (${response.status})`);
+  if (!response.ok) {
+    throw new Error(`Google purchase event rejected (${response.status})`);
+  }
   return { sent: true, eventId: payload.events[0].params.event_id };
 }

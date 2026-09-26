@@ -83,8 +83,12 @@ const ANIME_BLOCKED_COLLECTION_CONTEXT = /hotel[\s-]+collection|perfume|beauty|m
 const ANIME_STRONG_MERCHANDISE_CONTEXT = /anime|manga|cosplay|otaku|cartoon|kawaii|character|comic|chibi|waifu|manhua|manhwa|sanrio|hello[\s-]+kitty|kuromi|naruto|pokemon|demon[\s-]+slayer|marvel|disney|photocard|kpop|idol|collectible|cute|doll|animal|bear|cat/i;
 
 function matchesAnimeCollectables(signalText) {
+  // Product-domain exclusions take precedence over broad fandom words such as
+  // "cosplay" or "character". Cosmetics styled for a costume are still beauty
+  // products, not collectible merchandise.
+  if (ANIME_BLOCKED_COLLECTION_CONTEXT.test(signalText)) return false;
   if (ANIME_FANDOM_SIGNALS.some((signal) => signal.test(signalText))) return true;
-  if (/\bcollect/i.test(signalText) && !ANIME_BLOCKED_COLLECTION_CONTEXT.test(signalText)) return true;
+  if (/\bcollect/i.test(signalText)) return true;
   if (/\bkeychain\b/i.test(signalText) && ANIME_STRONG_MERCHANDISE_CONTEXT.test(signalText)) return true;
   if (/\bplush\b/i.test(signalText) && /doll|toy|bear|cat|animal|cartoon|kawaii|character|anime|manga|cosplay/i.test(signalText)) return true;
   if (/\bfigur(?:e|ine)\b/i.test(signalText) && !/periodic table|calendar|mendeleev/i.test(signalText)) return true;

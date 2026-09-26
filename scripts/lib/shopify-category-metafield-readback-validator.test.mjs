@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateShopifyCategoryMetafieldReadback } from "./shopify-category-metafield-readback-validator.mjs";
+import { validateShopifyCategoryMetafieldReadback as validateReadback } from "./shopify-category-metafield-readback-validator.mjs";
 
 const productId = "gid://shopify/Product/101";
 const categoryId = "gid://shopify/TaxonomyCategory/apparel";
@@ -12,6 +12,7 @@ function expectedFixture() {
     {
       productId,
       categoryId,
+      requiredDefinitionKeys: ["shopify.color-pattern", "shopify.size", "custom.care-note"],
       metafields: [
         {
           definitionKey: { namespace: "shopify", key: "color-pattern" },
@@ -65,7 +66,7 @@ function readbackFixture() {
 }
 
 test("passes exact category, scalar reference, list reference, and value readbacks", () => {
-  const result = validateShopifyCategoryMetafieldReadback({
+  const result = validateReadback({
     expectedProducts: expectedFixture(),
     readbackProducts: readbackFixture(),
   });
@@ -88,7 +89,7 @@ test("passes exact category, scalar reference, list reference, and value readbac
 
 test("reports absent products, categories, and expected metafields as missing", () => {
   const expected = expectedFixture();
-  const missingProduct = validateShopifyCategoryMetafieldReadback({
+  const missingProduct = validateReadback({
     expectedProducts: expected,
     readbackProducts: [],
   });
@@ -100,7 +101,7 @@ test("reports absent products, categories, and expected metafields as missing", 
   const readback = readbackFixture();
   readback[0].category = null;
   readback[0].metafields = [];
-  const result = validateShopifyCategoryMetafieldReadback({
+  const result = validateReadback({
     expectedProducts: expected,
     readbackProducts: readback,
   });
@@ -126,7 +127,7 @@ test("reports differing category IDs, values, and references as mismatches", () 
   readback[0].metafields[1].references.nodes[0].id = "gid://shopify/Metaobject/size-large";
   readback[0].metafields[2].value = "Hand wash";
 
-  const result = validateShopifyCategoryMetafieldReadback({
+  const result = validateReadback({
     expectedProducts: expectedFixture(),
     readbackProducts: readback,
   });
@@ -147,7 +148,7 @@ test("reports extra products and managed namespace fields as unexpected", () => 
   });
   readback.push({ id: "gid://shopify/Product/999", category: { id: categoryId }, metafields: [] });
 
-  const result = validateShopifyCategoryMetafieldReadback({
+  const result = validateReadback({
     expectedProducts: expectedFixture(),
     readbackProducts: readback,
     managedMetafieldNamespaces: ["custom"],
@@ -172,7 +173,7 @@ test("ignores unknown metafields outside declared managed scope by default", () 
     { namespace: "shopify", key: "another-extra", type: "single_line_text_field", value: "extra" },
   );
 
-  const result = validateShopifyCategoryMetafieldReadback({
+  const result = validateReadback({
     expectedProducts: expectedFixture(),
     readbackProducts: readback,
   });
@@ -191,7 +192,7 @@ test("reports unknown fields through an exact managed-key allowlist or full snap
     { namespace: "private", key: "outside", type: "single_line_text_field", value: "two" },
   );
 
-  const allowlisted = validateShopifyCategoryMetafieldReadback({
+  const allowlisted = validateReadback({
     expectedProducts: expectedFixture(),
     readbackProducts: readback,
     managedMetafieldDefinitionKeys: ["private.managed"],
@@ -203,7 +204,7 @@ test("reports unknown fields through an exact managed-key allowlist or full snap
     ["private.managed"],
   );
 
-  const fullSnapshot = validateShopifyCategoryMetafieldReadback({
+  const fullSnapshot = validateReadback({
     expectedProducts: expectedFixture(),
     readbackProducts: readback,
     fullMetafieldSnapshot: true,
@@ -220,7 +221,7 @@ test("reports an expected metafield type mismatch using the existing mismatch st
   const readback = readbackFixture();
   readback[0].metafields[2].type = "multi_line_text_field";
 
-  const result = validateShopifyCategoryMetafieldReadback({
+  const result = validateReadback({
     expectedProducts: expectedFixture(),
     readbackProducts: readback,
   });
@@ -239,7 +240,7 @@ test("flags duplicate actual metafield rows and product rows as mismatches", () 
   readback[0].metafields.push({ ...readback[0].metafields[0] });
   readback.push({ ...readback[0] });
 
-  const result = validateShopifyCategoryMetafieldReadback({
+  const result = validateReadback({
     expectedProducts: expected,
     readbackProducts: readback,
   });
@@ -270,7 +271,7 @@ test("does not mutate frozen expected or readback fixtures", () => {
   const readback = readbackFixture();
   const snapshot = structuredClone(readback);
 
-  validateShopifyCategoryMetafieldReadback({
+  validateReadback({
     expectedProducts: expected,
     readbackProducts: readback,
   });
@@ -282,7 +283,7 @@ test("rejects ambiguous or duplicate expected identities", () => {
   expected[0].metafields[0].canonicalValue = "red";
   assert.throws(
     () =>
-      validateShopifyCategoryMetafieldReadback({
+      validateReadback({
         expectedProducts: expected,
         readbackProducts: [],
       }),
@@ -291,10 +292,49 @@ test("rejects ambiguous or duplicate expected identities", () => {
 
   assert.throws(
     () =>
-      validateShopifyCategoryMetafieldReadback({
+      validateReadback({
         expectedProducts: [...expectedFixture(), ...expectedFixture()],
         readbackProducts: [],
       }),
     /Duplicate expected productId/,
   );
+});
+
+test("fails closed for empty cohorts and omitted per-product metafield mappings", () => {
+  assert.throws(
+    () => validateReadback({ expectedProducts: [], readbackProducts: [] }),
+    /must not be empty/,
+  );
+  const missingFieldMap = expectedFixture();
+  delete missingFieldMap[0].metafields;
+  assert.throws(
+    () => validateReadback({ expectedProducts: missingFieldMap, readbackProducts: [] }),
+    /metafields must be an array/,
+  );
+  assert.throws(
+    () => validateReadback({
+      expectedProducts: expectedFixture().map(({ requiredDefinitionKeys: _required, ...product }) => product),
+      readbackProducts: [],
+    }),
+    /requiredDefinitionKeys must be an array/,
+  );
+});
+
+test("reports required but unmapped definitions and unexpected Shopify category fields", () => {
+  const expected = expectedFixture();
+  expected[0].requiredDefinitionKeys.push("shopify.unmapped-required");
+  const result = validateReadback({
+    expectedProducts: expected,
+    readbackProducts: [{
+      ...readbackFixture()[0],
+      metafields: [
+        ...readbackFixture()[0].metafields,
+        { namespace: "shopify", key: "unexpected-category-key", type: "list.metaobject_reference", value: "[]" },
+      ],
+    }],
+    managedMetafieldNamespaces: ["shopify"],
+  });
+  assert.equal(result.status, "fail");
+  assert.ok(result.checks.some((check) => check.reason === "required-category-metafield-unmapped"));
+  assert.ok(result.checks.some((check) => check.definitionKey === "shopify.unexpected-category-key" && check.status === "unexpected"));
 });

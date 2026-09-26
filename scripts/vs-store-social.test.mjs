@@ -882,6 +882,22 @@ test("scheduled time uses the configured US timezone and fallback hour", () => {
     5,
   );
   assert.equal(weekdayScheduled.toISOString(), "2026-09-18T16:00:00.000Z");
+
+  const lateThursday = nextScheduledDateForWeekday(
+    new Date("2026-09-24T17:30:00Z"),
+    config.timezone,
+    12,
+    4,
+  );
+  assert.equal(lateThursday.toISOString(), "2026-09-24T16:00:00.000Z");
+
+  const nearThursdaySlot = nextScheduledDateForWeekday(
+    new Date("2026-09-24T15:50:00Z"),
+    config.timezone,
+    12,
+    4,
+  );
+  assert.equal(nearThursdaySlot.toISOString(), "2026-09-24T16:00:00.000Z");
 });
 
 test("caption validator rejects raw catalog labels and offer codes stay deterministic", () => {

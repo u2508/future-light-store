@@ -2,6 +2,10 @@
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import {
+  assertMarketPriceEvidenceOwnership,
+  validateMarketPriceEvidence,
+} from "./lib/future-light-market-price-evidence.mjs";
 
 import {
   asArray,
@@ -14,6 +18,7 @@ import {
   compareAtPriceFor,
   nominalMarketPriceFor,
 } from "../src/lib/shopify-price-rework-policy.js";
+import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
 const defaultOutputPath = resolve(rootDir, "output", "shopify-price-rework-manifest.json");
@@ -50,6 +55,15 @@ const PRODUCTS_QUERY = /* GraphQL */ `
         hasNextPage
         endCursor
       }
+    }
+  }
+`;
+
+const STORE_CURRENCY_QUERY = /* GraphQL */ `
+  query PriceReworkStoreCurrency {
+    shop {
+      myshopifyDomain
+      currencyCode
     }
   }
 `;
@@ -133,6 +147,7 @@ function parseArgs(argv) {
     output: defaultOutputPath,
     outputExplicit: false,
     verifyManifest: "",
+    marketEvidence: "",
   };
 
   for (let index = 2; index < argv.length; index += 1) {
@@ -154,6 +169,9 @@ function parseArgs(argv) {
     } else if (token === "--verify-manifest" && next) {
       args.verifyManifest = resolve(rootDir, next);
       index += 1;
+    } else if (token === "--market-evidence" && next) {
+      args.marketEvidence = resolve(rootDir, next);
+      index += 1;
     }
   }
 
@@ -166,6 +184,9 @@ function parseArgs(argv) {
 
   if (!Number.isFinite(args.minimumSellPrice) || args.minimumSellPrice <= 0) {
     throw new Error("Minimum sell price must be a positive number.");
+  }
+  if (args.mode === "apply" && !args.marketEvidence) {
+    throw new Error("Price apply requires --market-evidence <current exact-comparable manifest>; no price or Shopify request was made.");
   }
   return args;
 }
@@ -248,7 +269,27 @@ async function fetchProducts(retryInfo) {
   return products;
 }
 
-function buildPlan(products, args, priorLedger) {
+async function fetchStoreCurrency(retryInfo) {
+  const data = await client.run(STORE_CURRENCY_QUERY, {}, { operation: "verify store currency before price audit", retryInfo });
+  const shop = data?.shop;
+  if (!shop?.currencyCode || String(shop?.myshopifyDomain || "").toLowerCase() !== client.storeDomain.toLowerCase()) {
+    throw new Error("Shopify store domain/currency readback is incomplete or does not match the configured target.");
+  }
+  return { domain: String(shop.myshopifyDomain).toLowerCase(), currencyCode: String(shop.currencyCode).toUpperCase() };
+}
+
+async function loadMarketEvidence(filePath, store) {
+  if (!filePath) return { byVariantId: new Map(), fingerprint: "", createdAt: "", provided: false };
+  let document;
+  try {
+    document = JSON.parse(await readFile(filePath, "utf8"));
+  } catch (error) {
+    throw new Error(`Unable to read market-price evidence ${filePath}: ${normalizeText(error?.message || error)}`);
+  }
+  return { ...validateMarketPriceEvidence(document, { storeDomain: store.domain, currencyCode: store.currencyCode }), provided: true };
+}
+
+function buildPlan(products, args, priorLedger, marketEvidence) {
   const plannedProducts = [];
   const auditProducts = [];
   const summary = {
@@ -276,6 +317,7 @@ function buildPlan(products, args, priorLedger) {
       const currentPrice = normalizeMoney(variant?.price);
       const compareAtPrice = normalizeMoney(variant?.compareAtPrice);
       const cost = normalizeMoney(variant?.inventoryItem?.unitCost?.amount);
+      const variantEvidence = marketEvidence.byVariantId.get(String(variant?.id || ""));
       if (!currentPrice || Number(currentPrice) <= 0) {
         summary.invalidPriceVariants += 1;
         auditVariants.push({
@@ -314,9 +356,19 @@ function buildPlan(products, args, priorLedger) {
         handle: product?.handle,
         productTitle: product?.title,
         variantTitle: variant?.title,
-        referenceCosts: variants.map((entry) => entry?.inventoryItem?.unitCost?.amount),
-        referencePrices: variants.map((entry) => entry?.price),
+        currencyCode: marketEvidence.currencyCode || "",
+        unitCostCurrencyCode: variant?.inventoryItem?.unitCost?.currencyCode || "",
+        landedCost: variantEvidence?.landedCost,
+        landedCostVerified: variantEvidence?.landedCostVerified === true,
+        paymentFeeRate: variantEvidence?.paymentFeeRate,
+        paymentFeeFixed: variantEvidence?.paymentFeeFixed,
+        paymentFeesVerified: variantEvidence?.paymentFeesVerified === true,
+        orderCostAllocation: variantEvidence?.orderCostAllocation,
+        orderCostAllocationVerified: variantEvidence?.orderCostAllocationVerified === true,
+        expectedDiscountRate: variantEvidence?.expectedDiscountRate,
+        discountPolicyVerified: variantEvidence?.discountPolicyVerified === true,
         minimumSellPrice: args.minimumSellPrice,
+        comparables: variantEvidence?.comparables,
       });
       if (!pricing.price) {
         summary.marketValueHoldVariants += 1;
@@ -329,9 +381,15 @@ function buildPlan(products, args, priorLedger) {
           currentCompareAtPrice: compareAtPrice || "",
           plannedPrice: null,
           plannedCompareAtPrice: null,
+          unitCostCurrencyCode: variant?.inventoryItem?.unitCost?.currencyCode || "",
+          marketEvidenceFingerprint: marketEvidence.fingerprint || "",
           marketBand: pricing.marketBand?.id || "",
           effectiveCost: pricing.effectiveCost == null ? null : normalizeMoney(pricing.effectiveCost),
           costScaleFactor: pricing.scaleFactor,
+          validComparableCount: pricing.validComparableCount || 0,
+          comparableMedian: pricing.comparableMedian ?? null,
+          aggressiveCheckoutTarget: pricing.aggressiveCheckoutTarget ?? null,
+          requiredBasePrice: pricing.requiredBasePrice ?? null,
           status: "blocked-market-value",
           failure: pricing.blockedReason || "nominal market pricing could not be safely derived",
         });
@@ -352,6 +410,8 @@ function buildPlan(products, args, priorLedger) {
         title: normalizeText(variant?.title),
         sku: normalizeText(variant?.sku),
         cost,
+        unitCostCurrencyCode: variant?.inventoryItem?.unitCost?.currencyCode || "",
+        marketEvidenceFingerprint: marketEvidence.fingerprint || "",
         currentPrice,
         currentCompareAtPrice: compareAtPrice || "",
         plannedPrice: targetPrice,
@@ -359,6 +419,10 @@ function buildPlan(products, args, priorLedger) {
         marketBand: pricing.marketBand?.id || "",
         effectiveCost: normalizeMoney(pricing.effectiveCost),
         costScaleFactor: pricing.scaleFactor,
+        validComparableCount: pricing.validComparableCount,
+        comparableMedian: pricing.comparableMedian,
+        aggressiveCheckoutTarget: pricing.aggressiveCheckoutTarget,
+        requiredBasePrice: pricing.requiredBasePrice,
         pricingReason: pricing.reason,
         status: auditStatus,
         failure: "",
@@ -379,7 +443,7 @@ function buildPlan(products, args, priorLedger) {
         marketBand: pricing.marketBand?.id || "",
         effectiveCost: normalizeMoney(pricing.effectiveCost),
         costScaleFactor: pricing.scaleFactor,
-        pricingAdjustment: "nominal-market-cost-plus-normalization",
+        pricingAdjustment: "market-backed-competitive-contribution-floor",
         priceChanged,
         compareAtChanged,
         priorPlanMatchedCurrent: priorMatchesCurrent,
@@ -628,6 +692,10 @@ async function loadVerificationTargets(manifestPath) {
   if (parsed?.strategyId !== PRICE_REWORK_STRATEGY_ID) {
     throw new Error(`Price rework manifest ${manifestPath} does not use strategy ${PRICE_REWORK_STRATEGY_ID}.`);
   }
+  const evidenceFingerprint = String(parsed?.source?.marketEvidence?.fingerprint || "");
+  if (!/^[a-f0-9]{64}$/.test(evidenceFingerprint)) {
+    throw new Error(`Price rework manifest ${manifestPath} has no bound market-evidence fingerprint.`);
+  }
 
   const products = [];
   for (const product of asArray(parsed?.products)) {
@@ -653,6 +721,8 @@ async function loadVerificationTargets(manifestPath) {
       .map((variant) => ({
         variantId: String(variant?.variantId || ""),
         cost: normalizeMoney(variant?.cost),
+        unitCostCurrencyCode: String(variant?.unitCostCurrencyCode || "").toUpperCase(),
+        marketEvidenceFingerprint: String(variant?.marketEvidenceFingerprint || ""),
         currentPrice: normalizeMoney(variant?.currentPrice),
         currentCompareAtPrice: normalizeMoney(variant?.currentCompareAtPrice),
         plannedPrice: normalizeMoney(variant?.plannedPrice),
@@ -661,6 +731,11 @@ async function loadVerificationTargets(manifestPath) {
         failure: normalizeText(variant?.failure),
       }))
       .filter((variant) => variant.variantId);
+    for (const variant of variants) {
+      if (variant.plannedPrice && variant.marketEvidenceFingerprint !== evidenceFingerprint) {
+        throw new Error(`Price rework audit row ${variant.variantId} is not bound to the market-evidence fingerprint.`);
+      }
+    }
     if (!variants.length) continue;
     auditProducts.push({
       productId: String(product?.productId || ""),
@@ -673,11 +748,16 @@ async function loadVerificationTargets(manifestPath) {
   if (!auditProducts.length) {
     throw new Error(`Price rework manifest ${manifestPath} has no full-catalog audit targets.`);
   }
-  return { products, auditProducts };
+  return {
+    products,
+    auditProducts,
+    marketEvidenceFingerprint: evidenceFingerprint,
+    storeCurrencyCode: String(parsed?.source?.storeCurrencyCode || "").toUpperCase(),
+  };
 }
 
-async function verifyTargets(products, manifestPath, outputPath) {
-  const { products: expectedProducts, auditProducts } = await loadVerificationTargets(manifestPath);
+async function verifyTargets(products, manifestPath, outputPath, liveStoreCurrencyCode) {
+  const { products: expectedProducts, auditProducts, storeCurrencyCode } = await loadVerificationTargets(manifestPath);
   const liveProductsById = new Map(products.map((product) => [String(product?.id || ""), product]));
   const auditProductsById = new Map(auditProducts.map((product) => [product.productId, product]));
   const verificationProducts = [];
@@ -704,6 +784,9 @@ async function verifyTargets(products, manifestPath, outputPath) {
     catalogMissingCostVariants: 0,
     catalogInvalidPriceVariants: 0,
     catalogUnderMinimumSellPriceVariants: 0,
+    catalogCostMismatches: 0,
+    catalogCurrencyMismatches: 0,
+    storeCurrencyMismatches: storeCurrencyCode === liveStoreCurrencyCode ? 0 : 1,
     minimumSellPrice: PRICE_REWORK_RULES.minimumSellPrice,
   };
 
@@ -803,6 +886,16 @@ async function verifyTargets(products, manifestPath, outputPath) {
         });
         continue;
       }
+      const liveCost = normalizeMoney(variant?.inventoryItem?.unitCost?.amount);
+      const liveCostCurrencyCode = String(variant?.inventoryItem?.unitCost?.currencyCode || "").toUpperCase();
+      if (liveCost !== auditVariant.cost) {
+        summary.catalogCostMismatches += 1;
+        addFailure({ productId, variantId, handle: normalizeText(product?.handle), failure: `unit cost changed since planning: expected ${auditVariant.cost || "missing"}, got ${liveCost || "missing"}` });
+      }
+      if (liveCostCurrencyCode !== auditVariant.unitCostCurrencyCode || liveCostCurrencyCode !== storeCurrencyCode) {
+        summary.catalogCurrencyMismatches += 1;
+        addFailure({ productId, variantId, handle: normalizeText(product?.handle), failure: `unit-cost currency changed/mismatches store currency: expected ${auditVariant.unitCostCurrencyCode || "missing"}/${storeCurrencyCode}, got ${liveCostCurrencyCode || "missing"}` });
+      }
       const expectedCompareAtPrice = auditVariant.plannedCompareAtPrice || null;
       if (actualPrice !== auditVariant.plannedPrice || actualCompareAtPrice !== expectedCompareAtPrice) {
         summary.catalogTargetMismatches += 1;
@@ -875,21 +968,28 @@ async function verifyTargets(products, manifestPath, outputPath) {
 
 async function main() {
   const args = parseArgs(process.argv);
+  assertFutureLightDirectWriteDisabled({ runner: "price-rework", mode: args.mode });
   if (args.mode === "apply") await verifyApprovalForApply();
   const retryInfo = [];
-  const [products, priorLedger] = await Promise.all([
+  const [store, products, priorLedger] = await Promise.all([
+    fetchStoreCurrency(retryInfo),
     fetchProducts(retryInfo),
     loadPriorLedger(args.output),
   ]);
+  const marketEvidence = await loadMarketEvidence(args.marketEvidence, store);
+  assertMarketPriceEvidenceOwnership(marketEvidence, products);
 
   if (args.mode === "verify") {
-    const manifest = await verifyTargets(products, args.verifyManifest, args.output);
+    const manifest = await verifyTargets(products, args.verifyManifest, args.output, store.currencyCode);
     const catalogFailures = manifest.summary.catalogTargetMismatches +
       manifest.summary.catalogMissingAuditVariants +
       manifest.summary.catalogMissingLiveVariants +
       manifest.summary.catalogMissingCostVariants +
       manifest.summary.catalogInvalidPriceVariants +
-      manifest.summary.catalogUnderMinimumSellPriceVariants;
+      manifest.summary.catalogUnderMinimumSellPriceVariants +
+      manifest.summary.catalogCostMismatches +
+      manifest.summary.catalogCurrencyMismatches +
+      manifest.summary.storeCurrencyMismatches;
     if (manifest.summary.failedProducts || catalogFailures) {
       throw new Error(`Nominal market pricing verification failed for ${manifest.summary.failedVariants} planned variant(s) and ${catalogFailures} full-catalog violation(s); see ${args.output}.`);
     }
@@ -897,7 +997,10 @@ async function main() {
     return;
   }
 
-  const { plannedProducts, auditProducts, summary } = buildPlan(products, args, priorLedger);
+  const { plannedProducts, auditProducts, summary } = buildPlan(products, args, priorLedger, {
+    ...marketEvidence,
+    currencyCode: store.currencyCode,
+  });
   const manifest = {
     schemaVersion: 1,
     startedAt: new Date().toISOString(),
@@ -909,22 +1012,31 @@ async function main() {
       store: client.storeDomain,
       apiVersion: client.apiVersion,
       freshLiveRead: true,
+      storeCurrencyCode: store.currencyCode,
+      marketEvidence: marketEvidence.provided ? {
+        fingerprint: marketEvidence.fingerprint,
+        createdAt: marketEvidence.createdAt,
+      } : null,
     },
     policy: {
       scope: "all Shopify products and variants with a valid live inventory cost",
-      formula: "nominal market-band price with live-cost floor, $16 overhead, $10 minimum net contribution target, and psychological rounding; every eligible variant meets the full cost-plus floor",
-      marketBands: PRICE_REWORK_RULES.marketBands.map(({ id, label, maxPrice }) => ({ id, label, maxPrice })),
-      sourceCostAnomalies: "known decimal-scale fingerprints are normalized only for the effective pricing calculation; Shopify unitCost is never mutated",
-      compareAtPrices: "preserve absence; when present normalize to at least 1.25x the nominal market sell price with psychological rounding",
-      variantPricing: "calculate independently per variant; preserve quality, size, color, bundle, and quantity-tier differences",
+      formula: "lowest shopper-friendly price at or below 5% under the median of at least three current exact US delivered-price comparables, while preserving positive contribution after verified landed cost, the full $16 overhead per product, basket-allocated $13 per-order acquisition, and fixed payment fees; hold when basket allocation, costs, or market competitiveness is unproven",
+      marketBands: PRICE_REWORK_RULES.marketBands.map(({ id, label }) => ({ id, label })),
+      sourceCostAnomalies: "never scale, divide, or infer a live Shopify unit cost; suspect costs require explicit source correction and readback",
+      compareAtPrices: "preserve existing compare-at values exactly and never invent or auto-inflate a discount anchor",
+      variantPricing: "calculate independently per variant; preserve quality, size, color, bundle, and quantity-tier differences; per-order costs and contribution must use a verified basket allocation and cannot be charged in full to every variant",
       statusAndChannels: "product status and sales-channel inclusion are unchanged",
       idempotency: "only manifests produced by this strategy can resume; previously verified targets are not compounded",
     },
     parameters: {
       overhead: PRICE_REWORK_RULES.overhead,
+      acquisitionCost: PRICE_REWORK_RULES.acquisitionCost,
       minimumNetContribution: PRICE_REWORK_RULES.minimumNetContribution,
       minimumSellPrice: PRICE_REWORK_RULES.minimumSellPrice,
-      compareAtMultiplier: PRICE_REWORK_RULES.compareAtMultiplier,
+      targetUndercutFraction: PRICE_REWORK_RULES.targetUndercutFraction,
+      minimumIndependentComparables: PRICE_REWORK_RULES.minimumIndependentComparables,
+      maximumComparableAgeDays: PRICE_REWORK_RULES.maximumComparableAgeDays,
+      orderCostAllocationRequired: true,
     },
     summary: {
       ...summary,
@@ -945,10 +1057,10 @@ async function main() {
     manifest.completedAt = new Date().toISOString();
     await writeManifest(args.output, manifest);
     throw new Error(
-      `Nominal market pricing is blocked for ${blockedCatalogVariants} catalog variant(s): ` +
+      `Competitive pricing is blocked for ${blockedCatalogVariants} catalog variant(s): ` +
       `${summary.missingCostVariants} missing/invalid live costs and ${summary.invalidPriceVariants} invalid prices. ` +
-      `${summary.marketValueHoldVariants} market-value/cost conflicts. ` +
-      `Populate the Shopify inventoryItem.unitCost source before any price apply. See ${args.output}.`,
+      `${summary.marketValueHoldVariants} missing/incomplete market, landed-cost, fee, currency, or contribution-floor evidence. ` +
+      `No prices were changed. Attach a fresh exact-comparable manifest and resolve every held SKU before apply. See ${args.output}.`,
     );
   }
 

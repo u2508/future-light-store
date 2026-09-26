@@ -2,10 +2,17 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  SHOPIFY_ALL_PRODUCT_STATUS_FILTER,
+  SHOPIFY_ALL_PRODUCT_STATUSES,
+} from "./shopify-product-status-scope.mjs";
 
 export const DSERS_POLICY_RELATIVE_PATH = "config/dsers-family-store-search-policy.json";
 export const DSERS_TOTAL_CAPACITY = 679;
 export const DSERS_BATCH_COUNT = 7;
+export const DSERS_CATALOG_SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
+export const FUTURE_LIGHT_SHOP_DOMAIN = "vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
+const SNAPSHOT_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -13,6 +20,41 @@ function makeReadError(code) {
   const error = new Error(code);
   error.code = code;
   return error;
+}
+
+export function computeDsersLaneBatchCrosswalkSha256(policy) {
+  if (!Array.isArray(policy?.batches)) return "";
+  const crosswalk = policy.batches
+    .map(({ id, sourceLane, families, ceiling, sourceGate, gate, laneAllocations }) => ({
+      id,
+      sourceLane,
+      families: Array.isArray(families) ? [...families].sort(compareText) : [],
+      ceiling,
+      sourceGate,
+      gate,
+      laneAllocations: Array.isArray(laneAllocations)
+        ? laneAllocations
+            .map(({ laneId, slots }) => ({ laneId, slots }))
+            .sort((left, right) => compareText(left.laneId ?? "", right.laneId ?? ""))
+        : [],
+    }))
+    .sort((left, right) => Number(left.id) - Number(right.id));
+  return createHash("sha256").update(JSON.stringify(crosswalk)).digest("hex");
+}
+
+export function isDsersLaneBatchCrosswalkApproved(policy, { now = Date.now() } = {}) {
+  const approval = policy?.laneToBatchCrosswalkApproval;
+  const approvedAt = Date.parse(approval?.approvedAt || "");
+  return Boolean(
+    approval?.status === "approved" &&
+      isNonEmptyString(approval.approvedBy) &&
+      approval.policyVersion === policy?.policyVersion &&
+      approval.sourceSha256 === policy?.sourceSha256 &&
+      approval.crosswalkSha256 === computeDsersLaneBatchCrosswalkSha256(policy) &&
+      Number.isFinite(approvedAt) &&
+      Number.isFinite(now) &&
+      approvedAt <= now,
+  );
 }
 
 /** Read the checked-in policy source and verify it against its source document. */
@@ -105,6 +147,12 @@ function inspectPolicy(policy) {
 
   if (policy?.planningSlots !== DSERS_TOTAL_CAPACITY) {
     errors.push({ code: "POLICY_TOTAL_CEILING_INVALID" });
+  }
+  if (!isPositiveInteger(policy?.productTarget)) {
+    errors.push({ code: "POLICY_PRODUCT_TARGET_INVALID" });
+  }
+  if (policy?.shopDomain !== FUTURE_LIGHT_SHOP_DOMAIN) {
+    errors.push({ code: "POLICY_SHOP_DOMAIN_INVALID" });
   }
   if (!Array.isArray(policy?.collectionLanes) || lanes.length === 0) {
     errors.push({ code: "POLICY_LANES_INVALID" });
@@ -255,6 +303,84 @@ function inspectPolicy(policy) {
   };
 }
 
+function inspectFreshCatalogSnapshot(snapshot, policy, now, maxAgeMs) {
+  const errors = [];
+  const timestamp = snapshot && SNAPSHOT_TIMESTAMP_RE.test(snapshot.createdAt)
+    ? Date.parse(snapshot.createdAt)
+    : NaN;
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
+    return { errors: [{ code: "ACTIVE_CATALOG_SNAPSHOT_REQUIRED" }] };
+  }
+  if (snapshot.schemaVersion !== 2) errors.push({ code: "ACTIVE_CATALOG_SNAPSHOT_SCHEMA_INVALID" });
+  if (!Number.isFinite(now)) errors.push({ code: "ACTIVE_CATALOG_VALIDATION_TIME_INVALID" });
+  if (snapshot.shopDomain !== policy.shopDomain) errors.push({ code: "ACTIVE_CATALOG_SNAPSHOT_WRONG_STORE" });
+  if (snapshot.scope !== "all Shopify product statuses") {
+    errors.push({ code: "ACTIVE_CATALOG_SNAPSHOT_SCOPE_INCOMPLETE" });
+  }
+  if (snapshot.coverage?.products !== "complete") {
+    errors.push({ code: "ACTIVE_CATALOG_SNAPSHOT_COVERAGE_INCOMPLETE" });
+  }
+  if (
+    snapshot.queryFilters?.products !== SHOPIFY_ALL_PRODUCT_STATUS_FILTER ||
+    snapshot.coverage?.productStatuses !== "complete"
+  ) {
+    errors.push({ code: "ACTIVE_CATALOG_STATUS_FILTER_INCOMPLETE" });
+  }
+  if (!Number.isFinite(timestamp) || timestamp > now || now - timestamp > maxAgeMs) {
+    errors.push({ code: "ACTIVE_CATALOG_SNAPSHOT_STALE_OR_INVALID" });
+  }
+  const products = snapshot.products;
+  if (
+    !Array.isArray(products) ||
+    !Number.isSafeInteger(snapshot.counts?.products) ||
+    snapshot.counts.products < 0 ||
+    snapshot.counts.products !== products.length
+  ) {
+    errors.push({ code: "ACTIVE_CATALOG_PRODUCT_COUNT_INVALID" });
+    return { errors: sortErrors(errors) };
+  }
+  if (!Number.isSafeInteger(maxAgeMs) || maxAgeMs <= 0) {
+    errors.push({ code: "ACTIVE_CATALOG_SNAPSHOT_MAX_AGE_INVALID" });
+    return { errors: sortErrors(errors) };
+  }
+  const seenIds = new Set();
+  let activeProductCount = 0;
+  for (const [index, product] of products.entries()) {
+    const id = isNonEmptyString(product?.id) ? product.id.trim() : "";
+    if (!id || seenIds.has(id)) {
+      errors.push({ code: id ? "ACTIVE_CATALOG_DUPLICATE_PRODUCT_ID" : "ACTIVE_CATALOG_PRODUCT_ID_MISSING", index });
+      continue;
+    }
+    seenIds.add(id);
+    const status = typeof product.status === "string" ? product.status.toUpperCase() : "";
+    if (!SHOPIFY_ALL_PRODUCT_STATUSES.includes(status)) {
+      errors.push({ code: "ACTIVE_CATALOG_PRODUCT_STATUS_INVALID", index });
+    } else if (status === "ACTIVE") {
+      activeProductCount += 1;
+    }
+  }
+  if (errors.length > 0) return { errors: sortErrors(errors) };
+  const totalProductCount = products.length;
+  const activeHeadroom = Math.max(0, policy.productTarget - activeProductCount);
+  const totalProductHeadroom = Math.max(0, policy.productTarget - totalProductCount);
+  const availableHeadroom = Math.min(activeHeadroom, totalProductHeadroom);
+  return {
+    errors: [],
+    capacity: {
+      shopDomain: snapshot.shopDomain,
+      snapshotCreatedAt: snapshot.createdAt,
+      totalProductCount,
+      activeProductCount,
+      target: policy.productTarget,
+      totalProductHeadroom,
+      activeHeadroom,
+      availableHeadroom,
+      planningCeiling: DSERS_TOTAL_CAPACITY,
+      effectiveCeiling: Math.min(DSERS_TOTAL_CAPACITY, availableHeadroom),
+    },
+  };
+}
+
 function emptyCounts(total = 0) {
   return { total, lanes: {}, batches: {} };
 }
@@ -274,7 +400,15 @@ function sortedCounts(counts) {
  * Pass a policy object only for isolated tests.
  * Each candidate uses supplierProductId, searchFamily, collectionLane, and batchId.
  */
-export function validateDsersBatchCapacity(candidates, policy = readDsersPolicy()) {
+export function validateDsersBatchCapacity(
+  candidates,
+  policy = readDsersPolicy(),
+  {
+    activeCatalogSnapshot,
+    now = Date.now(),
+    maxSnapshotAgeMs = DSERS_CATALOG_SNAPSHOT_MAX_AGE_MS,
+  } = {},
+) {
   const records = Array.isArray(candidates) ? candidates : [];
   const counts = emptyCounts(records.length);
   if (!Array.isArray(candidates)) {
@@ -286,7 +420,19 @@ export function validateDsersBatchCapacity(candidates, policy = readDsersPolicy(
     return { valid: false, counts: sortedCounts(counts), errors: inspectedPolicy.errors };
   }
 
+  const nowMs = typeof now === "number" ? now : Date.parse(now);
+  const ageLimit = Number.isSafeInteger(maxSnapshotAgeMs) && maxSnapshotAgeMs > 0
+    ? maxSnapshotAgeMs
+    : DSERS_CATALOG_SNAPSHOT_MAX_AGE_MS;
+  const catalog = inspectFreshCatalogSnapshot(activeCatalogSnapshot, policy, nowMs, ageLimit);
+  if (catalog.errors.length > 0) {
+    return { valid: false, counts: sortedCounts(counts), errors: catalog.errors };
+  }
+
   const errors = [];
+  if (records.length > 0 && !isDsersLaneBatchCrosswalkApproved(policy, { now: nowMs })) {
+    errors.push({ code: "POLICY_BATCH_CROSSWALK_UNAPPROVED" });
+  }
   const seenIds = new Set();
   const duplicateIdsReported = new Set();
   const laneCounts = new Map();
@@ -371,6 +517,15 @@ export function validateDsersBatchCapacity(candidates, policy = readDsersPolicy(
   if (counts.total > DSERS_TOTAL_CAPACITY) {
     errors.push({ code: "TOTAL_CAP_EXCEEDED", actual: counts.total, limit: DSERS_TOTAL_CAPACITY });
   }
+  if (counts.total > catalog.capacity.effectiveCeiling) {
+    errors.push({
+      code: "DYNAMIC_CAPACITY_EXCEEDED",
+      actual: counts.total,
+      limit: catalog.capacity.effectiveCeiling,
+      activeProductCount: catalog.capacity.activeProductCount,
+      target: catalog.capacity.target,
+    });
+  }
 
   for (const lane of [...inspectedPolicy.laneById.values()].sort((a, b) =>
     compareText(a.id, b.id),
@@ -396,6 +551,7 @@ export function validateDsersBatchCapacity(candidates, policy = readDsersPolicy(
   return {
     valid: orderedErrors.length === 0,
     counts: sortedCounts(finalCounts),
+    capacity: catalog.capacity,
     errors: orderedErrors,
   };
 }

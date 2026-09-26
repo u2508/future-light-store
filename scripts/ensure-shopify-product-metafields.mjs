@@ -5,6 +5,14 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
+import {
+  FUTURE_LIGHT_SHOPIFY_ENV_KEYS,
+  futureLightChildEnv,
+  loadFutureLightEnv,
+} from "./lib/future-light-env.mjs";
+import { resolveFutureLightShopifyTarget } from "./lib/future-light-shopify-target.mjs";
+
+await loadFutureLightEnv({ rootDir: process.cwd(), allowedKeys: FUTURE_LIGHT_SHOPIFY_ENV_KEYS });
 
 import {
   PRODUCT_METAFIELD_DEFINITIONS,
@@ -18,32 +26,20 @@ import {
   SHOP_MARKETING_METAFIELD_DEFINITIONS,
 } from "../src/lib/shopify-marketing-metafield-definitions.js";
 
-const baseUrl = process.env.SALT_SHOP_URL;
-if (!baseUrl) throw new Error("SALT_SHOP_URL is required to configure Future Light Store metafields.");
-const adminApiVersion = process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
-const shopifyStoreDomain = new URL(baseUrl).hostname;
-const shopifyCliApiVersion = process.env.SHOPIFY_CLI_API_VERSION || adminApiVersion;
+const { shopDomain: shopifyStoreDomain } = resolveFutureLightShopifyTarget(process.env);
+const adminApiVersion = process.env.FUTURE_LIGHT_SHOPIFY_API_VERSION || process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
+const shopifyCliApiVersion = adminApiVersion;
 const shopifyCliAgentInfo =
-  process.env.SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:openai";
+  process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_INFO || "n:future-light-store|v:1|p:openai";
 const shopifyCliAgentIds =
-  process.env.SHOPIFY_CLI_AGENT_IDS ||
+  process.env.FUTURE_LIGHT_SHOPIFY_CLI_AGENT_IDS ||
   `s:future-light-store|r:${process.pid}|i:future-light-store`;
-const requestSpacingMs = Number(process.env.SALT_SHOPIFY_REQUEST_DELAY_MS ?? 250);
-const maxRequestAttempts = Number(process.env.SALT_SHOPIFY_MAX_REQUEST_ATTEMPTS ?? 8);
-const maxRetryDelayMs = Number(process.env.SALT_SHOPIFY_MAX_RETRY_DELAY_MS ?? 60_000);
-const adminRetryBaseDelayMs = Number(process.env.SALT_SHOPIFY_ADMIN_RETRY_BASE_DELAY_MS ?? 1500);
+const requestSpacingMs = Number(process.env.FUTURE_LIGHT_SHOPIFY_REQUEST_DELAY_MS ?? 250);
+const maxRequestAttempts = Number(process.env.FUTURE_LIGHT_SHOPIFY_MAX_REQUEST_ATTEMPTS ?? 8);
+const maxRetryDelayMs = Number(process.env.FUTURE_LIGHT_SHOPIFY_MAX_RETRY_DELAY_MS ?? 60_000);
+const adminRetryBaseDelayMs = 1500;
 const execFileAsync = promisify(execFile);
-const futureLightProfile = process.env.FUTURE_LIGHT_STORE === "1" ||
-  String(process.env.SALT_RELEASE_NAME || "").toLowerCase().includes("future light");
-const LEGACY_PRODUCT_METAFIELD_DEFINITIONS_TO_DELETE = [
-  {
-    ownerType: "PRODUCT",
-    namespace: "google",
-    key: "custom_product",
-    name: "Google: Custom Product",
-    deleteAllAssociatedMetafields: true,
-  },
-];
+const futureLightProfile = process.env.FUTURE_LIGHT_STORE === "1";
 
 let requestQueue = Promise.resolve();
 
@@ -115,7 +111,7 @@ async function fetchAdminGraphQL(
   const serializedVariables = variables && Object.keys(variables).length ? variables : null;
 
   const runCliOperation = async () => {
-    const tempDir = await mkdtemp(join(tmpdir(), "salt-shopify-cli-"));
+    const tempDir = await mkdtemp(join(tmpdir(), "future-light-shopify-cli-"));
     const queryFile = join(tempDir, "operation.graphql");
     const outputFile = join(tempDir, "result.json");
     const variableFile = join(tempDir, "variables.json");
@@ -151,7 +147,7 @@ async function fetchAdminGraphQL(
       await runSerializedRequest(() =>
         execFileAsync("shopify", args, {
           env: {
-            ...process.env,
+            ...futureLightChildEnv(process.env),
             SHOPIFY_CLI_AGENT_INFO: shopifyCliAgentInfo,
             SHOPIFY_CLI_AGENT_IDS: shopifyCliAgentIds,
           },
@@ -390,46 +386,6 @@ async function createCustomProductMetafieldDefinition(definition) {
   return result?.createdDefinition || null;
 }
 
-async function deleteLegacyProductMetafieldDefinition(definition) {
-  const mutation = /* GraphQL */ `
-    mutation DeleteProductMetafieldDefinition(
-      $identifier: MetafieldDefinitionIdentifierInput!
-      $deleteAllAssociatedMetafields: Boolean!
-    ) {
-      metafieldDefinitionDelete(
-        identifier: $identifier
-        deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields
-      ) {
-        deletedDefinitionId
-        userErrors {
-          field
-          message
-          code
-        }
-      }
-    }
-  `;
-
-  const payload = await fetchAdminGraphQL(mutation, {
-    identifier: {
-      ownerType: definition.ownerType,
-      namespace: definition.namespace,
-      key: definition.key,
-    },
-    deleteAllAssociatedMetafields: definition.deleteAllAssociatedMetafields ?? false,
-  }, { allowMutations: true });
-
-  const result = payload.metafieldDefinitionDelete;
-  if (Array.isArray(result?.userErrors) && result.userErrors.length) {
-    const message = result.userErrors
-      .map((error) => `${error.field?.join(".") || "definition"}: ${error.message}`)
-      .join(" | ");
-    throw new Error(`Failed to delete metafield definition "${definition.name}": ${message}`);
-  }
-
-  return result?.deletedDefinitionId || null;
-}
-
 async function ensureProductMetafieldDefinitions() {
   const allDefinitions = [
     ...PRODUCT_METAFIELD_DEFINITIONS,
@@ -476,23 +432,8 @@ async function ensureProductMetafieldDefinitions() {
     throw new Error(`Unsupported metafield definition kind for "${definition.name}"`);
   }
 
-  let deletedCount = 0;
-  for (const definition of LEGACY_PRODUCT_METAFIELD_DEFINITIONS_TO_DELETE) {
-    const definitionId = getProductMetafieldDefinitionId(definition);
-    const existing = existingDefinitions.get(definitionId);
-
-    if (!existing) {
-      process.stdout.write(`Legacy definition already absent ${definition.name} (${definitionId})\n`);
-      continue;
-    }
-
-    await deleteLegacyProductMetafieldDefinition(definition);
-    deletedCount += 1;
-    logDefinition(definition, "Deleted legacy");
-  }
-
   process.stdout.write(
-    `Metafield definitions ensured: ${existingCount} existing, ${createdCount} created, ${deletedCount} deleted.\n`,
+    `Metafield definitions ensured: ${existingCount} existing, ${createdCount} created. Existing definitions and values were preserved.\n`,
   );
 }
 

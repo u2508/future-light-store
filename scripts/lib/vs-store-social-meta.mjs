@@ -136,7 +136,13 @@ export function nextScheduledDateForWeekday(
     },
     timeZone,
   );
-  if (target.getTime() <= now.getTime() + minimumLeadMinutes * 60 * 1000) {
+  // If this is already the target weekday, keep today's slot even when the
+  // runner starts late or inside the lead window. API mode publishes at/after
+  // that slot; rolling to the next week would misdate the post.
+  if (
+    daysAhead > 0 &&
+    target.getTime() <= now.getTime() + minimumLeadMinutes * 60 * 1000
+  ) {
     daysAhead += 7;
     target = zonedDateTimeToUtc(
       {
