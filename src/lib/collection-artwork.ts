@@ -1,3 +1,5 @@
+import { resolveShopifyThemeAssetUrl } from "./shopify-theme-asset-url.mjs";
+
 const images = import.meta.glob<string>("../assets/collection-artwork/*.jpg", {
   eager: true,
   query: "?url",
@@ -87,15 +89,41 @@ export const INTERNAL_COLLECTION_HANDLES = new Set([
 ]);
 
 export function collectionArtwork(handle: string, fallback?: string | null) {
-  return images[`../assets/collection-artwork/${handle}.jpg`] || fallback || undefined;
+  const importedArtwork = images[`../assets/collection-artwork/${handle}.jpg`];
+  if (importedArtwork) {
+    const themeAssetBase = (
+      globalThis as typeof globalThis & {
+        SALT_THEME_ASSET_BASE?: string;
+      }
+    ).SALT_THEME_ASSET_BASE;
+    return resolveShopifyThemeAssetUrl(importedArtwork, themeAssetBase);
+  }
+
+  return fallback || undefined;
 }
 
 export function collectionThumbnail(handle: string) {
-  return thumbnails[`../assets/collection-artwork/240/${handle}.jpg`] || collectionArtwork(handle);
+  const importedThumbnail = thumbnails[`../assets/collection-artwork/240/${handle}.jpg`];
+  if (importedThumbnail) {
+    const themeAssetBase = (
+      globalThis as typeof globalThis & {
+        SALT_THEME_ASSET_BASE?: string;
+      }
+    ).SALT_THEME_ASSET_BASE;
+    return resolveShopifyThemeAssetUrl(importedThumbnail, themeAssetBase);
+  }
+
+  return collectionArtwork(handle);
 }
 
 export function collectionArtworkSrcSet(handle: string) {
   const full = collectionArtwork(handle);
   const medium = mediumImages[`../assets/collection-artwork/768/${handle}.jpg`];
-  return full && medium ? `${medium} 768w, ${full} 1536w` : undefined;
+  const themeAssetBase = (
+    globalThis as typeof globalThis & {
+      SALT_THEME_ASSET_BASE?: string;
+    }
+  ).SALT_THEME_ASSET_BASE;
+  const resolvedMedium = resolveShopifyThemeAssetUrl(medium, themeAssetBase);
+  return full && resolvedMedium ? `${resolvedMedium} 768w, ${full} 1536w` : undefined;
 }
