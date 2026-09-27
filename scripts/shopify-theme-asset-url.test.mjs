@@ -19,6 +19,47 @@ test("keeps local URLs unchanged when the Shopify theme base is absent", () => {
   );
 });
 
+test("infers the Shopify theme asset directory from the loaded theme module", () => {
+  assert.equal(
+    resolveShopifyThemeAssetUrl(
+      "/assets/travel-outdoor-Ca5XGuIT.jpg",
+      undefined,
+      "https://vs-store-us.myshopify.com/cdn/shop/t/3/assets/collection-artwork-abc.js",
+    ),
+    "https://vs-store-us.myshopify.com/cdn/shop/t/3/assets/travel-outdoor-Ca5XGuIT.jpg",
+  );
+});
+
+test("supports Shopify CDN-hosted theme modules", () => {
+  assert.equal(
+    resolveShopifyThemeAssetUrl(
+      "/assets/home-decor-Ca5XGuIT.jpg",
+      undefined,
+      "https://cdn.shopify.com/s/files/1/1234/t/567/assets/collection-artwork.js",
+    ),
+    "https://cdn.shopify.com/s/files/1/1234/t/567/assets/home-decor-Ca5XGuIT.jpg",
+  );
+});
+
+test("does not infer a theme asset base from local or unrelated modules", () => {
+  assert.equal(
+    resolveShopifyThemeAssetUrl(
+      "/assets/home-decor.jpg",
+      undefined,
+      "http://localhost:4173/src/main.ts",
+    ),
+    "/assets/home-decor.jpg",
+  );
+  assert.equal(
+    resolveShopifyThemeAssetUrl(
+      "/assets/home-decor.jpg",
+      undefined,
+      "https://example.com/assets/app.js",
+    ),
+    "/assets/home-decor.jpg",
+  );
+});
+
 test("does not rewrite Shopify CDN or other remote URLs", () => {
   const remote = "https://cdn.shopify.com/s/files/1/collection.jpg";
   assert.equal(resolveShopifyThemeAssetUrl(remote, "https://store/cdn/shop/t/3/assets/"), remote);

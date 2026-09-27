@@ -26,6 +26,23 @@ async function main() {
   if (!oldArtworkName) throw new Error("No collection-artwork module found in the deployed entry");
 
   const oldArtworkSource = readThemeHead(`assets/${oldArtworkName}`);
+  const modulePaths = execFileSync(
+    "git",
+    ["-C", themeDir, "ls-tree", "-r", "--name-only", "HEAD", "--", "assets"],
+    { encoding: "utf8" },
+  )
+    .split("\n")
+    .filter((path) => path?.endsWith(".js"))
+    .map((path) => ({ path, source: readThemeHead(path) }));
+  const legacyArtworkNames = new Set(
+    modulePaths.flatMap(({ source }) =>
+      [...source.matchAll(/collection-artwork-[A-Za-z0-9_-]+\.js/g)].map((match) => match[0]),
+    ),
+  );
+  legacyArtworkNames.add(oldArtworkName);
+  const legacyArtworkModules = [...legacyArtworkNames]
+    .filter((name) => name !== oldArtworkName)
+    .map((name) => ({ name, source: readThemeHead(`assets/${name}`) }));
   const artworkName = (await readdir(distAssetsDir)).find((name) =>
     /^collection-artwork-[A-Za-z0-9_-]+\.js$/.test(name),
   );
@@ -48,6 +65,8 @@ async function main() {
     artworkName,
     artworkSource,
     availableAssets,
+    dependentModuleSources: modulePaths,
+    legacyArtworkModules,
   });
 
   const output = {
@@ -60,6 +79,7 @@ async function main() {
     uploadPaths: [
       `assets/${patch.newArtworkName}`,
       `assets/${patch.newEntryName}`,
+      ...patch.patchedDependentModules.map(({ path }) => path),
       "layout/theme.liquid",
     ],
     mode: writeMode ? "write" : "dry-run",
@@ -74,6 +94,9 @@ async function main() {
 
   await writeFile(resolve(themeDir, "assets", patch.newArtworkName), artworkSource);
   await writeFile(resolve(themeDir, "assets", patch.newEntryName), patch.patchedEntrySource);
+  for (const { path, source } of patch.patchedDependentModules) {
+    await writeFile(resolve(themeDir, path), source);
+  }
   await writeFile(resolve(themeDir, "layout", "theme.liquid"), patch.patchedLayoutSource);
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
 }

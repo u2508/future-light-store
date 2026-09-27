@@ -10,7 +10,7 @@ const input = () => ({
     "<script src=\"{{ 'salt-entry-old123.js' | asset_url }}\"></script><link href=\"{{ 'salt-entry-old123.js' | asset_url }}\">",
   entryName: "salt-entry-old123.js",
   entrySource:
-    'import {r as artwork} from "./collection-artwork-old123.js";import("./collection-artwork-old123.js");',
+    'import {r as artwork} from "./collection-artwork-old123.js";import("./routes-live.js");',
   oldArtworkSource: oldArtwork,
   artworkName: "collection-artwork-new123.js",
   artworkSource: newArtwork,
@@ -24,6 +24,38 @@ test("makes a cache-busted entry pointing to the Shopify-aware artwork module", 
   assert.doesNotMatch(result.patchedLayoutSource, /salt-entry-old123\.js/);
   assert.match(result.patchedLayoutSource, new RegExp(result.newEntryName.replaceAll(".", "\\.")));
   assert.equal(result.referencedAssetCount, 1);
+});
+
+test("updates dependent route chunks so they use the same artwork module", () => {
+  const result = prepareArtworkHotfix({
+    ...input(),
+    dependentModuleSources: [
+      {
+        path: "assets/routes-live.js",
+        source: 'import {r as artwork} from "./collection-artwork-route123.js";',
+      },
+      {
+        path: "assets/unrelated.js",
+        source: 'import "./other-module.js";',
+      },
+    ],
+    legacyArtworkModules: [
+      {
+        name: "collection-artwork-route123.js",
+        source: oldArtwork,
+      },
+    ],
+  });
+
+  const routeModule = result.patchedDependentModules.find(
+    ({ replaces }) => replaces === "routes-live.js",
+  );
+  assert.match(result.patchedEntrySource, /routes-live-[a-f0-9]{12}\.js/);
+  assert.equal(
+    routeModule?.path.match(/routes-live-[a-f0-9]{12}\.js/)?.[0],
+    routeModule?.path.split("/").at(-1),
+  );
+  assert.match(routeModule?.source || "", /collection-artwork-new123\.js/);
 });
 
 test("fails closed if the new artwork module changes its public exports", () => {

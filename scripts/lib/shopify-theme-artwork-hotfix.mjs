@@ -12,6 +12,22 @@ function themeAssetNames(source) {
     .filter(Boolean)
     .sort();
 }
+import { createHash } from "node:crypto";
+
+function moduleDependencies(source) {
+  return [
+    ...new Set(
+      [...source.matchAll(/["']\.\/([^"'?#]+\.js)(?:\?[^"']*)?["']/g)].map((match) => match[1]),
+    ),
+  ];
+}
+
+function cacheBustedModuleName(name, source) {
+  const digest = createHash("sha256").update(source).digest("hex").slice(0, 12);
+  return name.startsWith("salt-entry-")
+    ? `salt-entry-${digest}.js`
+    : `${name.slice(0, -3)}-${digest}.js`;
+}
 
 export function prepareArtworkHotfix({
   layoutSource,
@@ -21,6 +37,8 @@ export function prepareArtworkHotfix({
   artworkName,
   artworkSource,
   availableAssets,
+  dependentModuleSources = [],
+  legacyArtworkModules = [],
 }) {
   if (!/^salt-entry-[A-Za-z0-9_-]+\.js$/.test(entryName)) {
     throw new Error("Expected the current Shopify salt-entry asset name");
@@ -39,10 +57,17 @@ export function prepareArtworkHotfix({
     throw new Error("Expected exactly one older artwork-module reference in the live entry");
   }
   const oldArtworkName = references[0];
+  const artworkModules = [
+    { name: oldArtworkName, source: oldArtworkSource },
+    ...legacyArtworkModules.filter(({ name }) => name !== oldArtworkName),
+  ];
   if (
-    !oldArtworkSource ||
-    JSON.stringify(themeAssetNames(oldArtworkSource)) !==
-      JSON.stringify(themeAssetNames(artworkSource))
+    artworkModules.some(
+      ({ name, source }) =>
+        !/^collection-artwork-[A-Za-z0-9_-]+\.js$/.test(name) ||
+        !source ||
+        JSON.stringify(themeAssetNames(source)) !== JSON.stringify(themeAssetNames(artworkSource)),
+    )
   ) {
     throw new Error("New artwork module does not preserve the currently deployed export contract");
   }
@@ -62,10 +87,53 @@ export function prepareArtworkHotfix({
     );
   }
 
-  const patchedEntrySource = entrySource.replaceAll(oldArtworkName, artworkName);
+  const legacyArtworkNames = new Set(artworkModules.map(({ name }) => name));
+  const moduleSources = new Map(
+    dependentModuleSources.map(({ path, source }) => [path.replace(/^assets\//, ""), source]),
+  );
+  const rewrittenModules = new Map();
+  const rewriteModule = (name, source, ancestry = new Set()) => {
+    if (rewrittenModules.has(name)) return rewrittenModules.get(name);
+    if (ancestry.has(name)) return { name, source };
+
+    const nextAncestry = new Set(ancestry).add(name);
+    let nextSource = source;
+    for (const dependencyName of moduleDependencies(source)) {
+      if (legacyArtworkNames.has(dependencyName)) {
+        nextSource = nextSource.replaceAll(dependencyName, artworkName);
+        continue;
+      }
+      const dependencySource = moduleSources.get(dependencyName);
+      if (!dependencySource) continue;
+      const rewrittenDependency = rewriteModule(dependencyName, dependencySource, nextAncestry);
+      if (rewrittenDependency.name !== dependencyName) {
+        nextSource = nextSource.replaceAll(dependencyName, rewrittenDependency.name);
+      }
+    }
+
+    for (const legacyName of legacyArtworkNames) {
+      nextSource = nextSource.replaceAll(legacyName, artworkName);
+    }
+
+    const result =
+      nextSource === source
+        ? { name, source }
+        : { name: cacheBustedModuleName(name, nextSource), source: nextSource };
+    rewrittenModules.set(name, result);
+    return result;
+  };
+
+  const rewrittenEntry = rewriteModule(entryName, entrySource);
+  const patchedEntrySource = rewrittenEntry.source;
+  const patchedDependentModules = [...rewrittenModules.entries()]
+    .filter(([name, result]) => name !== entryName && result.name !== name)
+    .map(([name, result]) => ({
+      path: `assets/${result.name}`,
+      source: result.source,
+      replaces: name,
+    }));
   const patchedLayoutSource = layoutSource.replaceAll(entryName, "__ENTRY_NAME__");
-  const entryDigest = createHash("sha256").update(patchedEntrySource).digest("hex").slice(0, 12);
-  const nextEntryName = `salt-entry-${entryDigest}.js`;
+  const nextEntryName = rewrittenEntry.name;
   const finalLayoutSource = patchedLayoutSource.replaceAll("__ENTRY_NAME__", nextEntryName);
 
   return {
@@ -73,9 +141,9 @@ export function prepareArtworkHotfix({
     oldEntryName: entryName,
     newArtworkName: artworkName,
     newEntryName: nextEntryName,
+    patchedDependentModules,
     patchedEntrySource,
     patchedLayoutSource: finalLayoutSource,
     referencedAssetCount: referencedAssets.length,
   };
 }
-import { createHash } from "node:crypto";
