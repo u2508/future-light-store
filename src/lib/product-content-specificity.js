@@ -42,6 +42,13 @@ const GENERIC_FILLER_PATTERNS = [
   /\bchoose the shade, size, and format shown for your needs\b/i,
   /\ba practical addition to a beauty routine in the format shown\b/i,
   /\bchoose the shade or format that suits your routine\b/i,
+  /\b(?:wearable|everyday|practical)\s+(?:product|item|watch)\s+listing\b/i,
+  /\b(?:features?|fit options?|finishes?|details)\s+(?:are|is)\s+(?:shown|listed|available)\s+(?:below|for the model)\b/i,
+  /\bwith its features and intended use clear before checkout\b/i,
+  /\bin practice, it brings together\b/i,
+  /\b(?:the )?options listed on the product page\b/i,
+  /\bcheck phone compatibility, charging method, and supported functions before ordering\b/i,
+  /\bcheck the size chart and compare the selected color with the way you plan to wear it\b/i,
 ];
 
 // These narrowly defined domains catch a dangerous failure mode in generated

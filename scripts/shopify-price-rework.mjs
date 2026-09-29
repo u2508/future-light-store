@@ -2,6 +2,7 @@
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   assertMarketPriceEvidenceOwnership,
   validateMarketPriceEvidence,
@@ -24,9 +25,38 @@ const rootDir = resolve(import.meta.dirname, "..");
 const defaultOutputPath = resolve(rootDir, "output", "shopify-price-rework-manifest.json");
 const defaultMinimumSellPrice = PRICE_REWORK_RULES.minimumSellPrice;
 const pageSize = 250;
-const batchProductSize = Math.max(1, Math.min(25, Number(process.env.FUTURE_LIGHT_PRICING_BATCH_SIZE || 10)));
-const mutationRetryLimit = Math.max(1, Math.min(5, Number(process.env.FUTURE_LIGHT_PRICING_MUTATION_RETRIES || 3)));
-const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "price-rework" });
+let adminClient;
+let singleAttemptMutationClient;
+
+function getAdminClient() {
+  adminClient ||= createShopifyAdminGraphQLClient({ rootDir, agentName: "price-rework" });
+  return adminClient;
+}
+
+function getSingleAttemptMutationClient() {
+  if (singleAttemptMutationClient) return singleAttemptMutationClient;
+  const retrySetting = "FUTURE_LIGHT_SHOPIFY_MAX_REQUEST_ATTEMPTS";
+  const previousRetrySetting = process.env[retrySetting];
+  try {
+    // The outer apply loop owns retries and performs a fresh Shopify preimage
+    // read before each one. Prevent the shared client from replaying a write
+    // internally without that guard.
+    process.env[retrySetting] = "1";
+    singleAttemptMutationClient = createShopifyAdminGraphQLClient({ rootDir, agentName: "price-rework-write-once" });
+  } finally {
+    if (previousRetrySetting === undefined) delete process.env[retrySetting];
+    else process.env[retrySetting] = previousRetrySetting;
+  }
+  return singleAttemptMutationClient;
+}
+
+function configuredBatchProductSize() {
+  return Math.max(1, Math.min(25, Number(process.env.FUTURE_LIGHT_PRICING_BATCH_SIZE || 10)));
+}
+
+function configuredMutationRetryLimit() {
+  return Math.max(1, Math.min(5, Number(process.env.FUTURE_LIGHT_PRICING_MUTATION_RETRIES || 3)));
+}
 
 const PRODUCTS_QUERY = /* GraphQL */ `
   query PriceReworkProducts($first: Int!, $after: String) {
@@ -197,6 +227,106 @@ function normalizeMoney(value) {
   return Number.isFinite(amount) ? amount.toFixed(2) : null;
 }
 
+const MAX_REVIEW_AGE_MS = PRICE_REWORK_RULES.maximumComparableAgeDays * 24 * 60 * 60 * 1000;
+
+/** Only comparables with an explicit, recent approval can inform an apply plan. */
+export function reviewedUsComparables(comparables, { now = Date.now() } = {}) {
+  if (!Array.isArray(comparables)) {
+    return { comparables: [], reason: "reviewed exact US comparable evidence is missing" };
+  }
+
+  const seenHosts = new Set();
+  const approved = comparables.filter((record) => {
+    const reviewedAt = Date.parse(record?.reviewedAt || "");
+    const checkedAt = Date.parse(record?.checkedAt || "");
+    let hostname = "";
+    try {
+      const url = new URL(String(record?.url || ""));
+      if (url.protocol !== "https:") return false;
+      hostname = url.hostname.replace(/^www\./i, "").toLowerCase();
+    } catch {
+      return false;
+    }
+    const isReviewedUsComparable = (
+      String(record?.reviewStatus || "").trim().toLowerCase() === "approved" &&
+      Boolean(normalizeText(record?.reviewedBy)) &&
+      Number.isFinite(reviewedAt) &&
+      reviewedAt <= now &&
+      now - reviewedAt <= MAX_REVIEW_AGE_MS &&
+      Number.isFinite(checkedAt) &&
+      checkedAt <= reviewedAt &&
+      checkedAt <= now + 60 * 60 * 1000 &&
+      String(record?.matchType || "").trim().toLowerCase() === "exact" &&
+      String(record?.market || "").trim().toUpperCase() === "US" &&
+      String(record?.currencyCode || "").trim().toUpperCase() === "USD" &&
+      Boolean(normalizeText(record?.retailer)) &&
+      !seenHosts.has(hostname)
+    );
+    if (isReviewedUsComparable) seenHosts.add(hostname);
+    return isReviewedUsComparable;
+  });
+
+  if (approved.length < PRICE_REWORK_RULES.minimumIndependentComparables) {
+    return {
+      comparables: approved,
+      reason: `at least ${PRICE_REWORK_RULES.minimumIndependentComparables} fresh, explicitly reviewed exact US comparables are required`,
+    };
+  }
+  return { comparables: approved, reason: "" };
+}
+
+/** Return a hold reason unless the just-read Shopify variant preimage is exact. */
+export function freshPricePreimageFailure(expectedProduct, liveProduct) {
+  const expectedProductId = String(expectedProduct?.productId || "");
+  if (!expectedProductId || String(liveProduct?.id || "") !== expectedProductId) {
+    return "fresh preimage product ID is missing or changed";
+  }
+  if (normalizeText(liveProduct?.handle) !== normalizeText(expectedProduct?.handle)) {
+    return "fresh preimage product handle is missing or changed";
+  }
+  if (liveProduct?.variants?.pageInfo?.hasNextPage) {
+    return "fresh preimage variant list is incomplete";
+  }
+
+  const expectedVariants = asArray(expectedProduct?.variants);
+  if (!expectedVariants.length) return "price plan contains no exact variant preimages";
+  const liveVariants = asArray(liveProduct?.variants?.nodes);
+  const liveById = new Map();
+  for (const variant of liveVariants) {
+    const variantId = String(variant?.id || "");
+    if (!variantId || liveById.has(variantId)) return "fresh preimage contains a missing or duplicate variant identity";
+    liveById.set(variantId, variant);
+  }
+
+  for (const expected of expectedVariants) {
+    const variantId = String(expected?.variantId || "");
+    const live = liveById.get(variantId);
+    const expectedCost = normalizeMoney(expected?.cost);
+    const liveCost = normalizeMoney(live?.inventoryItem?.unitCost?.amount);
+    const expectedCostCurrency = String(expected?.unitCostCurrencyCode || "").trim().toUpperCase();
+    const liveCostCurrency = String(live?.inventoryItem?.unitCost?.currencyCode || "").trim().toUpperCase();
+    const expectedPrice = normalizeMoney(expected?.currentPrice);
+    const livePrice = normalizeMoney(live?.price);
+    const expectedCompareAt = normalizeMoney(expected?.currentCompareAtPrice) || null;
+    const liveCompareAt = normalizeMoney(live?.compareAtPrice) || null;
+
+    if (!variantId || !live) return `fresh preimage is missing exact variant ${variantId || "ID"}`;
+    if (!expectedCost || Number(expectedCost) <= 0 || expectedCostCurrency !== "USD") {
+      return `variant ${variantId} has no exact positive USD Shopify unit-cost preimage`;
+    }
+    if (liveCost !== expectedCost || liveCostCurrency !== expectedCostCurrency) {
+      return `variant ${variantId} unit cost/currency changed since planning (expected ${expectedCost} ${expectedCostCurrency}, got ${liveCost || "missing"} ${liveCostCurrency || "missing"})`;
+    }
+    if (!expectedPrice || Number(expectedPrice) <= 0 || livePrice !== expectedPrice) {
+      return `variant ${variantId} current price changed since planning (expected ${expectedPrice || "missing"}, got ${livePrice || "missing"})`;
+    }
+    if (liveCompareAt !== expectedCompareAt) {
+      return `variant ${variantId} current compare-at price changed since planning (expected ${expectedCompareAt || "none"}, got ${liveCompareAt || "none"})`;
+    }
+  }
+  return "";
+}
+
 async function loadPriorLedger(outputPath) {
   try {
     const parsed = JSON.parse(await readFile(outputPath, "utf8"));
@@ -240,6 +370,7 @@ async function verifyApprovalForApply() {
 }
 
 async function fetchProducts(retryInfo) {
+  const client = getAdminClient();
   const products = [];
   let after = null;
   let page = 0;
@@ -270,6 +401,7 @@ async function fetchProducts(retryInfo) {
 }
 
 async function fetchStoreCurrency(retryInfo) {
+  const client = getAdminClient();
   const data = await client.run(STORE_CURRENCY_QUERY, {}, { operation: "verify store currency before price audit", retryInfo });
   const shop = data?.shop;
   if (!shop?.currencyCode || String(shop?.myshopifyDomain || "").toLowerCase() !== client.storeDomain.toLowerCase()) {
@@ -317,6 +449,7 @@ function buildPlan(products, args, priorLedger, marketEvidence) {
       const currentPrice = normalizeMoney(variant?.price);
       const compareAtPrice = normalizeMoney(variant?.compareAtPrice);
       const cost = normalizeMoney(variant?.inventoryItem?.unitCost?.amount);
+      const unitCostCurrencyCode = String(variant?.inventoryItem?.unitCost?.currencyCode || "").trim().toUpperCase();
       const variantEvidence = marketEvidence.byVariantId.get(String(variant?.id || ""));
       if (!currentPrice || Number(currentPrice) <= 0) {
         summary.invalidPriceVariants += 1;
@@ -334,7 +467,7 @@ function buildPlan(products, args, priorLedger, marketEvidence) {
         });
         continue;
       }
-      if (!cost || Number(cost) <= 0) {
+      if (!cost || Number(cost) <= 0 || unitCostCurrencyCode !== "USD" || marketEvidence.currencyCode !== "USD") {
         summary.missingCostVariants += 1;
         auditVariants.push({
           variantId: String(variant?.id || ""),
@@ -346,7 +479,28 @@ function buildPlan(products, args, priorLedger, marketEvidence) {
           plannedPrice: null,
           plannedCompareAtPrice: null,
           status: "blocked-missing-cost",
-          failure: "Shopify inventory item cost is missing or invalid",
+          unitCostCurrencyCode,
+          failure: "exact positive USD Shopify inventory-item unit cost is missing, invalid, or unverified",
+        });
+        continue;
+      }
+      const reviewedEvidence = reviewedUsComparables(variantEvidence?.comparables);
+      if (reviewedEvidence.reason) {
+        summary.marketValueHoldVariants += 1;
+        auditVariants.push({
+          variantId: String(variant?.id || ""),
+          title: normalizeText(variant?.title),
+          sku: normalizeText(variant?.sku),
+          cost,
+          unitCostCurrencyCode,
+          currentPrice,
+          currentCompareAtPrice: compareAtPrice || "",
+          plannedPrice: null,
+          plannedCompareAtPrice: null,
+          marketEvidenceFingerprint: marketEvidence.fingerprint || "",
+          validComparableCount: reviewedEvidence.comparables.length,
+          status: "blocked-market-value",
+          failure: reviewedEvidence.reason,
         });
         continue;
       }
@@ -357,7 +511,7 @@ function buildPlan(products, args, priorLedger, marketEvidence) {
         productTitle: product?.title,
         variantTitle: variant?.title,
         currencyCode: marketEvidence.currencyCode || "",
-        unitCostCurrencyCode: variant?.inventoryItem?.unitCost?.currencyCode || "",
+        unitCostCurrencyCode,
         landedCost: variantEvidence?.landedCost,
         landedCostVerified: variantEvidence?.landedCostVerified === true,
         paymentFeeRate: variantEvidence?.paymentFeeRate,
@@ -368,7 +522,7 @@ function buildPlan(products, args, priorLedger, marketEvidence) {
         expectedDiscountRate: variantEvidence?.expectedDiscountRate,
         discountPolicyVerified: variantEvidence?.discountPolicyVerified === true,
         minimumSellPrice: args.minimumSellPrice,
-        comparables: variantEvidence?.comparables,
+        comparables: reviewedEvidence.comparables,
       });
       if (!pricing.price) {
         summary.marketValueHoldVariants += 1;
@@ -436,6 +590,7 @@ function buildPlan(products, args, priorLedger, marketEvidence) {
         title: normalizeText(variant?.title),
         sku: normalizeText(variant?.sku),
         cost,
+        unitCostCurrencyCode,
         currentPrice,
         plannedPrice: targetPrice,
         currentCompareAtPrice: compareAtPrice,
@@ -509,7 +664,7 @@ async function completeProductVariants(product, retryInfo, operationPrefix) {
   while (hasNextPage) {
     if (!after) throw new Error(`${product?.handle || product?.id || "product"} has variant pagination without an end cursor.`);
     page += 1;
-    const data = await client.run(
+    const data = await getAdminClient().run(
       PRODUCT_VARIANTS_QUERY,
       { id: product.id, first: pageSize, after },
       { operation: `${operationPrefix} ${product?.handle || product?.id} variant page ${page}`, retryInfo },
@@ -574,7 +729,7 @@ function buildUpdateBatch(batch) {
 }
 
 async function verifyBatch(batch, retryInfo, batchNumber) {
-  const data = await client.run(
+  const data = await getAdminClient().run(
     PRODUCT_BATCH_READBACK_QUERY,
     { ids: batch.map((product) => product.productId) },
     { operation: `price rework batch readback ${batchNumber}`, retryInfo },
@@ -595,6 +750,27 @@ async function verifyBatch(batch, retryInfo, batchNumber) {
   return failures;
 }
 
+async function freshPreimageFailures(batch, retryInfo, batchNumber) {
+  const data = await getAdminClient().run(
+    PRODUCT_BATCH_READBACK_QUERY,
+    { ids: batch.map((product) => product.productId) },
+    { operation: `price rework fresh preimage ${batchNumber}`, retryInfo },
+  );
+  const nodesById = new Map(asArray(data?.nodes).filter(Boolean).map((node) => [String(node?.id || ""), node]));
+  const failures = new Map();
+  for (const product of batch) {
+    const liveProduct = nodesById.get(product.productId);
+    if (!liveProduct) {
+      failures.set(product.productId, "fresh preimage read did not return the exact Shopify product");
+      continue;
+    }
+    await completeProductVariants(liveProduct, retryInfo, "price rework fresh preimage");
+    const failure = freshPricePreimageFailure(product, liveProduct);
+    if (failure) failures.set(product.productId, failure);
+  }
+  return failures;
+}
+
 function refreshSummary(manifest) {
   const products = asArray(manifest.products);
   const variants = products.flatMap((product) => asArray(product.variants));
@@ -606,6 +782,8 @@ function refreshSummary(manifest) {
 
 async function applyPlan(manifest) {
   const products = asArray(manifest.products);
+  const batchProductSize = configuredBatchProductSize();
+  const mutationRetryLimit = configuredMutationRetryLimit();
   for (let start = 0; start < products.length; start += batchProductSize) {
     const batch = products.slice(start, start + batchProductSize);
     const batchNumber = Math.floor(start / batchProductSize) + 1;
@@ -613,12 +791,28 @@ async function applyPlan(manifest) {
     process.stdout.write(`Applying price rework batch ${batchNumber}/${totalBatches} (${batch.length} products)\n`);
     const retryInfo = [];
     let failures = new Map();
-    const mutation = buildUpdateBatch(batch);
     let batchVerified = false;
     for (let attempt = 1; attempt <= mutationRetryLimit; attempt += 1) {
       const attemptFailures = new Map();
       try {
-        const data = await client.run(
+        // Re-read the exact variant price, compare-at, and unit cost immediately
+        // before every mutation attempt. A changed/missing preimage holds the
+        // entire batch; no stale target is ever retried or guessed.
+        const preimageFailures = await freshPreimageFailures(batch, retryInfo, batchNumber);
+        if (preimageFailures.size) {
+          for (const product of batch) {
+            attemptFailures.set(
+              product.productId,
+              preimageFailures.get(product.productId) ||
+                "batch held because another product failed fresh-preimage validation; no mutation was attempted",
+            );
+          }
+          failures = attemptFailures;
+          break;
+        }
+
+        const mutation = buildUpdateBatch(batch);
+        const data = await getSingleAttemptMutationClient().run(
           mutation.query,
           mutation.variables,
           { allowMutations: true, operation: `price rework mutation batch ${batchNumber} attempt ${attempt}`, retryInfo },
@@ -757,6 +951,7 @@ async function loadVerificationTargets(manifestPath) {
 }
 
 async function verifyTargets(products, manifestPath, outputPath, liveStoreCurrencyCode) {
+  const client = getAdminClient();
   const { products: expectedProducts, auditProducts, storeCurrencyCode } = await loadVerificationTargets(manifestPath);
   const liveProductsById = new Map(products.map((product) => [String(product?.id || ""), product]));
   const auditProductsById = new Map(auditProducts.map((product) => [product.productId, product]));
@@ -970,6 +1165,7 @@ async function main() {
   const args = parseArgs(process.argv);
   assertFutureLightDirectWriteDisabled({ runner: "price-rework", mode: args.mode });
   if (args.mode === "apply") await verifyApprovalForApply();
+  const client = getAdminClient();
   const retryInfo = [];
   const [store, products, priorLedger] = await Promise.all([
     fetchStoreCurrency(retryInfo),
@@ -1086,7 +1282,9 @@ async function main() {
   process.stdout.write(`Nominal market pricing complete: ${manifest.summary.updatedVariants} variant(s) updated and verified.\n`);
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error.message || error}\n`);
-  process.exitCode = 1;
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    process.stderr.write(`${error.message || error}\n`);
+    process.exitCode = 1;
+  });
+}

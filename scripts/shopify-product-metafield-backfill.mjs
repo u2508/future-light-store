@@ -16,6 +16,7 @@ import { normalizeHandleValue, normalizePlainText, toShopifyGid } from "../src/l
 import {
   inferDeterministicShopifyTaxonomyCategory,
 } from "../src/lib/shopify-product-category.js";
+import { CATALOG_TAXONOMY_VERSION } from "../src/lib/catalog-taxonomy.js";
 import {
   mergeProductCustomData,
   normalizeCollectionCustomData,
@@ -33,6 +34,7 @@ import {
 } from "../src/lib/shopify-product-metafield-backfill.js";
 import {
   buildCategoryMetafieldPlan,
+  categoryMetaobjectTaxonomyFieldKey,
 } from "../src/lib/shopify-category-metafield-backfill.js";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 import { createRequestScheduler, envInteger, recommendedConcurrency } from "./lib/performance-runtime.mjs";
@@ -43,6 +45,7 @@ import {
 } from "./lib/category-metafield-release-gate.mjs";
 
 const projectRoot = resolve(import.meta.dirname, "..");
+assertRawApplyScope(process.argv);
 await loadFutureLightEnv({ rootDir: projectRoot, allowedKeys: FUTURE_LIGHT_PRODUCT_METAFIELD_ENV_KEYS });
 const { shopDomain: SHOP_DOMAIN } = resolveFutureLightShopifyTarget();
 const DEFAULT_OUTPUT_FILE = resolve(process.cwd(), "output", "product-metafield-backfill-manifest.json");
@@ -92,10 +95,6 @@ const shopifyRequestScheduler = createRequestScheduler({
   minIntervalMs: SHOPIFY_REQUEST_DELAY_MS,
 });
 const DIAPER_METAOBJECT_DEFINITION_ID = "gid://shopify/MetaobjectDefinition/9632874595";
-// Shopify's existing standard color entries use Solid when a product has a
-// color but no evidence-backed pattern. This keeps required Color metaobjects
-// valid without inventing a product-specific pattern.
-const DEFAULT_SOLID_PATTERN_TAXONOMY_VALUE_ID = "gid://shopify/TaxonomyValue/2874";
 // Shopify's standard Color metaobject accepts at most four base-color
 // references in its color_taxonomy_reference list. Products can legitimately
 // have more than four color variants, so preserve all evidence by creating
@@ -140,28 +139,37 @@ const BULK_OPERATION_STATUS_QUERY = /* GraphQL */ `
 `;
 
 const SHOPIFY_TAXONOMY_SEARCH_QUERY = /* GraphQL */ `
-  query BackfillShopifyTaxonomySearch($search: String!, $first: Int!) {
+  query BackfillShopifyTaxonomySearch($search: String!, $first: Int!, $after: String) {
     taxonomy {
-      categories(first: $first, search: $search) {
-        nodes { id name fullName }
+      categories(first: $first, after: $after, search: $search) {
+        nodes { id name fullName isLeaf }
+        pageInfo { hasNextPage endCursor }
       }
     }
   }
 `;
 
 const CATEGORY_METAFIELD_DEFINITIONS_QUERY = /* GraphQL */ `
-  query CategoryMetafieldDefinitions($first: Int!, $ownerType: MetafieldOwnerType!) {
-    metafieldDefinitions(first: $first, ownerType: $ownerType) {
+  query CategoryMetafieldDefinitions($first: Int!, $ownerType: MetafieldOwnerType!, $categoryValue: String!, $after: String) {
+    metafieldDefinitions(
+      first: $first
+      after: $after
+      ownerType: $ownerType
+      constraintSubtype: { key: "category", value: $categoryValue }
+      constraintStatus: CONSTRAINED_ONLY
+    ) {
       nodes {
         id
+        ownerType
         namespace
         key
-      name
-      type { name }
-      validations { name value }
-      standardTemplate { id }
-      constraints { key }
+        name
+        type { name }
+        validations { name value }
+        standardTemplate { id }
+        constraints { key }
       }
+      pageInfo { hasNextPage endCursor }
     }
   }
 `;
@@ -169,20 +177,25 @@ const CATEGORY_METAFIELD_DEFINITIONS_QUERY = /* GraphQL */ `
 const CATEGORY_ATTRIBUTES_QUERY = /* GraphQL */ `
   query CategoryAttributes($ids: [ID!]!) {
     nodes(ids: $ids) {
+      __typename
       ... on TaxonomyCategory {
         id
         name
         fullName
+        isLeaf
         attributes(first: 250) {
-      nodes {
-        __typename
-        ... on TaxonomyAttribute {
-          id
-        }
+          nodes {
+            __typename
+            ... on TaxonomyAttribute {
+              id
+            }
             ... on TaxonomyChoiceListAttribute {
               id
               name
-              values(first: 250) { nodes { id name } }
+              values(first: 250) {
+                nodes { id name }
+                pageInfo { hasNextPage endCursor }
+              }
             }
             ... on TaxonomyMeasurementAttribute {
               id
@@ -190,6 +203,7 @@ const CATEGORY_ATTRIBUTES_QUERY = /* GraphQL */ `
               options { key value }
             }
           }
+          pageInfo { hasNextPage endCursor }
         }
       }
     }
@@ -200,6 +214,7 @@ const CATEGORY_METAOBJECTS_QUERY = /* GraphQL */ `
   query CategoryMetaobjects($type: String!, $first: Int!) {
     metaobjects(type: $type, first: $first) {
       nodes { id type fields { key value } }
+      pageInfo { hasNextPage endCursor }
     }
   }
 `;
@@ -472,6 +487,74 @@ function parseArgs(argv) {
   }
 
   return args;
+}
+
+function assertExactProductApplyScope(args, products = null) {
+  if (!args.apply) return;
+  const ids = Array.isArray(args.productIds) ? args.productIds.map(Number) : [];
+  if (
+    args.allActive ||
+    args.productHandles?.length ||
+    args.productHandlesFile ||
+    Number(args.limitProducts) > 0 ||
+    ids.length === 0 ||
+    ids.some((id) => !Number.isSafeInteger(id) || id <= 0) ||
+    new Set(ids).size !== ids.length
+  ) {
+    throw new Error(
+      "Refusing --apply: provide an exact, unique --product-id list only; --all-active, handles, and product limits are not an approved exact scope.",
+    );
+  }
+  if (products === null) return;
+
+  const productIds = products.map((product) => Number(product?.id));
+  if (
+    productIds.length !== ids.length ||
+    productIds.some((id) => !ids.includes(id)) ||
+    new Set(productIds).size !== productIds.length
+  ) {
+    const missing = ids.filter((id) => !productIds.includes(id));
+    const unexpected = productIds.filter((id) => !ids.includes(id));
+    throw new Error(
+      `Refusing --apply: live product cohort does not exactly match requested IDs (${missing.length} missing, ${unexpected.length} unexpected, ${productIds.length} returned for ${ids.length} requested).`,
+    );
+  }
+}
+
+function assertRawApplyScope(argv) {
+  let apply = false;
+  const ids = [];
+  for (let index = 2; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (token === "--apply") apply = true;
+    if (token === "--dry-run") apply = false;
+    if (token === "--product-id") {
+      const raw = argv[index + 1];
+      if (!raw || raw.startsWith("--")) {
+        throw new Error("Refusing --apply: --product-id requires one or more numeric Shopify product IDs.");
+      }
+      for (const value of raw.split(",")) {
+        if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) <= 0) {
+          throw new Error("Refusing --apply: --product-id values must be positive, safe integer IDs.");
+        }
+        ids.push(Number(value));
+      }
+      index += 1;
+    }
+  }
+  if (!apply) return;
+  const forbiddenSelectors = new Set([
+    "--all-active",
+    "--product-handle",
+    "--product-handles-file",
+    "--limit-products",
+    "--sample",
+  ]);
+  if (argv.some((token) => forbiddenSelectors.has(token)) || ids.length === 0 || new Set(ids).size !== ids.length) {
+    throw new Error(
+      "Refusing --apply: provide an exact, unique --product-id list only; --all-active, handles, and product limits are not an approved exact scope.",
+    );
+  }
 }
 
 function normalizeDomain(value) {
@@ -1869,22 +1952,6 @@ async function discoverDisclosureOptions() {
   return { discovered: options.length > 0, options };
 }
 
-function normalizeTaxonomySegment(value) {
-  return normalizePlainText(value)
-    .toLowerCase()
-    .replace(/[’']/g, "")
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\b(ies)\b/g, "y")
-    .replace(/\b(s)\b/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function taxonomyTokens(value) {
-  return new Set(normalizeTaxonomySegment(value).split(" ").filter(Boolean));
-}
-
 function taxonomyPathSegments(value) {
   return normalizePlainText(value)
     .split(/\s*>\s*/)
@@ -1892,92 +1959,8 @@ function taxonomyPathSegments(value) {
     .filter(Boolean);
 }
 
-const TAXONOMY_ROOT_ALIASES = new Map([
-  ["luggage and bags", new Set(["luggage and bags", "apparel and accessories"])],
-  ["toys and games", new Set(["toys and games", "arts and entertainment"])],
-  ["baby and toddler", new Set(["baby and toddler"])],
-]);
-
-const ROOT_TAXONOMY_CATEGORIES = new Map([
-  ["animals and pet supplies", ["ap", "Animals & Pet Supplies"]],
-  ["apparel and accessories", ["aa", "Apparel & Accessories"]],
-  ["arts and entertainment", ["ae", "Arts & Entertainment"]],
-  ["baby and toddler", ["bt", "Baby & Toddler"]],
-  ["business and industrial", ["bi", "Business & Industrial"]],
-  ["cameras and optics", ["co", "Cameras & Optics"]],
-  ["electronics", ["el", "Electronics"]],
-  ["food beverages and tobacco", ["fb", "Food, Beverages & Tobacco"]],
-  ["furniture", ["fr", "Furniture"]],
-  ["hardware", ["ha", "Hardware"]],
-  ["health and beauty", ["hb", "Health & Beauty"]],
-  ["home and garden", ["hg", "Home & Garden"]],
-  ["luggage and bags", ["lb", "Luggage & Bags"]],
-  ["media", ["me", "Media"]],
-  ["office supplies", ["os", "Office Supplies"]],
-  ["services", ["se", "Services"]],
-  ["software", ["sw", "Software"]],
-  ["sporting goods", ["sg", "Sporting Goods"]],
-  ["toys and games", ["tg", "Toys & Games"]],
-  ["vehicles and parts", ["vp", "Vehicles & Parts"]],
-]);
-
-function pathRootMatches(requestedRoot, candidateRoot) {
-  const requested = normalizeTaxonomySegment(requestedRoot);
-  const candidate = normalizeTaxonomySegment(candidateRoot);
-  if (requested === candidate) return true;
-  return TAXONOMY_ROOT_ALIASES.get(requested)?.has(candidate) || false;
-}
-
-function tokenOverlap(left, right) {
-  const a = taxonomyTokens(left);
-  const b = taxonomyTokens(right);
-  if (!a.size || !b.size) return 0;
-  let matches = 0;
-  for (const token of a) {
-    if (b.has(token)) matches += 1;
-  }
-  return matches / Math.max(a.size, b.size);
-}
-
-function categoryPathScore(requestedPath, candidate) {
-  const requestedSegments = taxonomyPathSegments(requestedPath);
-  const candidateSegments = taxonomyPathSegments(candidate?.fullName || "");
-  if (!requestedSegments.length || !candidateSegments.length) return Number.NEGATIVE_INFINITY;
-
-  const requestedLeaf = requestedSegments.at(-1);
-  const candidateLeaf = candidateSegments.at(-1);
-  const requestedLeafNormalized = normalizeTaxonomySegment(requestedLeaf);
-  const candidateLeafNormalized = normalizeTaxonomySegment(candidateLeaf);
-  const leafOverlap = tokenOverlap(requestedLeaf, candidateLeaf);
-  const leafExact = requestedLeafNormalized === candidateLeafNormalized;
-  const leafContained = requestedLeafNormalized && candidateLeafNormalized && (
-    candidateLeafNormalized.includes(requestedLeafNormalized) ||
-    requestedLeafNormalized.includes(candidateLeafNormalized)
-  );
-
-  if (!leafExact && !leafContained && leafOverlap < 0.5) {
-    return Number.NEGATIVE_INFINITY;
-  }
-
-  let score = leafExact ? 100 : leafContained ? 82 : 65 + leafOverlap * 15;
-  if (pathRootMatches(requestedSegments[0], candidateSegments[0])) {
-    score += 45;
-  }
-
-  const requestedAncestors = requestedSegments.slice(0, -1);
-  const candidateAncestors = candidateSegments.slice(0, -1);
-  const requestedAncestorTokens = new Set(requestedAncestors.flatMap((segment) => [...taxonomyTokens(segment)]));
-  const candidateAncestorTokens = new Set(candidateAncestors.flatMap((segment) => [...taxonomyTokens(segment)]));
-  let ancestorMatches = 0;
-  for (const token of requestedAncestorTokens) {
-    if (candidateAncestorTokens.has(token)) ancestorMatches += 1;
-  }
-  score += Math.min(30, ancestorMatches * 6);
-
-  if (candidateSegments.length >= requestedSegments.length) {
-    score += 3;
-  }
-  return score;
+function exactTaxonomyPath(value) {
+  return String(value || "").trim().replace(/\s*>\s*/g, " > ").replace(/\s+/g, " ");
 }
 
 async function fetchShopifyTaxonomyCategories(paths) {
@@ -1989,12 +1972,35 @@ async function fetchShopifyTaxonomyCategories(paths) {
       const segments = taxonomyPathSegments(path);
       const searchTerms = [...new Set([path, segments.at(-1), segments.at(-2)].filter(Boolean))];
       for (const search of searchTerms) {
-        const payload = await runShopifyStoreGraphQL(SHOPIFY_TAXONOMY_SEARCH_QUERY, {
-          search,
-          first: 250,
-        });
-        for (const category of payload?.taxonomy?.categories?.nodes || []) {
-          if (category?.id && category?.fullName) categoriesById.set(category.id, category);
+        let after = null;
+        const seenCursors = new Set();
+        while (true) {
+          const payload = await runShopifyStoreGraphQL(SHOPIFY_TAXONOMY_SEARCH_QUERY, {
+            search,
+            first: 250,
+            after,
+          });
+          const connection = payload?.taxonomy?.categories;
+          if (!Array.isArray(connection?.nodes) || typeof connection?.pageInfo?.hasNextPage !== "boolean") {
+            throw new Error(`Shopify taxonomy search returned incomplete results for ${search}.`);
+          }
+          for (const category of connection.nodes) {
+            if (!category?.id || !category?.fullName || typeof category.isLeaf !== "boolean") {
+              throw new Error(`Shopify taxonomy search returned incomplete category identity for ${search}.`);
+            }
+            const previous = categoriesById.get(category.id);
+            if (previous && (previous.fullName !== category.fullName || previous.isLeaf !== category.isLeaf)) {
+              throw new Error(`Shopify taxonomy search returned conflicting category identity for ${category.id}.`);
+            }
+            categoriesById.set(category.id, category);
+          }
+          if (!connection.pageInfo.hasNextPage) break;
+          const cursor = connection.pageInfo.endCursor;
+          if (typeof cursor !== "string" || !cursor || seenCursors.has(cursor)) {
+            throw new Error(`Shopify taxonomy search pagination is incomplete for ${search}.`);
+          }
+          seenCursors.add(cursor);
+          after = cursor;
         }
       }
       process.stdout.write(`Loaded Shopify taxonomy evidence ${nextPath}/${paths.length} (${categoriesById.size} categories)\n`);
@@ -2005,30 +2011,10 @@ async function fetchShopifyTaxonomyCategories(paths) {
 }
 
 function resolveTaxonomyPath(path, categories) {
-  const normalizedPath = normalizeTaxonomySegment(path);
-  const exact = categories.filter((category) => normalizeTaxonomySegment(category.fullName) === normalizedPath);
-  if (exact.length === 1) return exact[0];
-  if (exact.length > 1) return null;
-
-  const scored = categories
-    .map((category) => ({ category, score: categoryPathScore(path, category) }))
-    .filter((entry) => Number.isFinite(entry.score))
-    .sort((left, right) => right.score - left.score);
-  const best = scored[0];
-  const second = scored[1];
-  if (best && best.score >= 90 && (!second || best.score - second.score >= 10)) return best.category;
-
-  const root = normalizeTaxonomySegment(taxonomyPathSegments(path)[0]);
-  const [rootId, rootName] = ROOT_TAXONOMY_CATEGORIES.get(root) || [];
-  if (rootId) {
-    return {
-      id: `gid://shopify/TaxonomyCategory/${rootId}`,
-      name: rootName,
-      fullName: rootName,
-      resolutionMethod: "deterministic-root-fallback",
-    };
-  }
-  return null;
+  const exactPath = exactTaxonomyPath(path);
+  const exact = categories.filter((category) => exactTaxonomyPath(category?.fullName) === exactPath);
+  if (exact.length !== 1) return null;
+  return exact[0].isLeaf === true ? exact[0] : null;
 }
 
 async function buildCategoryPlans(products) {
@@ -2043,10 +2029,7 @@ async function buildCategoryPlans(products) {
       if (!entry.currentCategory?.id) return true;
       const inferredId = String(entry.category.id || "");
       const currentId = String(entry.currentCategory.id || "");
-      const inferredPath = normalizeTaxonomySegment(entry.category.fullName || entry.category.name);
-      const currentPath = normalizeTaxonomySegment(entry.currentCategory.fullName || entry.currentCategory.name);
-      return (inferredId && currentId && inferredId !== currentId) ||
-        (inferredPath && currentPath && inferredPath !== currentPath);
+      return !inferredId || inferredId !== currentId;
     });
 
   const paths = [...new Set(
@@ -2063,6 +2046,7 @@ async function buildCategoryPlans(products) {
         id: String(resolved.id),
         name: String(resolved.name || "").trim(),
         fullName: String(resolved.fullName || path).trim(),
+        isLeaf: resolved.isLeaf,
       });
     }
     process.stdout.write(`Resolved Shopify taxonomy path ${resolvedByPath.size}/${paths.length}\n`);
@@ -2070,10 +2054,13 @@ async function buildCategoryPlans(products) {
 
   const plans = candidates
     .map(({ product, category }) => {
-      const resolved = category.id
-        ? { id: category.id, name: category.name, fullName: category.fullName || category.name }
-        : resolvedByPath.get(category.fullName);
-      if (!resolved?.id) return null;
+      const path = String(category.fullName || "").trim();
+      const resolved = resolvedByPath.get(path);
+      if (
+        !resolved?.id ||
+        resolved.isLeaf !== true ||
+        (category.id && String(category.id) !== resolved.id)
+      ) return null;
       return {
       productId: Number(product.id),
       productGid: toShopifyGid("Product", product.id),
@@ -2101,18 +2088,85 @@ async function buildCategoryPlans(products) {
   };
 }
 
-async function fetchCategoryMetafieldDefinitions() {
-  const payload = await runShopifyStoreGraphQL(CATEGORY_METAFIELD_DEFINITIONS_QUERY, {
-    first: 250,
-    ownerType: "PRODUCT",
-  });
-  return (payload?.metafieldDefinitions?.nodes || [])
-    .filter((definition) => definition?.namespace === "shopify" && definition?.key)
-    .map((definition) => ({
-      ...definition,
-      type: definition.type?.name || definition.type || "",
-      metaobjectDefinitionId: (definition.validations || []).find((validation) => validation?.name === "metaobject_definition_id")?.value || null,
-    }));
+async function fetchCategoryMetafieldDefinitions(categoryIds) {
+  const ids = [...new Set(categoryIds.filter(Boolean).map(String))];
+  const result = new Map();
+  let nextCategory = 0;
+  let failure = null;
+  const readCategory = async (categoryId) => {
+    const definitions = [];
+    const seenCursors = new Set();
+    const seenDefinitionIds = new Set();
+    const seenDefinitionKeys = new Set();
+    let after = null;
+    while (true) {
+      const payload = await runShopifyStoreGraphQL(CATEGORY_METAFIELD_DEFINITIONS_QUERY, {
+        first: 250,
+        ownerType: "PRODUCT",
+        categoryValue: categoryId,
+        after,
+      });
+      const connection = payload?.metafieldDefinitions;
+      if (!Array.isArray(connection?.nodes) || typeof connection?.pageInfo?.hasNextPage !== "boolean") {
+        throw new Error(`Category-constrained metafield definitions are incomplete for ${categoryId}.`);
+      }
+      for (const definition of connection.nodes) {
+        const constraints = definition?.constraints;
+        if (
+          !definition?.id ||
+          definition.ownerType !== "PRODUCT" ||
+          constraints?.key !== "category" ||
+          !definition.namespace ||
+          !definition.key
+        ) {
+          throw new Error(`Shopify returned an unscoped or incomplete metafield definition for ${categoryId}.`);
+        }
+        if (seenDefinitionIds.has(definition.id) || seenDefinitionKeys.has(`${definition.namespace}.${definition.key}`)) {
+          throw new Error(`Shopify returned a duplicate category metafield definition for ${categoryId}.`);
+        }
+        seenDefinitionIds.add(definition.id);
+        seenDefinitionKeys.add(`${definition.namespace}.${definition.key}`);
+        if (definition.namespace !== "shopify") continue;
+        const metaobjectDefinitionId = (definition.validations || []).find(
+          (validation) => validation?.name === "metaobject_definition_id",
+        )?.value || null;
+        if (String(definition.type?.name || "").includes("metaobject_reference") && !metaobjectDefinitionId) {
+          throw new Error(`Category metafield ${definition.namespace}.${definition.key} has no metaobject_definition_id schema validation.`);
+        }
+        definitions.push({
+          ...definition,
+          categoryId,
+          type: definition.type?.name || definition.type || "",
+          metaobjectDefinitionId,
+        });
+      }
+      if (!connection.pageInfo.hasNextPage) break;
+      const cursor = connection.pageInfo.endCursor;
+      if (typeof cursor !== "string" || !cursor || seenCursors.has(cursor)) {
+        throw new Error(`Category-metafield definition pagination is incomplete for ${categoryId}.`);
+      }
+      seenCursors.add(cursor);
+      after = cursor;
+    }
+    result.set(categoryId, definitions);
+  };
+  const worker = async () => {
+    while (!failure) {
+      const index = nextCategory++;
+      if (index >= ids.length) return;
+      try {
+        await readCategory(ids[index]);
+      } catch (error) {
+        failure ||= error;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, Math.max(1, ids.length)) }, worker));
+  if (failure) throw failure;
+  if (result.size !== ids.length) {
+    throw new Error(`Category-metafield definition scope mismatch: received ${result.size} category schemas for ${ids.length} categories.`);
+  }
+  return result;
 }
 
 async function fetchCategoryAttributesMap(categoryIds) {
@@ -2131,11 +2185,31 @@ async function fetchCategoryAttributesMap(categoryIds) {
       if (index >= chunks.length) return;
       const payload = await runShopifyStoreGraphQL(CATEGORY_ATTRIBUTES_QUERY, { ids: chunks[index] });
       for (const node of payload?.nodes || []) {
-        if (node?.id) result.set(String(node.id), node);
+        if (!node?.id) continue;
+        if (node.__typename !== "TaxonomyCategory" || node.isLeaf !== true) {
+          throw new Error(`Refusing category metafields for non-leaf or unverified taxonomy category ${node.id}.`);
+        }
+        if (!Array.isArray(node.attributes?.nodes) || node.attributes?.pageInfo?.hasNextPage !== false) {
+          throw new Error(`Taxonomy attributes for ${node.id} are incomplete; refusing partial metafield coverage.`);
+        }
+        for (const attribute of node.attributes.nodes) {
+          if (attribute?.__typename === "TaxonomyChoiceListAttribute" &&
+              (!Array.isArray(attribute.values?.nodes) || attribute.values?.pageInfo?.hasNextPage !== false)) {
+            throw new Error(`Taxonomy choice values for ${node.id}/${attribute.name || attribute.id} are incomplete.`);
+          }
+        }
+        if (result.has(String(node.id))) {
+          throw new Error(`Shopify returned duplicate taxonomy category ${node.id}.`);
+        }
+        result.set(String(node.id), node);
       }
     }
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, Math.max(1, chunks.length)) }, () => worker()));
+  const missing = ids.filter((id) => !result.has(id));
+  if (missing.length) {
+    throw new Error(`Shopify taxonomy category response omitted ${missing.length} requested category ID(s).`);
+  }
   return result;
 }
 
@@ -2156,15 +2230,23 @@ async function buildCategoryMetafieldPlans(products, categoryPlanResult) {
   if (!categoryIds.length) {
     return { plans: [], writes: [], summary: { products: 0, attributes: 0, candidates: 0, plannedWrites: 0, skipped: 0, requiresMetaobjectScopes: false } };
   }
-  const [definitions, attributesByCategory] = await Promise.all([
-    fetchCategoryMetafieldDefinitions(),
+  const [definitionsByCategory, attributesByCategory] = await Promise.all([
+    fetchCategoryMetafieldDefinitions(categoryIds),
     fetchCategoryAttributesMap(categoryIds),
   ]);
   const plans = [];
   for (const product of products || []) {
     const category = intendedCategories.get(Number(product.id));
     if (!category?.id) continue;
-    const attributes = attributesByCategory.get(String(category.id))?.attributes?.nodes || [];
+    const categoryRecord = attributesByCategory.get(String(category.id));
+    if (!categoryRecord || categoryRecord.isLeaf !== true) {
+      throw new Error(`Product ${product.id} has no verified exact leaf category schema.`);
+    }
+    const attributes = categoryRecord.attributes.nodes;
+    const definitions = definitionsByCategory.get(String(category.id));
+    if (!Array.isArray(definitions)) {
+      throw new Error(`Product ${product.id} has no fully paginated category-specific metafield schema.`);
+    }
     const plan = buildCategoryMetafieldPlan({ product, category, definitions, attributes });
     plans.push({ ...plan, categoryName: category.name, categoryFullName: category.fullName });
   }
@@ -2172,7 +2254,7 @@ async function buildCategoryMetafieldPlans(products, categoryPlanResult) {
   return {
     plans,
     writes,
-    definitions,
+    definitionsByCategory,
     summary: {
       products: plans.length,
       attributes: plans.reduce((sum, plan) => sum + (plan.writes?.length || 0) + (plan.skipped?.length || 0), 0),
@@ -2268,49 +2350,62 @@ async function ensureCategoryMetaobjectDefinition(write, cache) {
 
 function categoryMetaobjectTaxonomyFieldDefinition(write, definition) {
   const fieldDefinitions = Array.isArray(definition?.fieldDefinitions) ? definition.fieldDefinitions : [];
-  const attributeToken = String(write.attributeName || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
   const taxonomyFields = fieldDefinitions.filter((field) => /taxonomy.*reference|reference.*taxonomy/i.test(String(field?.type?.name || field?.type || "")));
-  return taxonomyFields.find((field) => {
-    const fieldToken = `${field?.key || ""} ${field?.name || ""}`.toLowerCase().replace(/[^a-z0-9]+/g, "");
-    return attributeToken && fieldToken.includes(attributeToken);
-  }) || taxonomyFields[0] || null;
+  const exactKey = categoryMetaobjectTaxonomyFieldKey({ key: write.key }, write.attributeName);
+  const matches = taxonomyFields.filter((field) => String(field?.key || "") === exactKey);
+  if (matches.length > 1) {
+    throw new Error(`${definition?.type || "category metaobject"}: taxonomy field ${exactKey} is ambiguous in the live schema.`);
+  }
+  return matches[0] || null;
 }
 
 function categoryMetaobjectExpectedFields(writes, definition) {
   const fieldDefinitions = Array.isArray(definition?.fieldDefinitions) ? definition.fieldDefinitions : [];
+  if (!fieldDefinitions.length) {
+    throw new Error(`${definition?.type || "category metaobject"}: live field-definition schema is empty or unavailable.`);
+  }
+  if (fieldDefinitions.some((field) => typeof field?.required !== "boolean" || !field?.key || !field?.type?.name)) {
+    throw new Error(`${definition?.type || "category metaobject"}: live schema omitted a field key, type, or required flag.`);
+  }
   const taxonomyFields = fieldDefinitions.filter((field) => /taxonomy.*reference|reference.*taxonomy/i.test(String(field?.type?.name || field?.type || "")));
   const expected = [];
   for (const fieldDefinition of taxonomyFields) {
-    const fieldToken = `${fieldDefinition?.key || ""} ${fieldDefinition?.name || ""}`.toLowerCase().replace(/[^a-z0-9]+/g, "");
-    const matchingWrites = writes.filter((write) => {
-      if (writes.length === 1 && taxonomyFields.length === 1) return true;
-      const attributeToken = String(write.attributeName || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-      return attributeToken && fieldToken.includes(attributeToken);
-    });
+    const matchingWrites = writes.filter((write) =>
+      categoryMetaobjectTaxonomyFieldDefinition(write, definition)?.key === fieldDefinition.key,
+    );
     if (matchingWrites.length) {
-      const matchingWrite = matchingWrites[0];
       const taxonomyValueIds = [...new Set(matchingWrites.map((write) => write.taxonomyValueId).filter(Boolean).map(String))];
+      if (!taxonomyValueIds.length) {
+        throw new Error(`${definition?.type || "category metaobject"}: ${fieldDefinition.key} has no exact taxonomy value ID.`);
+      }
       expected.push({
         fieldDefinition,
-        value: categoryMetaobjectFieldValue({ ...matchingWrite, taxonomyFieldKey: fieldDefinition.key, taxonomyValueIds }, fieldDefinition),
+        value: categoryMetaobjectFieldValue({ ...matchingWrites[0], taxonomyFieldKey: fieldDefinition.key, taxonomyValueIds }, fieldDefinition),
         taxonomyValueIds,
         taxonomyValueId: taxonomyValueIds[0],
       });
       continue;
     }
-    // The Shopify Color definition requires both Base color and Base pattern.
-    // A color-only product is valid with the standard Solid pattern, but a
-    // pattern-only product must never receive an invented color reference.
-    if (/pattern/i.test(fieldToken) && writes.some((write) => /color/i.test(String(write.attributeName || "")))) {
-      expected.push({
-        fieldDefinition,
-        value: DEFAULT_SOLID_PATTERN_TAXONOMY_VALUE_ID,
-        taxonomyValueIds: [DEFAULT_SOLID_PATTERN_TAXONOMY_VALUE_ID],
-        taxonomyValueId: DEFAULT_SOLID_PATTERN_TAXONOMY_VALUE_ID,
-      });
-    } else if (fieldDefinition.required) {
-      throw new Error(`${definition?.type || "category metaobject"}: required field ${fieldDefinition.key} has no evidence-backed value.`);
+    if (fieldDefinition.required) {
+      throw new Error(`${definition?.type || "category metaobject"}: required taxonomy field ${fieldDefinition.key} has no exact evidence-backed value.`);
     }
+  }
+
+  const expectedKeys = new Set(expected.map((entry) => String(entry.fieldDefinition.key)));
+  for (const fieldDefinition of fieldDefinitions.filter((field) => field.required)) {
+    if (expectedKeys.has(String(fieldDefinition.key))) continue;
+    const fieldKey = String(fieldDefinition.key || "");
+    const fieldType = String(fieldDefinition.type?.name || fieldDefinition.type || "").toLowerCase();
+    if (fieldKey === "label" && /single_line_text|multi_line_text|text/i.test(fieldType)) {
+      const labels = [...new Set(writes.map((write) => String(write.taxonomyValueName || "").trim()).filter(Boolean))];
+      if (!labels.length) {
+        throw new Error(`${definition?.type || "category metaobject"}: required field label has no taxonomy-value label evidence.`);
+      }
+      expected.push({ fieldDefinition, value: labels.join(" / "), taxonomyValueIds: [], taxonomyValueId: null });
+      expectedKeys.add(fieldKey);
+      continue;
+    }
+    throw new Error(`${definition?.type || "category metaobject"}: required schema field ${fieldKey || "(unnamed)"} has no supported evidence mapping.`);
   }
   return expected;
 }
@@ -2320,22 +2415,26 @@ async function resolveCategoryMetaobjectReference(write, cache, definitionCache,
   if (cache.has(cacheKey)) return cache.get(cacheKey);
   const resolvedDefinition = definition || await ensureCategoryMetaobjectDefinition(write, definitionCache);
   const expectedFields = categoryMetaobjectExpectedFields(relatedWrites, resolvedDefinition);
-  const expectedByKey = new Map(expectedFields.map((entry) => [String(entry.fieldDefinition.key), entry]));
   let metaobjectNodes = metaobjectsCache.get(write.metaobjectType);
   if (!metaobjectNodes) {
     const payload = await runShopifyStoreGraphQL(CATEGORY_METAOBJECTS_QUERY, {
       type: write.metaobjectType,
       first: 250,
     });
-    metaobjectNodes = payload?.metaobjects?.nodes || [];
+    const connection = payload?.metaobjects;
+    if (!Array.isArray(connection?.nodes) || connection?.pageInfo?.hasNextPage !== false) {
+      throw new Error(`${write.metaobjectType}: metaobject lookup is incomplete; refusing a partial schema/value match.`);
+    }
+    metaobjectNodes = connection.nodes;
     metaobjectsCache.set(write.metaobjectType, metaobjectNodes);
   }
   const existing = metaobjectNodes.find((node) =>
     expectedFields.every((expected) => {
       const field = (node?.fields || []).find((entry) => entry?.key === expected.fieldDefinition.key);
-      return (expected.taxonomyValueIds || [expected.taxonomyValueId]).every((taxonomyValueId) =>
-        categoryMetaobjectFieldContainsValue(field, taxonomyValueId),
-      );
+      if (expected.taxonomyValueIds?.length) {
+        return expected.taxonomyValueIds.every((taxonomyValueId) => categoryMetaobjectFieldContainsValue(field, taxonomyValueId));
+      }
+      return String(field?.value || "") === String(expected.value ?? "");
     }),
   );
   if (existing?.id) {
@@ -2344,9 +2443,9 @@ async function resolveCategoryMetaobjectReference(write, cache, definitionCache,
   }
   const fieldKeys = new Set((resolvedDefinition.fieldDefinitions || []).map((field) => String(field?.key || "")).filter(Boolean));
   const fields = expectedFields.map((entry) => ({ key: entry.fieldDefinition.key, value: entry.value }));
-  if (fieldKeys.has("label")) {
+  if (fieldKeys.has("label") && !fields.some((field) => field.key === "label")) {
     const labels = relatedWrites.map((entry) => String(entry.taxonomyValueName || "").trim()).filter(Boolean);
-    fields.push({ key: "label", value: labels.join(" / ") || write.attributeName });
+    if (labels.length) fields.push({ key: "label", value: labels.join(" / ") });
   }
   const created = await runShopifyStoreGraphQL(CATEGORY_METAOBJECT_CREATE_MUTATION, {
     metaobject: {
@@ -2378,80 +2477,129 @@ async function resolveCategoryMetafieldWrites(categoryWrites) {
   }
   for (const writes of groupedWrites.values()) {
     const write = writes[0];
-    try {
-      const currentReferenceIds = [...new Set(writes.flatMap((entry) => entry.currentReferenceIds || []).map(String))];
-      if (writes.every((entry) => entry.clear)) {
-        if (currentReferenceIds.length) {
-          resolved.push({
-            ownerId: write.productGid,
-            ownerType: "PRODUCT",
-            ownerHandle: write.handle,
-            ownerTitle: write.handle,
-            namespace: write.namespace,
-            key: write.key,
-            type: "list.metaobject_reference",
-            value: "[]",
-            fieldId: `${write.namespace}.${write.key}`,
-            label: write.attributeName,
-            reason: write.reason,
-            action: "clear-invalid",
-            productId: write.productId,
-            productHandle: write.handle,
-            productTitle: write.handle,
-          });
-        }
-        continue;
+    const currentReferenceIds = [...new Set(writes.flatMap((entry) => entry.currentReferenceIds || []).map(String))];
+    if (writes.every((entry) => entry.clear)) {
+      if (currentReferenceIds.length) {
+        throw new Error(`Refusing to clear ${write.namespace}.${write.key} for ${write.handle}; schema-coverage apply is non-destructive.`);
       }
-
-      const definition = await ensureCategoryMetaobjectDefinition(write, definitionCache);
-      // color-pattern is a single object with a list of base colors and one
-      // required pattern. Other Shopify taxonomy metaobjects have a scalar
-      // taxonomy field, so each evidenced value needs its own reference.
-      const colorPattern = String(write.key || "").toLowerCase() === "color-pattern";
-      const referenceIds = [];
-      const referenceGroups = colorPattern ? colorPatternReferenceGroups(writes) : writes.map((entry) => [entry]);
-      for (const referenceWrites of referenceGroups) {
-        const referenceId = await resolveCategoryMetaobjectReference(
-          referenceWrites[0],
-          cache,
-          definitionCache,
-          definition,
-          referenceWrites,
-          metaobjectsCache,
-        );
-        if (referenceId && !referenceIds.includes(referenceId)) referenceIds.push(referenceId);
-      }
-      if (!referenceIds.length) continue;
-      const currentMatches = currentReferenceIds.length === referenceIds.length &&
-        currentReferenceIds.every((id) => referenceIds.includes(id));
-      if (currentMatches) continue;
-      resolved.push({
-        ownerId: write.productGid,
-        ownerType: "PRODUCT",
-        ownerHandle: write.handle,
-        ownerTitle: write.handle,
-        namespace: write.namespace,
-        key: write.key,
-        type: "list.metaobject_reference",
-        value: JSON.stringify(referenceIds),
-        fieldId: `${write.namespace}.${write.key}`,
-        label: writes.map((entry) => entry.attributeName).filter(Boolean).join(" / "),
-        reason: writes.map((entry) => entry.reason).filter(Boolean).join("; "),
-        action: "verify-or-replace",
-        productId: write.productId,
-        productHandle: write.handle,
-        productTitle: write.handle,
-      });
-    } catch (error) {
-      const message = error?.message || String(error);
-      if (/required field .* has no evidence-backed value|can't be blank|Owner subtype does not match/i.test(message)) {
-        process.stdout.write(`Skipped evidence-incomplete category metafield ${write.namespace}.${write.key} for ${write.handle}: ${message}\n`);
-        continue;
-      }
-      throw error;
+      continue;
     }
+
+    const definition = await ensureCategoryMetaobjectDefinition(write, definitionCache);
+    const colorPattern = String(write.key || "").toLowerCase() === "color-pattern";
+    const referenceIds = [];
+    const referenceGroups = colorPattern ? colorPatternReferenceGroups(writes) : writes.map((entry) => [entry]);
+    for (const referenceWrites of referenceGroups) {
+      const referenceId = await resolveCategoryMetaobjectReference(
+        referenceWrites[0],
+        cache,
+        definitionCache,
+        definition,
+        referenceWrites,
+        metaobjectsCache,
+      );
+      if (referenceId && !referenceIds.includes(referenceId)) referenceIds.push(referenceId);
+    }
+    if (!referenceIds.length) throw new Error(`Required category metafield ${write.namespace}.${write.key} did not resolve for ${write.handle}.`);
+    const currentMatches = currentReferenceIds.length === referenceIds.length &&
+      currentReferenceIds.every((id) => referenceIds.includes(id));
+    if (currentMatches) continue;
+    resolved.push({
+      ownerId: write.productGid,
+      ownerType: "PRODUCT",
+      ownerHandle: write.handle,
+      ownerTitle: write.handle,
+      namespace: write.namespace,
+      key: write.key,
+      type: "list.metaobject_reference",
+      value: JSON.stringify(referenceIds),
+      fieldId: `${write.namespace}.${write.key}`,
+      label: writes.map((entry) => entry.attributeName).filter(Boolean).join(" / "),
+      reason: writes.map((entry) => entry.reason).filter(Boolean).join("; "),
+      action: "verify-or-replace",
+      productId: write.productId,
+      productHandle: write.handle,
+      productTitle: write.handle,
+    });
   }
   return resolved;
+}
+
+async function validateCategoryMetafieldSchemaCoverage(categoryWrites) {
+  const groups = new Map();
+  for (const write of categoryWrites) {
+    const groupKey = `${write.productId}:${write.namespace}.${write.key}`;
+    const group = groups.get(groupKey) || [];
+    group.push(write);
+    groups.set(groupKey, group);
+  }
+  const definitionCache = new Map();
+  for (const writes of groups.values()) {
+    const write = writes[0];
+    if (writes.some((entry) =>
+      entry.categoryId !== write.categoryId ||
+      entry.metaobjectDefinitionId !== write.metaobjectDefinitionId ||
+      entry.metaobjectType !== write.metaobjectType
+    )) {
+      throw new Error(`Category metafield ${write.namespace}.${write.key} has conflicting product/category schema mappings.`);
+    }
+    if (writes.every((entry) => entry.clear)) {
+      if (writes.some((entry) => (entry.currentReferenceIds || []).length)) {
+        throw new Error(`Category metafield ${write.namespace}.${write.key} for ${write.handle} requires a destructive clear and is held.`);
+      }
+      continue;
+    }
+    const definition = await ensureCategoryMetaobjectDefinition(write, definitionCache);
+    const referenceGroups = String(write.key).toLowerCase() === "color-pattern"
+      ? colorPatternReferenceGroups(writes)
+      : writes.map((entry) => [entry]);
+    for (const referenceWrites of referenceGroups) {
+      const expected = categoryMetaobjectExpectedFields(referenceWrites, definition);
+      const expectedKeys = new Set(expected.map((entry) => String(entry.fieldDefinition.key)));
+      const missingRequired = definition.fieldDefinitions
+        .filter((field) => field.required)
+        .filter((field) => !expectedKeys.has(String(field.key)));
+      if (missingRequired.length) {
+        throw new Error(
+          `${definition.type}: required schema fields are not covered for ${write.handle}: ${missingRequired.map((field) => field.key).join(", ")}.`,
+        );
+      }
+    }
+  }
+}
+
+async function assertCategoryAssignmentApproval(args, categoryPlans) {
+  if (!categoryPlans.length) return;
+  let approval;
+  try {
+    approval = JSON.parse(await readFile(resolve(projectRoot, "docs", "catalog-taxonomy-approval.json"), "utf8"));
+  } catch (error) {
+    throw new Error(`Shopify product-category assignment is blocked: taxonomy approval manifest is unavailable (${error.message}).`);
+  }
+  const record = approval?.shopifyProductCategoryWriteApproval;
+  const requestedIds = [...args.productIds].map(Number).sort((left, right) => left - right);
+  const approvedIds = Array.isArray(record?.productIds)
+    ? record.productIds.map(Number).sort((left, right) => left - right)
+    : [];
+  const categoryIds = new Set(categoryPlans.map((plan) => Number(plan.productId)));
+  const invalidPlanScope = [...categoryIds].some((id) => !requestedIds.includes(id));
+  const exactApproval =
+    approval?.approved === true &&
+    approval?.taxonomyVersion === CATALOG_TAXONOMY_VERSION &&
+    !String(approval?.scope?.categoriesAndMetafields || "").includes("no Shopify product category writes") &&
+    record?.approved === true &&
+    record?.taxonomyVersion === CATALOG_TAXONOMY_VERSION &&
+    record?.scope === "exact-product-id-set-with-live-leaf-readback" &&
+    record?.requiredMetafieldCoverage === "live-metaobject-schema-required-fields" &&
+    requestedIds.length > 0 &&
+    requestedIds.length === approvedIds.length &&
+    requestedIds.every((id, index) => id === approvedIds[index]) &&
+    !invalidPlanScope;
+  if (!exactApproval) {
+    throw new Error(
+      "Shopify product-category assignment is not approved for this exact product cohort. The checked-in approval explicitly excludes direct Shopify category writes; a taxonomy-version-matched shopifyProductCategoryWriteApproval record with the exact product IDs and leaf/schema gates is required.",
+    );
+  }
 }
 
 async function applyCategoryPlans(plans) {
@@ -2464,7 +2612,7 @@ async function applyCategoryPlans(plans) {
     const fields = batch
       .map(
         (_, index) => `p${index}: productUpdate(product: $p${index}) {
-          product { id category { id name fullName } }
+          product { id category { id name fullName isLeaf } }
           userErrors { field message }
         }`,
       )
@@ -2485,7 +2633,11 @@ async function applyCategoryPlans(plans) {
       if (errors.length) {
         throw new Error(`${plan.handle}: category update failed: ${formatMetafieldUserErrors(errors)}`);
       }
-      if (response.product?.category?.id !== plan.categoryId) {
+      if (
+        response.product?.category?.id !== plan.categoryId ||
+        response.product?.category?.isLeaf !== true ||
+        exactTaxonomyPath(response.product?.category?.fullName) !== exactTaxonomyPath(plan.categoryFullName)
+      ) {
         throw new Error(`${plan.handle}: category readback mismatch`);
       }
       results[batchIndex].push({
@@ -2787,6 +2939,7 @@ async function applyBatches(batches, outputFile) {
 
 async function main() {
   const args = parseArgs(process.argv);
+  assertExactProductApplyScope(args);
   if (args.productHandlesFile) {
     const rawHandles = await readFile(args.productHandlesFile, "utf8");
     let parsedHandles;
@@ -2824,6 +2977,7 @@ async function main() {
     : await fetchLiveProductCatalog();
   const allProducts = mergeReleaseCatalogProducts(localProducts, liveCatalogProducts);
   const requestedProducts = filterProducts(allProducts, args);
+  assertExactProductApplyScope(args, requestedProducts);
   if (!requestedProducts.length) {
     throw new Error("No products matched the backfill selection");
   }
@@ -2833,6 +2987,7 @@ async function main() {
 
   const liveCustomDataMap = await fetchLiveProductCustomDataMap(requestedProducts);
   const selectedProducts = requestedProducts.filter((product) => liveCustomDataMap.has(Number(product.id)));
+  assertExactProductApplyScope(args, selectedProducts);
   if (!selectedProducts.length) {
     throw new Error("No selected products still exist in Shopify");
   }
@@ -3054,11 +3209,17 @@ async function main() {
     throw new Error(`Category metafield discovery gate blocked live apply: ${categoryMetafieldPlanResult.summary.error}`);
   }
 
+  await assertCategoryAssignmentApproval(args, categoryPlans);
+
   if (categoryMetafieldReadbackEnabled) {
     assertCategoryMetafieldPlanMappings({
       plans: categoryMetafieldPlanResult.plans,
       expectedProductIds: expectedCategoryProductIds,
     });
+  }
+
+  if (categoryMetafieldWrites.length) {
+    await validateCategoryMetafieldSchemaCoverage(categoryMetafieldWrites);
   }
 
   if (

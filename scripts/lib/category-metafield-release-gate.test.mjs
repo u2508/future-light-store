@@ -183,6 +183,7 @@ test("only accepts a complete passing readback receipt", () => {
     generatedAt: "2026-09-25T00:00:00.000Z",
     status: "pass",
     expectedProducts: 12,
+    readbackProducts: 12,
     checkedRequiredFields: 25,
     unmappedRequiredFields: 0,
     missing: 0,
@@ -194,6 +195,14 @@ test("only accepts a complete passing readback receipt", () => {
     () => assertCategoryMetafieldReadbackReceipt({ categoryMetafieldReadback: { ...receipt, missing: 1 } }),
     /contains unresolved fields/,
   );
+  for (const readbackProducts of [undefined, 11, 13]) {
+    assert.throws(
+      () => assertCategoryMetafieldReadbackReceipt({
+        categoryMetafieldReadback: { ...receipt, readbackProducts },
+      }),
+      /does not cover the complete product cohort/,
+    );
+  }
   assert.throws(() => assertCategoryMetafieldReadbackReceipt({}), /missing or failed/);
   assert.throws(
     () => assertCategoryMetafieldReadbackReceipt({

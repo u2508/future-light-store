@@ -13,14 +13,14 @@ import {
 export const Route = createFileRoute("/collections/")({
   head: () => ({
     meta: [
-      { title: "Collections — VS Store" },
+      { title: "Collections — VS Associates" },
       {
         name: "description",
         content:
-          "Browse every VS Store collection: curated edits of future-ready essentials, tech and lifestyle.",
+          "Browse every VS Associates collection: curated edits of future-ready essentials, tech and lifestyle.",
       },
-      { property: "og:title", content: "Collections — VS Store" },
-      { property: "og:description", content: "Browse every VS Store collection." },
+      { property: "og:title", content: "Collections — VS Associates" },
+      { property: "og:description", content: "Browse every VS Associates collection." },
       { property: "og:type", content: "website" },
     ],
     links: [{ rel: "canonical", href: canonicalUrl("/collections") }],

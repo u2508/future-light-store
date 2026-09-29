@@ -16,12 +16,12 @@ export const Route = createFileRoute("/search")({
   validateSearch: zodValidator(searchSchema),
   head: () => ({
     meta: [
-      { title: "Search — VS Store" },
+      { title: "Search — VS Associates" },
       {
         name: "description",
-        content: "Search the VS Store catalog with instant, typo-tolerant results.",
+        content: "Search the VS Associates catalog with instant, typo-tolerant results.",
       },
-      { property: "og:title", content: "Search — VS Store" },
+      { property: "og:title", content: "Search — VS Associates" },
       {
         property: "og:description",
         content: "Search the VS catalog with instant, typo-tolerant results.",

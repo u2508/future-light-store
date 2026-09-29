@@ -28,7 +28,7 @@ export const SHOPIFY_POLICY_SLUGS = {
 export const POLICIES: Record<string, StorePolicy> = {
   shipping: {
     title: "Shipping policy",
-    description: "How VS Store prepares, dispatches and tracks your order.",
+    description: "How VS Associates prepares, dispatches and tracks your order.",
     sections: [
       {
         heading: "Order processing",
@@ -59,7 +59,7 @@ export const POLICIES: Record<string, StorePolicy> = {
   },
   returns: {
     title: "Return and refund policy",
-    description: "Our 30-day return process for eligible VS Store orders.",
+    description: "Our 30-day return process for eligible VS Associates orders.",
     sections: [
       {
         heading: "Return window and eligibility",
@@ -97,7 +97,8 @@ export const POLICIES: Record<string, StorePolicy> = {
   },
   privacy: {
     title: "Privacy policy",
-    description: "How VS Store uses information needed to run the store and support your orders.",
+    description:
+      "How VS Associates uses information needed to operate the website and support your orders.",
     updated: "August 24, 2026",
     sections: [
       {
@@ -110,14 +111,14 @@ export const POLICIES: Record<string, StorePolicy> = {
       {
         heading: "How we use information",
         paragraphs: [
-          "We use this information to process payments and orders, arrange delivery, provide tracking, manage accounts, handle returns, answer support requests, prevent fraud, improve the store and send marketing communications where permitted.",
+          "We use this information to process payments and orders, arrange delivery, provide tracking, manage accounts, handle returns, answer support requests, prevent fraud, improve our website and send marketing communications where permitted.",
         ],
       },
       {
         heading: "Service providers",
         paragraphs: [
           "Checkout and payment processing are provided through Shopify. We may share the information needed for checkout, fulfilment, delivery, account services, analytics or customer support with Shopify and other service providers acting on our behalf.",
-          "VS Store does not store full payment card details in the storefront application.",
+          "VS Associates does not retain full payment card details on this website.",
         ],
       },
       {
@@ -136,12 +137,12 @@ export const POLICIES: Record<string, StorePolicy> = {
   },
   terms: {
     title: "Terms of service",
-    description: "The terms that apply when you browse or shop with VS Store.",
+    description: "The terms that apply when you browse or shop with VS Associates.",
     sections: [
       {
         heading: "Using the Services",
         paragraphs: [
-          "By visiting or using the VS Store website, you agree to these Terms of Service and our Privacy Policy. You must be legally able to enter into this agreement in your place of residence.",
+          "By visiting or using the VS Associates website, you agree to these Terms of Service and our Privacy Policy. You must be legally able to enter into this agreement in your place of residence.",
           "You agree to provide accurate, current information when you create an account or place an order and to keep your account credentials secure.",
         ],
       },
@@ -149,7 +150,7 @@ export const POLICIES: Record<string, StorePolicy> = {
         heading: "Products, prices and orders",
         paragraphs: [
           "Product information, prices, promotions and availability may change without notice. We may correct errors or cancel an order when information is materially inaccurate, including after an order is submitted; if we cancel, we will refund any payment received for that order.",
-          "An order is subject to payment approval, inventory availability and confirmation by VS Store.",
+          "An order is subject to payment approval, inventory availability and confirmation by VS Associates.",
         ],
       },
       {
@@ -167,7 +168,7 @@ export const POLICIES: Record<string, StorePolicy> = {
       {
         heading: "Disclaimers and changes",
         paragraphs: [
-          "Delivery dates, carrier performance and third-party services are not guaranteed. To the extent permitted by law, VS Store is not responsible for indirect losses or disruptions outside our reasonable control.",
+          "Delivery dates, carrier performance and third-party services are not guaranteed. To the extent permitted by law, VS Associates is not responsible for indirect losses or disruptions outside our reasonable control.",
           "We may update these Terms by posting a revised version on this page. Your continued use of the Services after an update means you accept the revised Terms.",
         ],
       },
@@ -179,7 +180,7 @@ export const POLICIES: Record<string, StorePolicy> = {
   },
   contact: {
     title: "Contact information",
-    description: "Reach VS Store for order, delivery, return and privacy support.",
+    description: "Reach VS Associates for order, delivery, return and privacy support.",
     sections: [
       {
         heading: "Customer support",
@@ -201,19 +202,19 @@ export const POLICIES: Record<string, StorePolicy> = {
   },
   "legal-notice": {
     title: "Legal notice",
-    description: "Legal and business information for the VS Store website.",
+    description: "Legal and business information for the VS Associates website.",
     sections: [
       {
-        heading: "Store operator",
+        heading: "Website operator",
         paragraphs: [
-          `VS Store is the customer-facing trading name of ${STORE_CONTACT.legalSeller}.`,
-          "The website, product listings, brand presentation and customer support are provided under the VS Store name.",
+          `VS Associates is the customer-facing trading name of ${STORE_CONTACT.legalSeller}.`,
+          "The website, product listings, brand presentation and customer support are provided under the VS Associates name.",
         ],
       },
       {
         heading: "Website platform",
         paragraphs: [
-          "The store uses Shopify for ecommerce infrastructure, checkout and payment processing. Product availability, prices, delivery estimates and policies may be updated as the store changes.",
+          "This website uses Shopify for ecommerce infrastructure, checkout and payment processing. Product availability, prices, delivery estimates and policies may be updated as the website changes.",
         ],
       },
       {

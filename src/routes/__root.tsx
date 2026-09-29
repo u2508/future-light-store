@@ -99,13 +99,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "google-site-verification", content: GOOGLE_SITE_VERIFICATION },
-      { title: "VS Store — Future-facing marketplace" },
+      { title: "VS Associates — Future-facing marketplace" },
       {
         name: "description",
         content:
-          "VS Store: precision search, transparent pricing and tracked fulfilment across every category.",
+          "VS Associates: precision search, transparent pricing and tracked fulfilment across every category.",
       },
-      { property: "og:site_name", content: "VS Store" },
+      { property: "og:site_name", content: "VS Associates" },
       { property: "og:type", content: "website" },
       { property: "og:url", content: canonicalUrl("/") },
       { property: "og:image", content: canonicalUrl(ogImage) },
@@ -118,8 +118,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         children: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "Organization",
-          name: "VS Store",
+          name: "VS Associates",
           url: canonicalUrl("/"),
+          logo: canonicalUrl("/brand/vs-associates-monogram.png"),
           email: `mailto:${STORE_CONTACT.email}`,
           telephone: STORE_CONTACT.phoneDisplay,
           contactPoint: {
@@ -140,7 +141,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         children: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "WebSite",
-          name: "VS Store",
+          name: "VS Associates",
           url: canonicalUrl("/"),
           potentialAction: {
             "@type": "SearchAction",

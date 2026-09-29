@@ -1,3 +1,19 @@
+// These lists have their own ranking semantics; randomizing their manual order
+// would silently undo the curated Best Sellers rank or the New Arrivals recency order.
+export const COLLECTION_SHUFFLE_EXCLUDED_HANDLES = new Set([
+  "all-products",
+  "new-arrivals",
+  "best-sellers",
+]);
+
+export function shouldShuffleCollection(handle) {
+  return !COLLECTION_SHUFFLE_EXCLUDED_HANDLES.has(
+    String(handle || "")
+      .trim()
+      .toLowerCase(),
+  );
+}
+
 function hashSeed(value) {
   let hash = 2166136261;
   for (const character of String(value || "")) {
@@ -17,7 +33,13 @@ function nextRandom(state) {
 }
 
 export function shuffleCollectionProductIds(productIds, seed) {
-  const values = [...new Set((Array.isArray(productIds) ? productIds : []).map((value) => String(value || "")).filter(Boolean))];
+  const values = [
+    ...new Set(
+      (Array.isArray(productIds) ? productIds : [])
+        .map((value) => String(value || ""))
+        .filter(Boolean),
+    ),
+  ];
   const state = { value: hashSeed(seed) || 1 };
   for (let index = values.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(nextRandom(state) * (index + 1));

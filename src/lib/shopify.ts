@@ -29,6 +29,7 @@ export interface ShopifyVariant {
   // without that optional scope.
   quantityAvailable?: number | null;
   image?: { id?: string | null; url: string; altText: string | null } | null;
+  imageMappingStatus?: "assigned" | "reviewed" | "conflict" | "unverified";
   selectedOptions: Array<{ name: string; value: string }>;
 }
 
@@ -37,6 +38,7 @@ export interface ShopifyProductNode {
   title: string;
   description: string;
   descriptionHtml?: string | undefined;
+  seo?: { title?: string | null; description?: string | null } | null;
   handle: string;
   vendor: string;
   productType: string;
@@ -46,7 +48,16 @@ export interface ShopifyProductNode {
   priceRange: { minVariantPrice: { amount: string; currencyCode: string } };
   compareAtPriceRange?: { minVariantPrice: { amount: string; currencyCode: string } };
   variantsCount?: { count: number };
-  images: { edges: Array<{ node: { url: string; altText: string | null } }> };
+  images: { edges: Array<{ node: { id?: string | null; url: string; altText: string | null } }> };
+  media?: {
+    edges: Array<{
+      node: {
+        id?: string | null;
+        mediaContentType?: string;
+        image?: { id?: string | null; url: string; altText: string | null } | null;
+      };
+    }>;
+  };
   variants: {
     edges: Array<{ node: ShopifyVariant }>;
     pageInfo?: { hasNextPage: boolean; endCursor: string | null };
@@ -104,6 +115,7 @@ export async function fetchProductBrowsePage(pageIndex = 0): Promise<ShopifyProd
 export const PRODUCT_FRAGMENT = `
   id
   title
+  seo { title description }
   description
   descriptionHtml
   handle
@@ -115,7 +127,18 @@ export const PRODUCT_FRAGMENT = `
   variantsCount { count }
   priceRange { minVariantPrice { amount currencyCode } }
   compareAtPriceRange { minVariantPrice { amount currencyCode } }
-  images(first: 250) { edges { node { url altText } } }
+  images(first: 250) { edges { node { id url altText } } }
+  media(first: 250) {
+    edges {
+      node {
+        mediaContentType
+        ... on MediaImage {
+          id
+          image { id url altText }
+        }
+      }
+    }
+  }
   variants(first: 250) {
     edges {
       node {

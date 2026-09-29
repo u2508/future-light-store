@@ -169,24 +169,24 @@ export function Footer() {
               A future-facing marketplace with precise discovery, honest pricing and fulfilment you
               can follow from checkout to delivery.
             </p>
-            <div className="flex items-center gap-2" aria-label="VS Store contact shortcuts">
+            <div className="flex items-center gap-2" aria-label="VS Associates contact shortcuts">
               <a
                 href={`mailto:${STORE_CONTACT.email}`}
-                aria-label="Email VS Store"
+                aria-label="Email VS Associates"
                 className="grid h-10 w-10 place-items-center rounded-full border border-background/15 text-background/75 transition-colors hover:border-background/40 hover:text-background"
               >
                 <Mail className="h-4 w-4" aria-hidden="true" />
               </a>
               <a
                 href={`tel:${STORE_CONTACT.phoneHref}`}
-                aria-label="Call VS Store"
+                aria-label="Call VS Associates"
                 className="grid h-10 w-10 place-items-center rounded-full border border-background/15 text-background/75 transition-colors hover:border-background/40 hover:text-background"
               >
                 <Phone className="h-4 w-4" aria-hidden="true" />
               </a>
               <Link
                 to="/help"
-                aria-label="Open VS Store help centre"
+                aria-label="Open VS Associates help centre"
                 className="grid h-10 w-10 place-items-center rounded-full border border-background/15 text-background/75 transition-colors hover:border-background/40 hover:text-background"
               >
                 <MessageCircle className="h-4 w-4" aria-hidden="true" />
@@ -258,7 +258,7 @@ export function Footer() {
               <TrustBadge icon={<RotateCcw className="h-3.5 w-3.5" />} label="Easy returns" />
             </div>
             <div className="flex flex-col items-start gap-4 text-xs text-background/55 md:items-end">
-              <p>© {new Date().getFullYear()} VS Store. All rights reserved.</p>
+              <p>© {new Date().getFullYear()} VS Associates. All rights reserved.</p>
               <PaymentMethods />
               <div className="flex flex-wrap gap-x-5 gap-y-2 uppercase tracking-[0.18em]">
                 <Link
@@ -304,7 +304,7 @@ export function Footer() {
                 Your privacy choices
               </h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Optional analytics help us understand store usage. Advertising tools help measure
+                Optional analytics help us understand website usage. Advertising tools help measure
                 and personalize promotions. Both stay off unless you choose them.
               </p>
             </div>
@@ -348,7 +348,7 @@ export function Footer() {
                   Analytics
                 </Label>
                 <p className="text-sm leading-5 text-muted-foreground">
-                  Allows the standalone store to measure visits, searches, and shopping actions.
+                  Allows the website to measure visits, searches, and shopping actions.
                 </p>
               </div>
               <Switch

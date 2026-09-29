@@ -471,26 +471,9 @@ async function writeThemeScaffold(
     {% endif %}
 
     {% if request.page_type == 'product' and product %}
-      {%- comment -%}
-        Build PDP metadata from the actual product record at render time. Strip
-        the repeated heading and generic filler from the HTML description so
-        search snippets describe the item itself rather than exposing editor
-        scaffolding. The selected variant is appended only when it is real.
-      {%- endcomment -%}
       {% assign salt_selected_variant = product.selected_or_first_available_variant %}
-      {% assign salt_variant_label = salt_selected_variant.title | default: '' | strip %}
-      {% assign salt_product_detail = product.description | split: 'Key Details' | first %}
-      {% assign salt_product_detail = salt_product_detail | strip_html | strip_newlines | remove: 'About' | remove: product.title | remove: 'serves the specific function identified by its handle and confirmed product details.' | remove: 'Confirmed product facts and available options help shoppers compare it for the intended task.' | replace: ' — ', ' ' | replace: '  ', ' ' | strip | truncate: 95 %}
-      {% assign salt_seo_description = 'Shop ' | append: product.title | append: ' at Future Light Store.' %}
-      {% if salt_product_detail != blank %}
-        {% assign salt_seo_description = salt_seo_description | append: ' ' | append: salt_product_detail %}
-      {% else %}
-        {% assign salt_seo_description = salt_seo_description | append: ' Review the product details, options and current availability before ordering.' %}
-      {% endif %}
-      {% unless salt_variant_label == blank or salt_variant_label == 'Default Title' %}
-        {% assign salt_seo_title = product.title | append: ' - ' | append: salt_variant_label | append: ' | Future Light Store' %}
-        {% assign salt_seo_description = salt_seo_description | append: ' Selected option: ' | append: salt_variant_label | append: '.' %}
-      {% endunless %}
+      {% assign salt_seo_title = product.metafields.global.title_tag.value | default: page_title | default: product.title %}
+      {% assign salt_seo_description = product.metafields.global.description_tag.value | default: page_description | default: product.description | default: shop.description %}
       {% assign salt_seo_description = salt_seo_description | strip_html | strip_newlines | replace: '  ', ' ' | strip | truncate: 158 %}
     {% endif %}
 
@@ -658,9 +641,7 @@ async function writeThemeScaffold(
     <link rel="icon" type="image/svg+xml" href="{{ '${themeIconAsset}' | asset_url }}">
     <link rel="preconnect" href="https://cdn.shopify.com" crossorigin>
     {{ 'salt-app.css' | asset_url | stylesheet_tag }}
-    {% if ${JSON.stringify(routeAssets.entry || "")} != blank %}
-      <link rel="modulepreload" href="{{ ${JSON.stringify(routeAssets.entry || "")} | asset_url | split: '?' | first }}" fetchpriority="high">
-    {% endif %}
+    <link rel="modulepreload" href="{{ 'salt-app.js' | asset_url | split: '?' | first }}" fetchpriority="high">
     {% if request.page_type == 'product' and ${JSON.stringify(routeAssets.product || "")} != blank %}
       <link rel="modulepreload" href="{{ ${JSON.stringify(routeAssets.product || "")} | asset_url | split: '?' | first }}" fetchpriority="high">
     {% elsif request.page_type == 'index' and ${JSON.stringify(routeAssets.home || "")} != blank %}
@@ -1073,11 +1054,7 @@ async function writeThemeScaffold(
         </script>
       {% endpaginate %}
     {% endif %}
-    {% if ${JSON.stringify(routeAssets.entry || "")} != blank %}
-      <script type="module" src="{{ ${JSON.stringify(routeAssets.entry || "")} | asset_url | split: '?' | first }}"></script>
-    {% else %}
-      <script type="module" src="{{ 'salt-app.js' | asset_url }}"></script>
-    {% endif %}
+    <script type="module" src="{{ 'salt-app.js' | asset_url }}"></script>
   </head>
   <body>
     {{ content_for_layout }}
@@ -1121,7 +1098,7 @@ async function writeThemeScaffold(
   {% assign salt_fallback_variant = product.selected_or_first_available_variant %}
   <article class="salt-product-fallback" aria-label="{{ product.title | escape }}" style="max-width:72rem;margin:0 auto;padding:2rem 1.25rem;font-family:Arial,sans-serif;color:#101522">
     <nav aria-label="Breadcrumb" style="font-size:.8rem;margin-bottom:1.5rem">
-      <a href="{{ routes.root_url }}" style="color:#1e4fb8">VS Store</a>
+      <a href="{{ routes.root_url }}" style="color:#1e4fb8">VS Associates</a>
       <span aria-hidden="true"> / </span>
       <span>{{ product.title | escape }}</span>
     </nav>
@@ -1174,7 +1151,7 @@ async function writeThemeScaffold(
     style="display:grid;min-height:42vh;place-items:center;padding:3rem 1.25rem;background:#f6f9fc;color:#101522;font-family:Arial,sans-serif;text-align:center"
   >
     <div style="display:grid;justify-items:center;gap:.8rem;max-width:28rem">
-      <div style="font-size:.75rem;letter-spacing:.22em;font-weight:700">VS STORE</div>
+      <div style="font-size:.75rem;letter-spacing:.22em;font-weight:700">VS ASSOCIATES</div>
       <div style="width:2.5rem;height:2.5rem;border:3px solid #d9e1ec;border-top-color:#1e4fb8;border-radius:999px;animation:salt-app-loading-spin .9s linear infinite" aria-hidden="true"></div>
       <p style="margin:0;font-size:.95rem;color:#5d6675">Loading your live storefront…</p>
     </div>
@@ -1489,7 +1466,6 @@ async function copyAssets(entryJsPath, entryCssPath) {
   );
   await Promise.all(existingCatalogAssets.map((asset) => rm(resolve(themeAssetsDir, asset), { force: true })));
 
-  return themeEntryJs;
 }
 
 async function main() {
@@ -1514,11 +1490,8 @@ async function main() {
   );
   // Keep Shopify-admin app embeds and theme-editor state intact. The generated
   // app bundle owns the app assets, not config/settings_data.json.
-  const themeEntryJs = await copyAssets(jsPath, cssPath);
-  await writeThemeScaffold(
-    settingsData,
-    { ...routeAssets, entry: themeEntryJs },
-  );
+  await copyAssets(jsPath, cssPath);
+  await writeThemeScaffold(settingsData, routeAssets);
 
   process.stdout.write(`Shopify theme bundle generated at ${themeDir}\n`);
 }

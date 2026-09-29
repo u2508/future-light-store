@@ -18,6 +18,7 @@ const expectedStore = "vs-future-store-0jl2t-jxu6tnr3.myshopify.com";
 const expectedShopId = "gid://shopify/Shop/106570088529";
 // One category per request keeps nested attributes/choice values comfortably bounded.
 const batchSize = 1;
+const finalCatalogSnapshotName = /^future-light-shopify-catalog-snapshot-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-[a-f0-9]{8}\.json$/i;
 
 const SHOP_IDENTITY_QUERY = /* GraphQL */ `
   query FutureLightTaxonomySnapshotShopIdentity {
@@ -115,34 +116,37 @@ function snapshotFileFromArgs() {
 }
 
 async function findLatestCatalogSnapshot() {
-  const names = (await readdir(outputDir)).filter(
-    (name) => name.startsWith("future-light-shopify-catalog-snapshot-") && name.endsWith(".json"),
-  );
-  const candidates = await Promise.all(
-    names.map(async (name) => {
-      const path = join(outputDir, name);
-      try {
-        const snapshot = JSON.parse(await readFile(path, "utf8"));
-        if (snapshot.schemaVersion !== 2 || snapshot.shopDomain !== expectedStore) return null;
-        return { name, path, createdAt: snapshot.createdAt };
-      } catch {
-        return null;
-      }
-    }),
-  );
-  const valid = candidates.filter(Boolean).sort((left, right) =>
-    String(right.createdAt).localeCompare(String(left.createdAt)),
-  );
-  if (!valid.length) {
+  // Catalog snapshots are large (the current all-status file is ~189 MB).
+  // Loading and parsing every historical snapshot concurrently can exhaust the
+  // Node heap before the single latest snapshot is even selected. The filename
+  // contains a fixed-width UTC timestamp, so inspect only the newest final file;
+  // never silently fall back to an older snapshot if that newest file is invalid.
+  const names = (await readdir(outputDir))
+    .filter((name) => finalCatalogSnapshotName.test(name))
+    .sort((left, right) => right.localeCompare(left));
+  const name = names[0];
+  if (!name) {
     throw new Error("No verified schema-2 Future Light Shopify catalog snapshot exists in output/.");
   }
-  return valid[0];
+  const path = join(outputDir, name);
+  let raw;
+  let snapshot;
+  try {
+    raw = await readFile(path, "utf8");
+    snapshot = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`Newest catalog snapshot ${name} cannot be read; select an explicit verified snapshot instead: ${error?.message || error}`);
+  }
+  if (snapshot.schemaVersion !== 2 || snapshot.shopDomain !== expectedStore) {
+    throw new Error(`Newest catalog snapshot ${name} is not a verified schema-2 Future Light snapshot; refusing a stale fallback.`);
+  }
+  return { name, path, createdAt: snapshot.createdAt, raw, snapshot };
 }
 
 async function readCatalogSnapshot(filename) {
   const selected = filename ? { name: filename, path: join(outputDir, filename) } : await findLatestCatalogSnapshot();
-  const raw = await readFile(selected.path, "utf8");
-  const snapshot = JSON.parse(raw);
+  const raw = selected.raw ?? await readFile(selected.path, "utf8");
+  const snapshot = selected.snapshot ?? JSON.parse(raw);
   if (
     snapshot.schemaVersion !== 2 ||
     snapshot.shopDomain !== expectedStore ||

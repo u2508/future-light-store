@@ -161,7 +161,7 @@
 /*
  * VS design system — luxury retail interface from the near future.
  * Light-first: cool white canvas, near-black type, cobalt actions,
- * electric blue accents, signal red for urgency.
+ * electric blue accents, warm gold for the company mark.
  */
 
 @theme inline {
@@ -234,8 +234,8 @@
   --accent-foreground: oklch(0.24 0.07 262);
   --electric: oklch(0.62 0.19 250);
   --electric-foreground: oklch(0.99 0.003 250);
-  --signal: oklch(0.57 0.23 27);
-  --signal-foreground: oklch(0.99 0.003 250);
+  --signal: oklch(0.78 0.15 85);
+  --signal-foreground: oklch(0.15 0.015 260);
   --destructive: oklch(0.57 0.23 27);
   --destructive-foreground: oklch(0.99 0.003 250);
   --border: oklch(0.9 0.01 252);
@@ -243,7 +243,7 @@
   --ring: oklch(0.48 0.19 262);
   --chart-1: oklch(0.48 0.19 262);
   --chart-2: oklch(0.62 0.19 250);
-  --chart-3: oklch(0.57 0.23 27);
+  --chart-3: oklch(0.78 0.15 85);
   --chart-4: oklch(0.72 0.14 200);
   --chart-5: oklch(0.4 0.05 260);
   --sidebar: oklch(1 0 0);
@@ -277,7 +277,7 @@
   --accent-foreground: oklch(0.97 0.004 250);
   --electric: oklch(0.7 0.17 248);
   --electric-foreground: oklch(0.14 0.02 262);
-  --signal: oklch(0.66 0.2 25);
+  --signal: oklch(0.78 0.15 85);
   --signal-foreground: oklch(0.14 0.02 262);
   --destructive: oklch(0.66 0.2 25);
   --destructive-foreground: oklch(0.14 0.02 262);

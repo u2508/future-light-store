@@ -30,12 +30,12 @@ export const Route = createFileRoute("/shop")({
   validateSearch: zodValidator(searchSchema),
   head: () => ({
     meta: [
-      { title: "Shop all — VS Store" },
+      { title: "Shop all — VS Associates" },
       {
         name: "description",
-        content: "Filter the full VS Store catalog by price, availability, size, colour and more.",
+        content: "Filter the full VS Associates catalog by price, availability, size, colour and more.",
       },
-      { property: "og:title", content: "Shop all — VS Store" },
+      { property: "og:title", content: "Shop all — VS Associates" },
       {
         property: "og:description",
         content: "Filter the full VS catalog by price, availability, size, colour and more.",

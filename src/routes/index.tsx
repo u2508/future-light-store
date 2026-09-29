@@ -38,13 +38,13 @@ const QUICK_DISCOVERY = [
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "The future looks good on you — VS Store" },
+      { title: "The future looks good on you — VS Associates" },
       {
         name: "description",
         content:
-          "Unexpected finds and everyday upgrades. Explore New Arrivals, Curated Picks and Premium Picks at VS Store.",
+          "Unexpected finds and everyday upgrades. Explore New Arrivals, Curated Picks and Premium Picks at VS Associates.",
       },
-      { property: "og:title", content: "The future looks good on you — VS Store" },
+      { property: "og:title", content: "The future looks good on you — VS Associates" },
       {
         property: "og:description",
         content: "Unexpected finds. Everyday upgrades. Discover your next favourite.",

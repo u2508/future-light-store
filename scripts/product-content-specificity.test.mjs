@@ -111,3 +111,38 @@ test("rejects the generic SEO template fragments found in the saved catalog expo
     );
   }
 });
+
+test("rejects templated wearable, wallet, and electronics copy shown in recent PDP audits", () => {
+  const cases = [
+    {
+      product: {
+        handle: "genuine-leather-strap-watch-band-butterfly-clasp-bracelet",
+        title: "Genuine Leather Strap with Box Watch Band Butterfly Clasp Bracelet",
+      },
+      copy: "This watch band is a wearable watch listing with the finish, features, or fit options shown below. In practice, it brings together options listed on the product page.",
+    },
+    {
+      product: {
+        handle: "mens-wallet-made-of-pu-wax-oil-skin-purse",
+        title: "Made PU Wax Oil Skin Wallet",
+      },
+      copy: "The Made PU Wax Oil Skin Wallet is a wallet with its features and intended use clear before checkout. In practice, it brings together zipper supported features.",
+    },
+    {
+      product: {
+        handle: "blood-pressure-smart-watch-ecg-precise",
+        title: "Blood Pressure Smart Watch ECG Precise",
+      },
+      copy: "This smart watch combines a wrist display with connectivity and fitness tools listed for the model. Check phone compatibility, charging method, and supported functions before ordering.",
+    },
+  ];
+
+  for (const { product: source, copy } of cases) {
+    const assessment = assessProductContentSpecificity(copy, source, {
+      field: "description",
+      rejectGenericPatterns: true,
+    });
+    assert.equal(assessment.specific, false, source.handle);
+    assert.ok(assessment.issues.includes("generic-filler-pattern"), source.handle);
+  }
+});

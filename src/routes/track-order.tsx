@@ -9,10 +9,10 @@ import { canonicalUrl } from "@/lib/seo";
 export const Route = createFileRoute("/track-order")({
   head: () => ({
     meta: [
-      { title: "Track your order — VS Store" },
-      { name: "description", content: "Enter your VS Store order number and email to check live delivery status." },
-      { property: "og:title", content: "Track your order — VS Store" },
-      { property: "og:description", content: "Check the live delivery status of your VS Store order." },
+      { title: "Track your order — VS Associates" },
+      { name: "description", content: "Enter your VS Associates order number and email to check live delivery status." },
+      { property: "og:title", content: "Track your order — VS Associates" },
+      { property: "og:description", content: "Check the live delivery status of your VS Associates order." },
     ],
     links: [{ rel: "canonical", href: canonicalUrl("/track-order") }],
   }),

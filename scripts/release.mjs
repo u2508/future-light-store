@@ -1568,8 +1568,9 @@ async function main() {
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  main().catch((error) => {
-    console.error(`\n${error.message}`);
-    process.exit(1);
-  });
+  console.error(
+    "Legacy release runner is disabled. It is not the guarded Future Light entrypoint and can perform partial Shopify writes before a later gate fails.",
+  );
+  console.error("No Shopify request or mutation was made.");
+  process.exitCode = 78;
 }

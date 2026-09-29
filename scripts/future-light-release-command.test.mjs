@@ -55,6 +55,31 @@ test("the real CLI entrypoint is active and blocks fresh and explicit-resume com
   }
 });
 
+test("direct execution of the historical release runner is blocked before its mutation sequence", () => {
+  const legacyEntrypoint = new URL("./release.mjs", import.meta.url);
+  for (const args of [[], ["--products-only"], ["--profile", "daily"]]) {
+    const result = spawnSync(process.execPath, [legacyEntrypoint.pathname, ...args], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH },
+    });
+    assert.equal(result.status, 78, result.stderr);
+    assert.match(result.stderr, /Legacy release runner is disabled/);
+    assert.match(result.stderr, /No Shopify request or mutation was made/);
+  }
+});
+
+test("the legacy release launcher is blocked before credentials, live sync, or filesystem setup", () => {
+  const legacyLauncher = new URL("./run-future-light-release.mjs", import.meta.url);
+  const result = spawnSync(process.execPath, [legacyLauncher.pathname], {
+    encoding: "utf8",
+    env: { PATH: process.env.PATH },
+  });
+  assert.equal(result.status, 78, result.stderr);
+  assert.match(result.stderr, /disabled before reading credentials, syncing Shopify, or creating release files/);
+  assert.match(result.stderr, /No Shopify request or mutation was made/);
+  assert.doesNotMatch(result.stdout, /Loading the live Shopify catalog/);
+});
+
 test("release command aliases cannot reach the historical shared release runner", () => {
   for (const name of ["release", "release:daily"]) {
     assert.equal(packageJson.scripts[name], "node scripts/future-light-release-command.mjs");

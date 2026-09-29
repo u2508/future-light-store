@@ -7,12 +7,12 @@ import { STORE_CONTACT } from "@/lib/store-contact";
 export const Route = createFileRoute("/help")({
   head: () => ({
     meta: [
-      { title: "Help centre — VS Store" },
+      { title: "Help centre — VS Associates" },
       {
         name: "description",
-        content: "Answers on delivery, returns, payments and order tracking at VS Store.",
+        content: "Answers on delivery, returns, payments and order tracking at VS Associates.",
       },
-      { property: "og:title", content: "Help centre — VS Store" },
+      { property: "og:title", content: "Help centre — VS Associates" },
       {
         property: "og:description",
         content: "Answers on delivery, returns, payments and order tracking.",
@@ -43,7 +43,7 @@ function HelpPage() {
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="rounded-[2rem] vs-hero-gradient p-7 text-primary-foreground shadow-[var(--shadow-lift)] sm:p-10">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] opacity-75">
-            VS Store / Support
+            VS Associates / Support
           </p>
           <h1 className="mt-4 font-display text-3xl font-bold sm:text-5xl">
             Help, without the runaround.

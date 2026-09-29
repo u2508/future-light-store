@@ -6,6 +6,7 @@ import { discountPercent, type ShopifyCollection } from "@/lib/shopify";
 import { getProductAvailability } from "@/lib/product-availability.mjs";
 import { searchProducts } from "@/lib/vs-search";
 import { cn } from "@/lib/utils";
+import { displayBrandName } from "@/lib/brand";
 import {
   CatalogEmptyState,
   CollectionListSkeleton,
@@ -205,7 +206,7 @@ export function CollectionBrowser({
     },
     search.tag && { label: `Tag: ${search.tag}`, clear: { tag: "" } },
     search.category && { label: search.category, clear: { category: "" } },
-    search.vendor && { label: search.vendor, clear: { vendor: "" } },
+    search.vendor && { label: displayBrandName(search.vendor), clear: { vendor: "" } },
     search.size && { label: `Size ${search.size}`, clear: { size: "" } },
     search.color && { label: search.color, clear: { color: "" } },
     search.discount > 0 && { label: `${search.discount}%+ off`, clear: { discount: 0 } },
@@ -275,7 +276,7 @@ export function CollectionBrowser({
       {vendors.length > 0 && (
         <FilterGroup
           label="Brand"
-          options={vendors.map((v) => ({ value: v, label: v }))}
+          options={vendors.map((v) => ({ value: v, label: displayBrandName(v) }))}
           value={search.vendor}
           onChange={(v) => setFilter({ vendor: v })}
         />

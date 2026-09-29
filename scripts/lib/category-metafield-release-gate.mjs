@@ -216,6 +216,12 @@ export function assertCategoryMetafieldReadbackReceipt(manifest) {
   if (!Number.isInteger(receipt.expectedProducts) || receipt.expectedProducts < 1) {
     throw new Error("Category-metafield live readback receipt has no complete product cohort");
   }
+  if (
+    !Number.isInteger(receipt.readbackProducts) ||
+    receipt.readbackProducts !== receipt.expectedProducts
+  ) {
+    throw new Error("Category-metafield live readback receipt does not cover the complete product cohort");
+  }
   if (!Number.isInteger(receipt.checkedRequiredFields) || receipt.checkedRequiredFields < 1) {
     throw new Error("Category-metafield live readback receipt has no checked required fields");
   }

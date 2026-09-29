@@ -33,13 +33,13 @@ export const Route = createFileRoute("/policies/$slug")({
     const title = policy?.title ?? "Policy";
     return {
       meta: [
-        { title: `${title} — VS Store` },
+        { title: `${title} — VS Associates` },
         {
           name: "description",
-          content: `${title} for VS Store orders, delivery and customer data.`,
+          content: `${title} for VS Associates orders, delivery and customer data.`,
         },
-        { property: "og:title", content: `${title} — VS Store` },
-        { property: "og:description", content: `${title} for VS Store orders and customers.` },
+        { property: "og:title", content: `${title} — VS Associates` },
+        { property: "og:description", content: `${title} for VS Associates orders and customers.` },
       ],
       links: [
         {
@@ -67,7 +67,7 @@ function PolicyPage() {
           Policies &amp; support
         </Link>
         <p className="mt-10 text-xs font-semibold uppercase tracking-[0.28em] opacity-70">
-          VS Store / Customer information
+          VS Associates / Customer information
         </p>
         <h1 className="mt-3 max-w-3xl font-display text-3xl font-bold sm:text-5xl">
           {policy?.title ?? "Policy not found"}

@@ -11,6 +11,11 @@ import {
   parseShopifyBulkJsonl,
   reconcileShopifyBulkCatalog,
 } from "./lib/shopify-catalog-bulk-transform.mjs";
+import {
+  archiveTerminalSnapshotCheckpoint,
+  parseSnapshotCliArgs,
+  retryTerminalFailedSnapshotOperations,
+} from "./lib/shopify-catalog-snapshot-checkpoint.mjs";
 import { SHOPIFY_ALL_PRODUCT_STATUS_FILTER } from "./lib/shopify-product-status-scope.mjs";
 
 const rootDir = resolve(import.meta.dirname, "..");
@@ -315,6 +320,7 @@ const OPERATION_QUERIES = Object.freeze({
   publications: PUBLICATION_QUERY,
   metafieldReferences: METAFIELD_REFERENCES_QUERY,
 });
+const { fresh: startFresh, retryFailed } = parseSnapshotCliArgs(process.argv.slice(2));
 
 let interrupted = false;
 let stopPolling = false;
@@ -745,6 +751,38 @@ async function main() {
     const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "bulk-catalog-snapshot" });
     if (client.storeDomain !== expectedStore) {
       throw new Error(`Refused Shopify target ${client.storeDomain}; expected ${expectedStore}.`);
+    }
+    if (startFresh) {
+      const archived = await archiveTerminalSnapshotCheckpoint({
+        checkpointPath,
+        archiveDir: outputDir,
+        expectedStore,
+        checkpointVersion,
+        operationNames,
+        expectedQueryHashes: Object.fromEntries(
+          operationNames.map((name) => [name, queryHash(OPERATION_QUERIES[name])]),
+        ),
+      });
+      if (archived.archived) {
+        log(`Preserved prior terminal checkpoint ${archived.runId} at ${basename(archived.archivePath)}.`);
+      } else {
+        log("No prior snapshot checkpoint to archive; starting a fresh read-only snapshot.");
+      }
+    }
+    if (retryFailed) {
+      const retried = await retryTerminalFailedSnapshotOperations({
+        checkpointPath,
+        expectedStore,
+        checkpointVersion,
+        operationNames,
+        expectedQueryHashes: Object.fromEntries(
+          operationNames.map((name) => [name, queryHash(OPERATION_QUERIES[name])]),
+        ),
+      });
+      if (!retried.retried) {
+        throw new Error("No terminally failed Shopify exports are available to retry; existing checkpoint is unchanged.");
+      }
+      log(`Requeued only terminally failed exports: ${retried.operations.join(", ")}.`);
     }
     const checkpoint = await loadOrCreateCheckpoint(client);
     await startMissingOperations(client, checkpoint);

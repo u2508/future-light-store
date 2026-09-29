@@ -1,4 +1,5 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { extractShopifyProductVariantMedia } from "../_shared/shopify-product-variant-media.ts";
 
 const SHOP_DOMAIN = Deno.env.get("SHOPIFY_STOREFRONT_STORE_DOMAIN") ?? "";
 const API_VERSION = Deno.env.get("SHOPIFY_STOREFRONT_API_VERSION") ?? "2025-07";
@@ -109,37 +110,7 @@ async function fetchPublicProductMedia(handle: unknown) {
       return json({ error: "Published product identity did not match the request" }, 502);
     }
 
-    const imagesByUrl = new Map<
-      string,
-      { id: string | null; url: string; altText: string | null; variantIds: string[] }
-    >();
-    for (const source of Array.isArray(product.images) ? product.images.slice(0, 250) : []) {
-      const url = normalizedImageUrl(source);
-      if (url && !imagesByUrl.has(url)) {
-        imagesByUrl.set(url, { id: null, url, altText: null, variantIds: [] });
-      }
-    }
-    for (const variant of Array.isArray(product.variants)
-      ? product.variants.slice(0, 10_000)
-      : []) {
-      const featured = variant?.featured_image;
-      const url = normalizedImageUrl(featured?.src);
-      if (!url) continue;
-      const image = imagesByUrl.get(url) ?? {
-        id: numericId(featured?.id) || null,
-        url,
-        altText: typeof featured?.alt === "string" ? featured.alt.slice(0, 500) : null,
-        variantIds: [],
-      };
-      const ids = Array.isArray(featured?.variant_ids) ? featured.variant_ids : [];
-      image.variantIds = [
-        ...new Set([...image.variantIds, ...ids.map(numericId).filter(Boolean)]),
-      ].slice(0, 10_000);
-      if (!image.id) image.id = numericId(featured?.id) || null;
-      if (!image.altText && typeof featured?.alt === "string")
-        image.altText = featured.alt.slice(0, 500);
-      imagesByUrl.set(url, image);
-    }
+    const images = extractShopifyProductVariantMedia(product, normalizedImageUrl, numericId);
 
     return json(
       {
@@ -147,7 +118,7 @@ async function fetchPublicProductMedia(handle: unknown) {
           productVariantMedia: {
             productId: numericId(product.id),
             handle,
-            images: [...imagesByUrl.values()].slice(0, 250),
+            images: images.slice(0, 250),
           },
         },
       },

@@ -25,13 +25,13 @@ const PRINCIPLES = [
 export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
-      { title: "About VS Store — Everyday essentials, engineered forward" },
+      { title: "About VS Associates — Everyday essentials, engineered forward" },
       {
         name: "description",
         content:
-          "Learn how VS Store makes everyday shopping calmer with curated discovery, honest context and visible fulfilment.",
+          "Learn how VS Associates makes everyday shopping calmer with curated discovery, honest context and visible fulfilment.",
       },
-      { property: "og:title", content: "About VS Store" },
+      { property: "og:title", content: "About VS Associates" },
       {
         property: "og:description",
         content: "A calmer way to discover useful everyday upgrades.",
@@ -52,13 +52,13 @@ function AboutPage() {
         <div className="grid gap-7 lg:grid-cols-[1.03fr_0.97fr] lg:items-stretch">
           <div className="rounded-[2rem] vs-hero-gradient p-7 text-primary-foreground shadow-[var(--shadow-lift)] sm:p-10">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] opacity-75">
-              VS Store / About us
+              VS Associates / About us
             </p>
             <h1 className="mt-5 max-w-2xl font-display text-4xl font-bold leading-[1.03] sm:text-6xl">
               Less noise. Better finds.
             </h1>
             <p className="mt-5 max-w-xl text-sm leading-7 opacity-85 sm:text-base">
-              VS Store is a future-facing marketplace for everyday upgrades—built to make discovery
+              VS Associates is a future-facing marketplace for everyday upgrades—built to make discovery
               feel clearer, checkout feel calmer and delivery feel easier to follow.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -66,7 +66,7 @@ function AboutPage() {
                 to="/shop"
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-primary-foreground px-5 py-3 text-sm font-semibold text-foreground transition-transform hover:-translate-y-0.5"
               >
-                Explore the store <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                Explore the collections <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
               </Link>
               <Link
                 to="/policies/$slug"
@@ -102,7 +102,7 @@ function AboutPage() {
         <div className="grid gap-8 rounded-[2rem] border border-border/70 bg-card p-7 shadow-[var(--shadow-card)] sm:p-10 lg:grid-cols-[0.72fr_1.28fr] lg:items-center">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-              Why VS Store exists
+              Why VS Associates exists
             </p>
             <h2 id="our-point-of-view" className="mt-3 font-display text-2xl font-bold sm:text-3xl">
               Shopping should give you momentum, not more tabs.
@@ -111,7 +111,7 @@ function AboutPage() {
           <div className="space-y-4 text-sm leading-7 text-muted-foreground sm:text-base">
             <p>
               The internet gives us more choice than ever, but more choice does not always make a
-              decision easier. VS Store brings products into practical, good-looking edits so you
+              decision easier. VS Associates brings products into practical, good-looking edits so you
               can move from inspiration to the right next step with less friction.
             </p>
             <p>

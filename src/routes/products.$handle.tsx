@@ -10,14 +10,21 @@ import { cn } from "@/lib/utils";
 import { canonicalUrl } from "@/lib/seo";
 import { normalizeMetaCatalogId, trackViewItem } from "@/lib/marketingAnalytics";
 import { US_SHIPPING_PROMISE } from "@/lib/shipping-promise";
+import { displayBrandName } from "@/lib/brand";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { JudgeMeReviews } from "@/components/vs/JudgeMeReviews";
+import { ProductVariantOptions } from "@/components/vs/ProductVariantOptions";
 import {
   getProductGalleryImages,
   getVariantImage,
+  selectGalleryImageForDisplay,
   selectVariantGalleryIndex,
 } from "@/lib/product-variant-image.mjs";
-import { chooseProductVariantId } from "@/lib/product-variant-selection.mjs";
+import {
+  chooseProductVariantId,
+  hasImageBearingOption,
+  isVerifiedVariantImage,
+} from "@/lib/product-variant-selection.mjs";
 
 const PRODUCT_DESCRIPTION_TAGS = new Set(["h2", "h3", "p", "ul", "ol", "li", "strong", "em", "br"]);
 
@@ -73,8 +80,16 @@ function ProductInformationTabs({
 }: {
   product: { id: string; title: string; description: string; descriptionHtml?: string | undefined };
 }) {
+  const [tabSelection, setTabSelection] = useState({ productId: product.id, value: "details" });
+  const activeTab = tabSelection.productId === product.id ? tabSelection.value : "details";
+
   return (
-    <Tabs key={product.id} defaultValue="details" className="w-full">
+    <Tabs
+      key={product.id}
+      value={activeTab}
+      onValueChange={(value) => setTabSelection({ productId: product.id, value })}
+      className="w-full"
+    >
       <TabsList className="grid h-auto w-full grid-cols-2 rounded-xl border border-border bg-muted/70 p-1">
         <TabsTrigger value="details" className="min-h-10 rounded-lg">
           Details
@@ -95,8 +110,12 @@ function ProductInformationTabs({
           </section>
         )}
       </TabsContent>
-      <TabsContent value="reviews">
-        <JudgeMeReviews productId={product.id} productTitle={product.title} />
+      <TabsContent value="reviews" forceMount>
+        <JudgeMeReviews
+          active={activeTab === "reviews"}
+          productId={product.id}
+          productTitle={product.title}
+        />
       </TabsContent>
     </Tabs>
   );
@@ -105,15 +124,15 @@ function ProductInformationTabs({
 export const Route = createFileRoute("/products/$handle")({
   head: ({ params }) => ({
     meta: [
-      { title: `${params.handle.replace(/-/g, " ")} — VS Store` },
+      { title: `${params.handle.replace(/-/g, " ")} — VS Associates` },
       {
         name: "description",
-        content: `Buy ${params.handle.replace(/-/g, " ")} at VS Store with secure checkout and tracked delivery.`,
+        content: `Buy ${params.handle.replace(/-/g, " ")} at VS Associates with secure checkout and tracked delivery.`,
       },
-      { property: "og:title", content: `${params.handle.replace(/-/g, " ")} — VS Store` },
+      { property: "og:title", content: `${params.handle.replace(/-/g, " ")} — VS Associates` },
       {
         property: "og:description",
-        content: "Secure checkout and tracked delivery from VS Store.",
+        content: "Secure checkout and tracked delivery from VS Associates.",
       },
       { property: "og:type", content: "product" },
       { property: "og:url", content: canonicalUrl(`/products/${params.handle}`) },
@@ -162,6 +181,8 @@ function ProductPage() {
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
   const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
+  const [manualGallerySelection, setManualGallerySelection] = useState(false);
+  const lastImageSelectionId = useRef<string | null>(null);
   const selectionRouteKey = `${handle}:${requestedVariant ?? ""}`;
   const selectionRouteKeyRef = useRef(selectionRouteKey);
   const userSelectedVariant = useRef(false);
@@ -185,6 +206,8 @@ function ProductPage() {
     setUnavailableVariantIds(new Set());
     setHasSelectedVariant(false);
     setFailedImageUrls(new Set());
+    setManualGallerySelection(false);
+    lastImageSelectionId.current = null;
   }, [handle]);
 
   useEffect(() => {
@@ -206,7 +229,11 @@ function ProductPage() {
   }, [product, pushRecent, requestedVariant]);
 
   useEffect(() => {
-    if (!product || !selectedId) return;
+    if (lastImageSelectionId.current !== selectedId) {
+      lastImageSelectionId.current = selectedId;
+      setManualGallerySelection(false);
+    }
+    if (!product || !selectedId || manualGallerySelection) return;
     const selectedVariant = product.variants.edges
       .map((edge) => edge.node)
       .find((variant) => variant.id === selectedId);
@@ -219,12 +246,12 @@ function ProductPage() {
     // selected option has no exact mapped image. Use this product's primary
     // image as a neutral fallback instead of implying a wrong variant match.
     setImageIndex(selectVariantGalleryIndex(galleryUrls, variantImageUrl));
-  }, [product, selectedId]);
+  }, [product, selectedId, manualGallerySelection]);
 
   useEffect(() => {
     if (!product || typeof document === "undefined") return;
-    const pageTitle = `${product.title} | VS Store`;
-    const pageDescription = String(product.description || "")
+    const pageTitle = product.seo?.title?.trim() || `${product.title} | VS Associates`;
+    const pageDescription = (product.seo?.description || String(product.description || ""))
       .replace(/<[^>]*>/g, " ")
       .replace(/&amp;/gi, "&")
       .replace(/&quot;/gi, '"')
@@ -242,13 +269,15 @@ function ProductPage() {
       content: string,
     ) => {
       if (!content) return;
-      let element = document.head.querySelector<HTMLMetaElement>(selector);
+      const matches = Array.from(document.head.querySelectorAll<HTMLMetaElement>(selector));
+      let element = matches.shift();
       if (!element) {
         element = document.createElement("meta");
         element.setAttribute(attribute, key);
         document.head.appendChild(element);
       }
       element.content = content;
+      matches.forEach((duplicate) => duplicate.remove());
     };
     upsertMeta('meta[name="description"]', "name", "description", pageDescription);
     upsertMeta('meta[property="og:title"]', "property", "og:title", pageTitle);
@@ -294,7 +323,7 @@ function ProductPage() {
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {isError
-            ? "A temporary connection issue may have interrupted this page. Try again, or browse the store while we reconnect."
+            ? "A temporary connection issue may have interrupted this page. Try again, or browse products while we reconnect."
             : "This item may have been removed from the catalog."}
         </p>
         {isError && (
@@ -324,14 +353,18 @@ function ProductPage() {
     return inventoryVariant ? { ...e.node, ...inventoryVariant } : e.node;
   });
   const images = getProductGalleryImages(product, variants);
-  const activeImage =
-    (images[imageIndex] && !failedImageUrls.has(images[imageIndex].url) && images[imageIndex]) ||
-    images.find((image) => !failedImageUrls.has(image.url)) ||
-    null;
   const visibleImages = images
     .map((image, originalIndex) => ({ image, originalIndex }))
     .filter(({ image }) => !failedImageUrls.has(image.url));
   const selected = variants.find((v) => v.id === selectedId) ?? null;
+  const exactImageRequired = hasImageBearingOption(product.options);
+  const selectedImageVerified = isVerifiedVariantImage(selected);
+  const needsImageMappingReview = exactImageRequired && !selectedImageVerified;
+  const activeImage = selectGalleryImageForDisplay(
+    images,
+    exactImageRequired && needsImageMappingReview && !manualGallerySelection ? 0 : imageIndex,
+    failedImageUrls,
+  );
   const selectedAvailable =
     Boolean(selected?.availableForSale) && !unavailableVariantIds.has(selected?.id ?? "");
   const selectedLowStock =
@@ -361,8 +394,8 @@ function ProductPage() {
       product: { node: product },
       variantId: selected.id,
       variantTitle: selected.title,
-      variantImageUrl: getVariantImage(selected)?.url ?? null,
-      variantImageAlt: getVariantImage(selected)?.altText ?? null,
+      variantImageUrl: selectedImageVerified ? (getVariantImage(selected)?.url ?? null) : null,
+      variantImageAlt: selectedImageVerified ? (getVariantImage(selected)?.altText ?? null) : null,
       price: selected.price,
       quantity,
       selectedOptions: selected.selectedOptions ?? [],
@@ -397,7 +430,9 @@ function ProductPage() {
         name: product.title,
         description: product.description ?? undefined,
         image: images.map((i) => i.url),
-        brand: product.vendor ? { "@type": "Brand", name: product.vendor } : undefined,
+          brand: product.vendor
+            ? { "@type": "Brand", name: displayBrandName(product.vendor) }
+            : undefined,
         sku: selected?.id,
         url: canonicalUrl(`/products/${handle}`),
         offers: {
@@ -451,23 +486,38 @@ function ProductPage() {
           <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-border/70 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),rgba(241,245,249,0.98))] shadow-[var(--shadow-lift)]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.14),transparent_32%),radial-gradient(circle_at_80%_80%,rgba(14,165,233,0.12),transparent_28%)]" />
             {activeImage ? (
-              <img
-                src={activeImage.url}
-                alt={activeImage.altText ?? product.title}
-                fetchPriority="high"
-                className="h-full w-full object-cover"
-                onError={() =>
-                  setFailedImageUrls((current) => new Set(current).add(activeImage.url))
-                }
-              />
+              <>
+                <img
+                  src={activeImage.url}
+                  alt={activeImage.altText ?? product.title}
+                  fetchPriority="high"
+                  className="h-full w-full object-cover"
+                  onError={() =>
+                    setFailedImageUrls((current) => new Set(current).add(activeImage.url))
+                  }
+                />
+                {needsImageMappingReview && !manualGallerySelection && (
+                  <p
+                    role="status"
+                    className="absolute inset-x-3 bottom-3 rounded-xl bg-amber-50/95 px-3 py-2 text-center text-xs font-medium leading-5 text-amber-950 shadow-sm"
+                  >
+                  Product gallery preview — the selected option’s exact photo is not confirmed yet.
+                  </p>
+                )}
+              </>
             ) : (
               <div className="grid h-full place-items-center p-10 text-center">
                 <div className="max-w-xs space-y-2">
                   <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10" />
-                  <p className="font-display text-lg font-semibold">Visual coming soon</p>
+                  <p className="font-display text-lg font-semibold">
+                    {needsImageMappingReview && !manualGallerySelection
+                      ? "Photo match being verified"
+                      : "Visual coming soon"}
+                  </p>
                   <p className="text-sm leading-6 text-muted-foreground">
-                    Product media is unavailable for this item, so the page now stays visually
-                    anchored with a premium placeholder.
+                    {needsImageMappingReview && !manualGallerySelection
+                      ? "We won’t present an unconfirmed design as the selected option. Browse the product photos below while we verify the exact match."
+                      : "Product media is unavailable for this item, so the page now stays visually anchored with a premium placeholder."}
                   </p>
                 </div>
               </div>
@@ -479,7 +529,10 @@ function ProductPage() {
                 <button
                   type="button"
                   key={img.url}
-                  onClick={() => setImageIndex(originalIndex)}
+                  onClick={() => {
+                    setManualGallerySelection(true);
+                    setImageIndex(originalIndex);
+                  }}
                   aria-label={`View image ${originalIndex + 1}`}
                   className={cn(
                     "h-16 w-16 shrink-0 overflow-hidden rounded-xl border bg-card shadow-sm",
@@ -504,7 +557,7 @@ function ProductPage() {
         <div className="min-w-0 space-y-5 lg:pt-3">
           <div className="space-y-3">
             <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">
-              {product.vendor || product.productType}
+              {displayBrandName(product.vendor || product.productType)}
             </p>
             <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
               {product.title}
@@ -543,41 +596,35 @@ function ProductPage() {
           </div>
 
           {variants.length > 1 && (
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Select option
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {variants.map((v) => (
-                  <button
-                    type="button"
-                    key={v.id}
-                    disabled={!v.availableForSale || unavailableVariantIds.has(v.id)}
-                    onClick={() => {
-                      userSelectedVariant.current = true;
-                      setSelectedId(v.id);
-                      setHasSelectedVariant(true);
-                      const variantImage = getVariantImage(v);
-                      setImageIndex(
-                        selectVariantGalleryIndex(
-                          images.map((image) => image.url),
-                          variantImage?.url,
-                        ),
-                      );
-                    }}
-                    className={cn(
-                      "rounded-xl border px-4 py-2 text-sm transition-colors",
-                      v.id === selectedId
-                        ? "border-primary bg-accent text-accent-foreground"
-                        : "border-border hover:border-primary",
-                      (!v.availableForSale || unavailableVariantIds.has(v.id)) &&
-                        "cursor-not-allowed opacity-40 line-through",
-                    )}
-                  >
-                    {v.title}
-                  </button>
-                ))}
-              </div>
+            <div className="space-y-3">
+              <ProductVariantOptions
+                options={product.options}
+                variants={variants}
+                selectedVariantId={selectedId}
+                unavailableVariantIds={unavailableVariantIds}
+                productTitle={product.title}
+                onSelect={(variant) => {
+                  userSelectedVariant.current = true;
+                  setManualGallerySelection(false);
+                  setSelectedId(variant.id);
+                  setHasSelectedVariant(true);
+                  setImageIndex(
+                    selectVariantGalleryIndex(
+                      images.map((image) => image.url),
+                      getVariantImage(variant)?.url,
+                    ),
+                  );
+                }}
+              />
+              {needsImageMappingReview && (
+                <p
+                  role="status"
+                  className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950"
+                >
+                  The photo match for this design or color is not confirmed yet. You can still add
+                  the selected option; please compare the gallery photos before ordering.
+                </p>
+              )}
             </div>
           )}
 

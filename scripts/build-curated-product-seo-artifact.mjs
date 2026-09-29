@@ -397,7 +397,7 @@ function htmlBody(title, familyId, familyLabel, facts, options) {
 function seoDescription(title, facts) {
   const first = facts[0] || "the product format named in the listing";
   const second = facts[1] || "the option details shown on the product page";
-  const text = `Shop ${title} at VS Store. Product details include ${lowerFirst(first)} and ${lowerFirst(second)}. Review the selected option before ordering.`;
+  const text = `Shop ${title} at VS Associates. Product details include ${lowerFirst(first)} and ${lowerFirst(second)}. Review the selected option before ordering.`;
   return text.length <= 170 ? text : `${text.slice(0, 167).replace(/\s+\S*$/, "")}...`;
 }
 

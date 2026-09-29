@@ -4,10 +4,10 @@ import { canonicalUrl } from "@/lib/seo";
 export const Route = createFileRoute("/orders")({
   head: () => ({
     meta: [
-      { title: "Orders — VS Store" },
-      { name: "description", content: "See your VS Store order history and delivery status." },
-      { property: "og:title", content: "Orders — VS Store" },
-      { property: "og:description", content: "See your VS Store order history and delivery status." },
+      { title: "Orders — VS Associates" },
+      { name: "description", content: "See your VS Associates order history and delivery status." },
+      { property: "og:title", content: "Orders — VS Associates" },
+      { property: "og:description", content: "See your VS Associates order history and delivery status." },
       { name: "robots", content: "noindex, nofollow" },
     ],
     links: [{ rel: "canonical", href: canonicalUrl("/orders") }],

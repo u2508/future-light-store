@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Heart, Loader2, Minus, Plus, Ruler, ShieldCheck, Truck } from "lucide-react";
 import { toast } from "sonner";
@@ -13,10 +13,14 @@ import { discountPercent, fetchProduct, formatMoney, type ShopifyProduct } from 
 import { requestCartOpen, useCartStore } from "@/stores/cartStore";
 import { useWishlistStore } from "@/stores/wishlistStore";
 import { cn } from "@/lib/utils";
+import { displayBrandName } from "@/lib/brand";
+import { ProductVariantOptions } from "@/components/vs/ProductVariantOptions";
+import { hasImageBearingOption, isVerifiedVariantImage } from "@/lib/product-variant-selection.mjs";
 import {
   getProductGalleryImages,
   getVariantImage,
   preserveSelectedVariantId,
+  selectGalleryImageForDisplay,
   selectVariantGalleryIndex,
 } from "@/lib/product-variant-image.mjs";
 import { US_SHIPPING_PROMISE } from "@/lib/shipping-promise";
@@ -57,6 +61,8 @@ export function QuickActionsSheet({
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
   const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(new Set());
+  const [manualGallerySelection, setManualGallerySelection] = useState(false);
+  const lastImageSelectionId = useRef<string | null>(null);
   const addItem = useCartStore((s) => s.addItem);
   const isLoading = useCartStore((s) => s.isLoading);
   const wishlisted = useWishlistStore((s) => s.items.some((i) => i.node.handle === n.handle));
@@ -66,6 +72,8 @@ export function QuickActionsSheet({
     if (open) {
       setQuantity(1);
       setImageIndex(0);
+      setManualGallerySelection(false);
+      lastImageSelectionId.current = null;
       setFailedImageUrls(new Set());
       setHasSelectedVariant(false);
       setUnavailableVariantIds(new Set());
@@ -82,24 +90,35 @@ export function QuickActionsSheet({
     () => getProductGalleryImages(activeNode, variants),
     [activeNode, variants],
   );
-  const activeImage =
-    (images[imageIndex] && !failedImageUrls.has(images[imageIndex].url) && images[imageIndex]) ||
-    images.find((image) => !failedImageUrls.has(image.url)) ||
-    null;
   const visibleImages = images
     .map((image, originalIndex) => ({ image, originalIndex }))
     .filter(({ image }) => !failedImageUrls.has(image.url));
   const selected = variants.find((v) => v.id === selectedId) ?? null;
   const selectedImage = getVariantImage(selected);
   useEffect(() => {
-    if (!open || !selected) return;
+    if (lastImageSelectionId.current !== selectedId) {
+      lastImageSelectionId.current = selectedId;
+      setManualGallerySelection(false);
+    }
+    if (!open || !selectedId || manualGallerySelection) return;
     setImageIndex(
       selectVariantGalleryIndex(
         images.map((image) => image.url),
         selectedImage?.url,
       ),
     );
-  }, [open, selected, selectedImage?.url, images]);
+  }, [open, selectedId, selectedImage?.url, images, manualGallerySelection]);
+  const exactImageRequired = hasImageBearingOption(activeNode.options);
+  const selectedImageVerified = isVerifiedVariantImage(selected);
+  const needsImageMappingReview = exactImageRequired && !selectedImageVerified;
+  // Keep a real product photo visible while an exact variant association is
+  // reviewed. The shopper may still add the selected variant; the warning below
+  // makes clear that the visible photo is only a gallery preview.
+  const activeImage = selectGalleryImageForDisplay(
+    images,
+    needsImageMappingReview && !manualGallerySelection ? 0 : imageIndex,
+    failedImageUrls,
+  );
   const selectedAvailable =
     Boolean(selected?.availableForSale) && !unavailableVariantIds.has(selected?.id ?? "");
   const selectedLowStock =
@@ -126,8 +145,8 @@ export function QuickActionsSheet({
       product: activeProduct,
       variantId: selected.id,
       variantTitle: selected.title,
-      variantImageUrl: selectedImage?.url ?? null,
-      variantImageAlt: selectedImage?.altText ?? null,
+      variantImageUrl: selectedImageVerified ? (selectedImage?.url ?? null) : null,
+      variantImageAlt: selectedImageVerified ? (selectedImage?.altText ?? null) : null,
       price: selected.price,
       quantity,
       selectedOptions: selected.selectedOptions ?? [],
@@ -159,13 +178,13 @@ export function QuickActionsSheet({
         <SheetHeader className="text-left">
           <SheetTitle className="font-display text-xl">{activeNode.title}</SheetTitle>
           <SheetDescription>
-            {activeNode.productType || activeNode.vendor || "VS Store"}
+            {displayBrandName(activeNode.productType || activeNode.vendor || "VS Associates")}
           </SheetDescription>
         </SheetHeader>
 
         <div className="grid gap-6 pt-4 sm:grid-cols-2">
           <div className="space-y-3">
-            <div className="aspect-square overflow-hidden rounded-2xl border border-border bg-secondary">
+            <div className="relative aspect-square overflow-hidden rounded-2xl border border-border bg-secondary">
               {activeImage ? (
                 <img
                   src={activeImage.url}
@@ -176,9 +195,17 @@ export function QuickActionsSheet({
                   }
                 />
               ) : (
-                <div className="grid h-full place-items-center text-xs text-muted-foreground">
-                  No image
+                <div className="grid h-full place-items-center p-6 text-center text-xs text-muted-foreground">
+                  <span>Product photos are temporarily unavailable.</span>
                 </div>
+              )}
+              {activeImage && needsImageMappingReview && (
+                <p
+                  role="status"
+                  className="absolute inset-x-2 bottom-2 rounded-lg bg-amber-50/95 px-2.5 py-2 text-center text-[11px] font-medium leading-4 text-amber-950 shadow-sm"
+                >
+                  Gallery preview — the selected option’s exact photo is not confirmed yet.
+                </p>
               )}
             </div>
             {visibleImages.length > 1 && (
@@ -187,7 +214,10 @@ export function QuickActionsSheet({
                   <button
                     type="button"
                     key={img.url}
-                    onClick={() => setImageIndex(originalIndex)}
+                    onClick={() => {
+                      setManualGallerySelection(true);
+                      setImageIndex(originalIndex);
+                    }}
                     aria-label={`View image ${originalIndex + 1}`}
                     className={cn(
                       "h-14 w-14 shrink-0 overflow-hidden rounded-lg border",
@@ -225,45 +255,43 @@ export function QuickActionsSheet({
             </div>
 
             {variants.length > 1 && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Select option
+                    Select options
                   </p>
                   <button className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
                     <Ruler className="h-3 w-3" /> Size guide
                   </button>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {variants.map((v) => (
-                    <button
-                      type="button"
-                      key={v.id}
-                      disabled={!v.availableForSale || unavailableVariantIds.has(v.id)}
-                      onClick={() => {
-                        setSelectedId(v.id);
-                        setHasSelectedVariant(true);
-                        const variantImage = getVariantImage(v);
-                        setImageIndex(
-                          selectVariantGalleryIndex(
-                            images.map((image) => image.url),
-                            variantImage?.url,
-                          ),
-                        );
-                      }}
-                      className={cn(
-                        "rounded-xl border px-3 py-2 text-sm transition-colors",
-                        v.id === selectedId
-                          ? "border-primary bg-accent text-accent-foreground"
-                          : "border-border hover:border-primary",
-                        (!v.availableForSale || unavailableVariantIds.has(v.id)) &&
-                          "cursor-not-allowed opacity-40 line-through",
-                      )}
-                    >
-                      {v.title}
-                    </button>
-                  ))}
-                </div>
+                <ProductVariantOptions
+                  options={activeNode.options}
+                  variants={variants}
+                  selectedVariantId={selectedId}
+                  unavailableVariantIds={unavailableVariantIds}
+                  productTitle={activeNode.title}
+                  compact
+                  onSelect={(variant) => {
+                    setManualGallerySelection(false);
+                    setSelectedId(variant.id);
+                    setHasSelectedVariant(true);
+                    setImageIndex(
+                      selectVariantGalleryIndex(
+                        images.map((image) => image.url),
+                        getVariantImage(variant)?.url,
+                      ),
+                    );
+                  }}
+                />
+                {needsImageMappingReview && (
+                  <p
+                    role="status"
+                    className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950"
+                  >
+                    The photo match for this design or color is not confirmed yet. You can still
+                    add the selected option; please compare the gallery photos before ordering.
+                  </p>
+                )}
               </div>
             )}
 
@@ -303,7 +331,10 @@ export function QuickActionsSheet({
                 type="button"
                 onClick={handleAdd}
                 disabled={
-                  isLoading || fullProductLoading || Boolean(fullProductError) || !selectedAvailable
+                  isLoading ||
+                  fullProductLoading ||
+                  Boolean(fullProductError) ||
+                  !selectedAvailable
                 }
                 className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
               >

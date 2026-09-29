@@ -9,13 +9,13 @@ import { canonicalUrl } from "@/lib/seo";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — VS Store" },
+      { title: "Sign in — VS Associates" },
       {
         name: "description",
-        content: "Sign in to your VS Store account to manage orders and staff tools.",
+        content: "Sign in to your VS Associates account to manage orders and staff tools.",
       },
-      { property: "og:title", content: "Sign in — VS Store" },
-      { property: "og:description", content: "Sign in to VS Store." },
+      { property: "og:title", content: "Sign in — VS Associates" },
+      { property: "og:description", content: "Sign in to VS Associates." },
       { name: "robots", content: "noindex" },
     ],
     links: [{ rel: "canonical", href: canonicalUrl("/auth") }],

@@ -5,8 +5,14 @@ import { mkdir, mkdtemp, readFile, readFile as readText, rm, writeFile } from "n
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 import { FUTURE_LIGHT_SHOP_DOMAIN } from "./lib/product-image-health.mjs";
+import {
+  assertFutureLightApprovedCopyWrites,
+  assertFutureLightCopyPreimage,
+  assertFutureLightCopyReadback,
+} from "./lib/future-light-approved-copy-manifest.mjs";
 import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -15,15 +21,25 @@ const artifactPath = resolve(rootDir, "public", "data", "product-seo.json");
 const outputDir = resolve(rootDir, "output", "future-light-seo-final");
 const statePath = resolve(outputDir, "state.json");
 const manifestPath = resolve(outputDir, "manifest.json");
-const apiVersion = process.env.FUTURE_LIGHT_SHOPIFY_API_VERSION || process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
-const cliBinary = process.env.SHOPIFY_CLI_BINARY || "shopify";
+const approvalManifestPath = resolve(rootDir, "output", "future-light-approved-copy-manifest.json");
 const batchSize = 5;
-const workerCount = Math.max(1, Math.min(4, Number(process.env.FUTURE_LIGHT_SEO_APPLY_WORKERS || 4)));
+
+function configuredApiVersion() {
+  return process.env.FUTURE_LIGHT_SHOPIFY_API_VERSION || process.env.SHOPIFY_ADMIN_API_VERSION || "2026-07";
+}
+
+function configuredCliBinary() {
+  return process.env.SHOPIFY_CLI_BINARY || "shopify";
+}
+
+function configuredWorkerCount() {
+  return Math.max(1, Math.min(4, Number(process.env.FUTURE_LIGHT_SEO_APPLY_WORKERS || 4)));
+}
 
 const ACTIVE_PRODUCTS_QUERY = /* GraphQL */ `
   query FutureLightActiveProducts($after: String) {
     products(first: 250, after: $after, query: "status:active") {
-      nodes { id handle title descriptionHtml vendor seo { title description } }
+      nodes { id handle status title descriptionHtml vendor seo { title description } }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -43,7 +59,7 @@ const PRODUCT_UPDATE_MUTATION = (size) => /* GraphQL */ `
 const READBACK_QUERY = /* GraphQL */ `
   query FutureLightSeoReadback($ids: [ID!]!) {
     nodes(ids: $ids) {
-      ... on Product { id handle title descriptionHtml vendor seo { title description } }
+      ... on Product { id handle status title descriptionHtml vendor seo { title description } }
     }
   }
 `;
@@ -126,12 +142,12 @@ async function runGraphql(query, variables, { mutation = false, operation = "Sho
       writeFile(variablesPath, JSON.stringify(variables), "utf8"),
     ]);
     const args = [
-      "store", "execute", "--store", FUTURE_LIGHT_SHOP_DOMAIN, "--version", apiVersion,
+      "store", "execute", "--store", FUTURE_LIGHT_SHOP_DOMAIN, "--version", configuredApiVersion(),
       "--query-file", queryPath, "--variable-file", variablesPath,
       "--output-file", outputPath, "--json",
     ];
     if (mutation) args.push("--allow-mutations");
-    const result = await execFileAsync(cliBinary, args, {
+    const result = await execFileAsync(configuredCliBinary(), args, {
       cwd: rootDir,
       env: { ...safeChildEnv(), CI: "1", SHOPIFY_CLI_DISABLE_ANALYTICS: "1" },
       timeout: 180_000,
@@ -157,34 +173,6 @@ async function writeJson(path, value) {
 
 function normalized(value) { return String(value ?? "").replace(/\r\n/g, "\n").trim(); }
 
-// Shopify may pretty-print description HTML on readback (for example by
-// inserting a newline after a list item). Those formatting-only changes do
-// not alter the customer-facing content, so compare a canonical HTML form.
-function canonicalHtml(value) {
-  return normalized(value)
-    .replace(/>\s+</g, "><")
-    // Shopify decodes safe HTML entities while persisting rich text.
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&mdash;/gi, "—")
-    .replace(/&ndash;/gi, "–")
-    .replace(/&hellip;/gi, "…");
-}
-
-function sameDescription(actual, expected) {
-  return canonicalHtml(actual) === canonicalHtml(expected);
-}
-
-function effectiveSeoTitle(product) {
-  // Shopify returns null when the SEO title intentionally inherits the
-  // product title. Treat that as the explicit desired title on readback.
-  return normalized(product?.seo?.title || product?.title);
-}
-
 async function fetchActiveProducts() {
   const products = [];
   let after = null;
@@ -198,29 +186,80 @@ async function fetchActiveProducts() {
   return products;
 }
 
-function buildPlan(liveProducts, artifact) {
+function exactCopy(product) {
+  return {
+    title: product.title,
+    descriptionHtml: product.descriptionHtml,
+    seoTitle: product.seo?.title ?? null,
+    seoDescription: product.seo?.description ?? null,
+  };
+}
+
+function artifactCopy(row) {
+  return {
+    title: row.title,
+    descriptionHtml: row.descriptionHtml,
+    seoTitle: row.seoTitle ?? null,
+    seoDescription: row.seoDescription ?? null,
+  };
+}
+
+function shopifyUpdateFor(productId, proposal) {
+  const update = { id: productId };
+  for (const [field, value] of Object.entries(proposal)) {
+    if (field === "title" || field === "descriptionHtml") update[field] = value;
+    else if (field === "seoTitle" || field === "seoDescription") {
+      update.seo ||= {};
+      update.seo[field === "seoTitle" ? "title" : "description"] = value;
+    }
+  }
+  return update;
+}
+
+export function buildPlan(liveProducts, artifact, approvalManifest) {
+  if (!approvalManifest) {
+    throw new Error(`Missing exact approved-copy manifest: ${approvalManifestPath}`);
+  }
+  assertFutureLightCopyPreimage(approvalManifest, liveProducts);
   const artifactRows = Array.isArray(artifact?.products) ? artifact.products : [];
-  const byHandle = new Map(artifactRows.map((row) => [normalized(row.handle).toLowerCase(), row]));
+  const byProductId = new Map();
+  for (const row of artifactRows) {
+    const productId = String(row?.productId || "");
+    if (!productId) throw new Error("Product SEO artifact contains a row without an exact Shopify product ID");
+    if (byProductId.has(productId)) throw new Error(`Product SEO artifact contains duplicate product ID ${productId}`);
+    byProductId.set(productId, row);
+  }
+  const decisionsById = new Map(approvalManifest.products.map((row) => [row.productId, row]));
   const plan = [];
   const missing = [];
   const foreign = liveProducts.filter((product) => normalized(product.vendor) !== "VS Store");
   if (foreign.length) throw new Error(`Future Light SEO refused ${foreign.length} non-VS Store active product(s)`);
   for (const product of liveProducts) {
-    const row = byHandle.get(normalized(product.handle).toLowerCase());
+    const row = byProductId.get(product.id);
     if (!row) { missing.push(product.handle); continue; }
-    const desired = {
-      id: product.id,
-      handle: product.handle,
-      title: normalized(row.title),
-      descriptionHtml: normalized(row.descriptionHtml),
-      seo: { title: normalized(row.seoTitle || row.title), description: normalized(row.seoDescription) },
-    };
-    const update = { id: product.id, title: desired.title, descriptionHtml: desired.descriptionHtml, seo: desired.seo };
-    const changed = normalized(product.title) !== desired.title ||
-      !sameDescription(product.descriptionHtml, desired.descriptionHtml) ||
-      effectiveSeoTitle(product) !== desired.seo.title ||
-      normalized(product.seo?.description) !== desired.seo.description;
-    plan.push({ product, desired, update, changed });
+    if (row.handle !== product.handle) {
+      throw new Error(`Product SEO artifact identity mismatch for ${product.id}: handle does not match the approved live product`);
+    }
+    const decision = decisionsById.get(product.id);
+    if (!decision) throw new Error(`Missing exact approved-copy decision for ${product.id}`);
+    const before = exactCopy(product);
+    if (decision.decision === "approved_keep" || decision.decision === "held") {
+      // Keep decisions deliberately bypass artifact copy; do not normalize or reconstruct these bytes.
+      plan.push({ product, desired: before, update: { id: product.id }, changed: false, decision });
+      continue;
+    }
+    if (decision.decision !== "needs_rewrite" || !decision.proposal) {
+      throw new Error(`Invalid approved-copy decision for ${product.id}`);
+    }
+    const artifactValues = artifactCopy(row);
+    for (const [field, value] of Object.entries(decision.proposal)) {
+      if (artifactValues[field] !== value) {
+        throw new Error(`Product SEO artifact ${field} for ${product.id} differs from the exact approved proposal`);
+      }
+    }
+    const desired = { ...before, ...decision.proposal };
+    const update = shopifyUpdateFor(product.id, decision.proposal);
+    plan.push({ product, desired, update, changed: true, decision, approvedWrite: { productId: product.id, fields: decision.proposal } });
   }
   if (missing.length) throw new Error(`Product SEO artifact is missing ${missing.length} live active handle(s): ${missing.slice(0, 10).join(", ")}`);
   if (plan.length !== artifactRows.length) {
@@ -229,7 +268,8 @@ function buildPlan(liveProducts, artifact) {
   return plan;
 }
 
-async function applyBatch(batch) {
+async function applyBatch(batch, approvalManifest) {
+  assertFutureLightApprovedCopyWrites(approvalManifest, batch.map((entry) => entry.approvedWrite));
   const variables = Object.fromEntries(batch.map((entry, index) => [`p${index}`, entry.update]));
   const data = await runGraphql(PRODUCT_UPDATE_MUTATION(batch.length), variables, {
     mutation: true,
@@ -261,8 +301,10 @@ async function main() {
   await mkdir(outputDir, { recursive: true });
   const artifact = await readJson(artifactPath);
   if (!artifact?.products?.length) throw new Error(`Missing product SEO artifact: ${artifactPath}`);
+  const approvalManifest = await readJson(approvalManifestPath);
+  if (!approvalManifest) throw new Error(`Missing exact approved-copy manifest: ${approvalManifestPath}`);
   const liveProducts = await fetchActiveProducts();
-  const plan = buildPlan(liveProducts, artifact);
+  const plan = buildPlan(liveProducts, artifact, approvalManifest);
   const changed = plan.filter((entry) => entry.changed);
   const batches = Array.from({ length: Math.ceil(changed.length / batchSize) }, (_, index) => changed.slice(index * batchSize, (index + 1) * batchSize));
   const priorState = args.resume ? await readJson(statePath, null) : null;
@@ -273,9 +315,10 @@ async function main() {
     generatedAt: new Date().toISOString(),
     status: args.dryRun ? "dry-run" : "running",
     targetStoreDomain: FUTURE_LIGHT_SHOP_DOMAIN,
-    apiVersion,
+    apiVersion: configuredApiVersion(),
     scope: "all active VS Store products",
     artifact: { path: artifactPath, generatedAt: artifact.generatedAt, total: artifact.products.length },
+    approvedCopy: { path: approvalManifestPath, fingerprint: approvalManifest.manifestFingerprint },
     summary: { liveProducts: liveProducts.length, changedProducts: changed.length, totalBatches: batches.length, completedBatches: state.completedBatches.length, failed: 0 },
     changedHandles: changed.map((entry) => entry.product.handle),
   };
@@ -304,25 +347,17 @@ async function main() {
   const worker = async () => {
     while (cursor < pending.length) {
       const item = pending[cursor++];
-      const ids = await applyBatch(item.batch);
+      const ids = await applyBatch(item.batch, approvalManifest);
       await persistCheckpoint(item, ids);
       process.stdout.write(`Applied SEO batch ${item.index + 1}/${batches.length}\n`);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(workerCount, Math.max(1, pending.length)) }, worker));
+  await Promise.all(Array.from({ length: Math.min(configuredWorkerCount(), Math.max(1, pending.length)) }, worker));
   const ids = plan.map((entry) => entry.product.id);
   const liveAfter = await readback(ids);
-  const expectedById = new Map(plan.map((entry) => [entry.product.id, entry.desired]));
   const failures = [];
-  for (const actual of liveAfter) {
-    const expected = expectedById.get(actual.id);
-    if (!expected) { failures.push(`${actual.id}: unexpected product in readback`); continue; }
-    if (normalized(actual.title) !== expected.title) failures.push(`${actual.handle}: title readback mismatch`);
-    if (!sameDescription(actual.descriptionHtml, expected.descriptionHtml)) failures.push(`${actual.handle}: description readback mismatch`);
-    if (effectiveSeoTitle(actual) !== expected.seo.title) failures.push(`${actual.handle}: SEO title readback mismatch`);
-    if (normalized(actual.seo?.description) !== expected.seo.description) failures.push(`${actual.handle}: SEO description readback mismatch`);
-  }
-  if (liveAfter.length !== ids.length) failures.push(`readback returned ${liveAfter.length}/${ids.length} products`);
+  try { assertFutureLightCopyReadback(approvalManifest, liveAfter); }
+  catch (error) { failures.push(error.message || String(error)); }
   manifest.summary.failed = failures.length;
   manifest.summary.completedBatches = state.completedBatches.length;
   manifest.status = failures.length ? "failed-readback" : "completed";
@@ -336,7 +371,9 @@ async function main() {
   process.stdout.write(`Future Light SEO final apply complete: ${liveAfter.length} product(s) read back and verified.\n`);
 }
 
-main().catch((error) => {
-  console.error(error.message || error);
-  process.exit(1);
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error.message || error);
+    process.exit(1);
+  });
+}

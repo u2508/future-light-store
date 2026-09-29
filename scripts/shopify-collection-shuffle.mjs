@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import {
   applyCollectionReorderMoves,
   buildCollectionReorderMoves,
+  shouldShuffleCollection,
   shuffleCollectionProductIds,
 } from "../src/lib/shopify-collection-shuffle.js";
 import { createShopifyAdminGraphQLClient } from "./shopify-admin-graphql-client.mjs";
@@ -20,7 +21,6 @@ const readbackAttempts = Math.max(1, Number(process.env.SALT_COLLECTION_SHUFFLE_
 const readbackDelayMs = Math.max(1000, Number(process.env.SALT_COLLECTION_SHUFFLE_READBACK_DELAY_MS || 3000));
 const reorderBatchSize = Math.max(1, Math.min(250, Number(process.env.SALT_COLLECTION_SHUFFLE_REORDER_BATCH_SIZE || 25)));
 const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "collection-shuffle" });
-const SHUFFLE_EXCLUDED_HANDLES = new Set(["all-products"]);
 
 const COLLECTIONS_QUERY = /* GraphQL */ `
   query CollectionShuffleCollections($first: Int!, $after: String) {
@@ -124,7 +124,7 @@ async function buildPlan(seed) {
   const collections = await fetchCollections();
   const plan = [];
   for (const collection of collections) {
-    if (SHUFFLE_EXCLUDED_HANDLES.has(collection.handle)) continue;
+    if (!shouldShuffleCollection(collection.handle)) continue;
     const currentIds = await fetchCollectionProducts(collection.id);
     const desiredIds = shuffleCollectionProductIds(currentIds, `${seed}:${collection.handle}`);
     const moves = buildCollectionReorderMoves(currentIds, desiredIds);

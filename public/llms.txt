@@ -1,10 +1,10 @@
-# VS Store
+# VS Associates
 
-> VS Store is a curated online marketplace for practical everyday essentials, future-ready tech and lifestyle accessories, with secure Shopify checkout and tracked fulfilment.
+> VS Associates is a curated online marketplace for practical everyday essentials, future-ready tech and lifestyle accessories, with secure Shopify checkout and tracked fulfilment.
 
 ## Public storefront
 
-- [Homepage](https://future-light-store.vercel.app/): What VS Store is and how it helps shoppers.
+- [Homepage](https://future-light-store.vercel.app/): What VS Associates is and how it helps shoppers.
 - [Shop all](https://future-light-store.vercel.app/shop): Search and filter the live product catalog.
 - [Collections](https://future-light-store.vercel.app/collections): Browse collection hubs by shopping intent.
 - [Help centre](https://future-light-store.vercel.app/help): Delivery, returns, payment and order-tracking answers.

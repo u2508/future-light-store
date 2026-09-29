@@ -8,7 +8,7 @@ export const Route = createFileRoute("/admin/orders")({
   head: () => ({
     meta: [
       { title: "Orders — VS Admin" },
-      { name: "description", content: "VS Store admin order feed synced from Shopify." },
+      { name: "description", content: "VS Associates admin order feed synced from Shopify." },
       { name: "robots", content: "noindex" },
     ],
   }),

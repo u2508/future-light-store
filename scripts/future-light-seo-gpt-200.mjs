@@ -17,6 +17,13 @@ import { readCatalogKnowledgeModel } from "./catalog-knowledge-model-files.mjs";
 import { assertFutureLightDirectWriteDisabled } from "../src/lib/future-light-direct-write-guard.mjs";
 import { readProductCatalogPayload } from "./product-catalog-files.mjs";
 import {
+  assertExactSeoCopyReadback,
+  assertFutureLightSeoApprovalState,
+  assertFutureLightSeoBatchApproval,
+  authorizeFutureLightSeoItems,
+  needsExactSeoCopyWrite,
+} from "./lib/future-light-seo-approved-copy-gate.mjs";
+import {
   assertSeoManifestSourceFreshness,
   bindSeoSourceSnapshot,
   fingerprintSeoSource,
@@ -37,6 +44,7 @@ const outputDir = scopedHandleArgs.length
 const statePath = resolve(outputDir, "state.json");
 const manifestPath = resolve(outputDir, "manifest.json");
 const lockPath = resolve(outputDir, "run.lock");
+const approvedCopyManifestPath = resolve(rootDir, "output", "future-light-approved-copy-manifest.json");
 const overridesPath = resolve(rootDir, "config", "future-light-seo-overrides.json");
 const imageHealthManifestPath = resolve(rootDir, "output", "future-light-image-health-queue.json");
 const ACTIVE_PRODUCTS_QUERY = /* GraphQL */ `
@@ -235,10 +243,6 @@ function stripHtml(value) {
     .trim();
 }
 
-function comparableText(value) {
-  return normalizePlainText(stripHtml(value)).toLowerCase();
-}
-
 function comparableValue(value) {
   return normalizePlainText(value).replace(/\s+/g, " ");
 }
@@ -380,7 +384,7 @@ function regenerateDistinctSeoDescription(item, duplicateIndex) {
     `Choose the ${anchor.toLowerCase()} finish shown on this page.`,
     "Check the photos, fit, and care details before ordering.",
   ];
-  const prefix = `Shop ${title} at VS Store.`;
+  const prefix = `Shop ${title} at VS Associates.`;
   const candidates = suffixes.map((suffix) => {
     const budget = 158 - prefix.length - 1;
     const lead = compactMetaLead(item, title);
@@ -605,7 +609,7 @@ function naturalDeterministicSeoDescription(item) {
   if (!lead || /\b(?:specific function|product details identify|the product serves|generic product)\b/i.test(lead)) {
     lead = `The ${title} is designed for the use described by its product type.`;
   }
-  const prefix = `Shop ${title} at VS Store.`;
+  const prefix = `Shop ${title} at VS Associates.`;
   const candidates = [prefix, lead, detailSentenceForMeta(facts), orderingSentenceForMeta(title)].filter(Boolean);
   let result = candidates[0];
   for (const sentence of candidates.slice(1)) {
@@ -978,7 +982,7 @@ function editorialMetaLeadForItem(item, title) {
 }
 
 function buildEditorialMetaDescription(item, title) {
-  const prefix = `Shop ${title} at VS Store.`;
+  const prefix = `Shop ${title} at VS Associates.`;
   const sentences = [editorialMetaLeadForItem(item, title), orderingSentenceForMeta(title)];
   let result = prefix;
   for (const sentence of sentences) {
@@ -1534,15 +1538,15 @@ function buildMutationForGroup(group) {
     const alias = `p${index}`;
     declarations.push(`$${alias}: ProductUpdateInput!`);
     const item = group[index];
-    variables[alias] = {
-      id: item.productId,
-      title: item.desired.title,
-      descriptionHtml: item.desired.descriptionHtml,
-      seo: {
-        title: item.desired.seoTitle,
-        description: item.desired.seoDescription,
-      },
-    };
+    const update = { id: item.productId };
+    for (const [field, value] of Object.entries(item.approvedWrite.fields)) {
+      if (field === "title" || field === "descriptionHtml") update[field] = value;
+      else if (field === "seoTitle" || field === "seoDescription") {
+        update.seo ||= {};
+        update.seo[field === "seoTitle" ? "title" : "description"] = value;
+      }
+    }
+    variables[alias] = update;
     aliases.push(alias);
   }
   const fields = aliases.map((alias) => `${alias}: productUpdate(product: $${alias}) { product { id handle } userErrors { field message } }`).join(" ");
@@ -1554,11 +1558,7 @@ function buildMutationForGroup(group) {
 }
 
 function needsWrite(item, liveProduct) {
-  if (!liveProduct) return true;
-  return comparableValue(liveProduct.title) !== comparableValue(item.desired.title) ||
-    comparableText(liveProduct.descriptionHtml) !== comparableText(item.desired.descriptionHtml) ||
-    (comparableValue(liveProduct.seo?.title) || comparableValue(liveProduct.title)) !== comparableValue(item.desired.seoTitle) ||
-    comparableValue(liveProduct.seo?.description) !== comparableValue(item.desired.seoDescription);
+  return needsExactSeoCopyWrite(item, liveProduct);
 }
 
 async function readbackProducts(client, ids, state, persistState) {
@@ -1579,9 +1579,20 @@ async function readbackProducts(client, ids, state, persistState) {
   return new Map(responses.flatMap((response) => Array.isArray(response?.nodes) ? response.nodes.filter(Boolean).map((product) => [product.id, product]) : []));
 }
 
-async function processBatch({ batch, liveById, client, state, persistState, args, manifest }) {
+async function processBatch({ batch, liveById, client, state, persistState, args, manifest, approvalManifest }) {
   const pending = [];
   for (const item of batch) {
+    if (item.approvalDecision === "approved_keep") {
+      item.status = "approved_keep";
+      continue;
+    }
+    if (item.approvalDecision === "held") {
+      item.status = "held_copy_approval";
+      continue;
+    }
+    if (item.approvalDecision !== "needs_rewrite" || !item.approvedWrite) {
+      throw new Error(`SEO mutation is missing exact copy approval for ${item.productId}`);
+    }
     if (item.imageHealth?.eligible !== true) {
       item.status = "held_image";
       continue;
@@ -1614,6 +1625,7 @@ async function processBatch({ batch, liveById, client, state, persistState, args
   }
 
   const groupSize = Math.min(25, Math.max(1, Number(process.env.FUTURE_LIGHT_SEO_MUTATION_GROUP_SIZE || 20)));
+  assertFutureLightSeoBatchApproval(approvalManifest, pending);
   const groups = createMutationGroups(pending, groupSize);
   const mutationConcurrency = Math.min(6, recommendedConcurrency({ kind: "io", reserve: 2, max: 6 }));
   const results = await mapWithConcurrency(groups, mutationConcurrency, async (group, groupIndex) => {
@@ -1659,25 +1671,23 @@ async function processBatch({ batch, liveById, client, state, persistState, args
       const actual = liveProduct && {
         title: liveProduct.title,
         descriptionHtml: liveProduct.descriptionHtml,
-        // Shopify returns a null SEO title when it inherits the product title.
-        // Treat that canonical inherited value as equivalent only when the
-        // desired SEO title is the product title; distinct SEO titles must
-        // still be explicitly present in the readback.
         seoTitle: liveProduct.seo?.title || liveProduct.title || "",
         seoDescription: liveProduct.seo?.description || "",
       };
       const quality = actual ? validateCopy(actual, { ...liveProduct, handle: item.handle }) : { ok: false, issues: ["missing-readback"] };
-      const exact = actual && comparableValue(actual.title) === comparableValue(item.desired.title) &&
-        comparableText(actual.descriptionHtml) === comparableText(item.desired.descriptionHtml) &&
-        comparableValue(actual.seoTitle) === comparableValue(item.desired.seoTitle) &&
-        comparableValue(actual.seoDescription) === comparableValue(item.desired.seoDescription);
-      if (quality.ok && exact) {
+      let exactError = "";
+      try {
+        assertExactSeoCopyReadback(item, liveProduct);
+      } catch (error) {
+        exactError = String(error?.message || error);
+      }
+      if (quality.ok && !exactError) {
         item.status = "verified";
         item.verifiedAt = now();
         item.verifiedSourceUpdatedAt = liveProduct?.updatedAt || "";
       } else {
         item.status = "failed";
-        item.failures.push(`readback-mismatch:${[...(quality.issues || []), exact ? "" : "values-differ"].filter(Boolean).join(",")}`.slice(0, 600));
+        item.failures.push(`readback-mismatch:${[...(quality.issues || []), exactError].filter(Boolean).join(",")}`.slice(0, 600));
       }
     }
   }
@@ -1736,8 +1746,13 @@ async function main() {
   await persistState();
 
   try {
+    const approvalManifest = await readJson(approvedCopyManifestPath, null);
+    if (!approvalManifest) {
+      throw new Error(`Missing exact approved-copy manifest: ${approvedCopyManifestPath}`);
+    }
     const client = createShopifyAdminGraphQLClient({ rootDir, agentName: "future-light-seo-gpt-200" });
     const liveProducts = await fetchActiveProducts(client, state, persistState);
+    assertFutureLightSeoApprovalState(approvalManifest, liveProducts);
     const scopedProducts = args.handles.length
       ? liveProducts.filter((product) => args.handles.includes(normalizeHandleValue(product.handle)))
       : liveProducts;
@@ -1748,7 +1763,6 @@ async function main() {
     }
     const limitedProducts = args.limit ? scopedProducts.slice(0, args.limit) : scopedProducts;
     const liveById = new Map(limitedProducts.map((product) => [product.id, product]));
-    const liveByHandle = new Map(limitedProducts.map((product) => [normalizeHandleValue(product.handle), product]));
     state.activeProducts = limitedProducts.length;
     state.status = "planning";
     const imagePreflight = await loadImageHealthPreflight(limitedProducts);
@@ -1814,11 +1828,29 @@ async function main() {
         imagePreflight,
         overrides,
       });
-      await writeJsonAtomic(manifestPath, manifest);
-    } else {
-      ensureDistinctProductCopy(manifest.items, liveByHandle);
-      await writeJsonAtomic(manifestPath, manifest);
     }
+
+    manifest.items = authorizeFutureLightSeoItems({
+      approvalManifest,
+      liveProducts,
+      expectedProducts: limitedProducts,
+      items: manifest.items,
+    });
+    for (const item of manifest.items) {
+      if (item.approvalDecision !== "needs_rewrite") continue;
+      const qualityCandidate = {
+        ...item.desired,
+        seoTitle: item.desired.seoTitle ?? item.desired.title,
+      };
+      item.quality = validateCopy(qualityCandidate, liveById.get(item.productId));
+      if (item.imageHealth?.eligible !== true) item.status = "held_image";
+      else if (!item.quality.ok) item.status = "held_quality";
+    }
+    manifest.approvedCopy = {
+      path: approvedCopyManifestPath,
+      fingerprint: approvalManifest.manifestFingerprint,
+    };
+    await writeJsonAtomic(manifestPath, manifest);
 
     state.plannedProducts = manifest.items.length;
     state.totalBatches = Math.ceil(manifest.items.length / args.batchSize);
@@ -1839,7 +1871,7 @@ async function main() {
     await persistState();
 
     for (let batchIndex = firstBatch; batchIndex < lastBatch; batchIndex += 1) {
-      const result = await processBatch({ batch: batches[batchIndex], liveById, client, state, persistState, args, manifest });
+      const result = await processBatch({ batch: batches[batchIndex], liveById, client, state, persistState, args, manifest, approvalManifest });
       state.nextBatchIndex = batchIndex + 1;
       state.verifiedProducts = manifest.items.filter((item) => item.status === "verified").length;
       state.failedProducts = manifest.items.filter((item) => item.status === "failed").length;

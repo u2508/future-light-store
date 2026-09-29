@@ -32,15 +32,15 @@ export const Route = createFileRoute("/collections/$handle")({
     const presentation = publicCollectionPresentation(params.handle);
     return {
       meta: [
-        { title: `${presentation.title} — VS Store` },
+        { title: `${presentation.title} — VS Associates` },
         {
           name: "description",
-          content: `Shop ${presentation.title} at VS Store.`,
+          content: `Shop ${presentation.title} at VS Associates.`,
         },
-        { property: "og:title", content: `${presentation.title} — VS Store` },
+        { property: "og:title", content: `${presentation.title} — VS Associates` },
         {
           property: "og:description",
-          content: `Shop ${presentation.title} at VS Store.`,
+          content: `Shop ${presentation.title} at VS Associates.`,
         },
         { property: "og:url", content: canonicalUrl(`/collections/${params.handle}`) },
       ],
@@ -167,7 +167,7 @@ function CollectionPage() {
             />
             <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/95 via-black/30 to-transparent sm:bg-gradient-to-r sm:from-black/90 sm:via-black/40" />
             <p className="mb-4 text-[10px] uppercase tracking-[0.24em] text-white/75">
-              The VS Store edit
+              The VS Associates edit
             </p>
           </>
         )}

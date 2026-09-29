@@ -1446,7 +1446,7 @@ function clipMetaSentence(value, maxLength) {
 
 function fitMetaDescription(candidates, title) {
   const sentences = candidates.map((value) => normalizeText(value)).filter(Boolean);
-  let result = sentences[0] || "Shop " + title + " at VS Store.";
+  let result = sentences[0] || "Shop " + title + " at VS Associates.";
   for (const sentence of sentences.slice(1)) {
     if (result.length >= 120) break;
     const next = result + " " + sentence;
@@ -1646,7 +1646,7 @@ function specificMetaSentence(profile, title, facts) {
 }
 
 function buildCustomerMetaDescription(title, profile, facts, check) {
-  const prefix = `Shop ${title} at VS Store.`;
+  const prefix = `Shop ${title} at VS Associates.`;
   let result = prefix;
   const candidates = [
     naturalizeCustomerCopy(specificMetaSentence(profile, title, facts)),
@@ -1817,8 +1817,8 @@ function retitleRecord(record, title) {
   record.title = title;
   record.seoTitle = title;
   const updatedDescription = record.seoDescription.replaceAll(oldTitle, title);
-  const prefix = `Shop ${title} at VS Store.`;
-  const body = updatedDescription.replace(/^Shop\s+.*?\s+at VS Store\.\s*/i, "").trim();
+  const prefix = `Shop ${title} at VS Associates.`;
+  const body = updatedDescription.replace(/^Shop\s+.*?\s+at VS Associates\.\s*/i, "").trim();
   const remaining = Math.max(0, 158 - prefix.length - 1);
   const clippedBody = body ? clipMetaSentence(body, remaining) : "";
   record.seoDescription = clippedBody ? `${prefix} ${clippedBody}` : prefix;

@@ -13,6 +13,7 @@ import {
   suggestedCategories,
 } from "@/lib/vs-search";
 import { cn } from "@/lib/utils";
+import { displayBrandName } from "@/lib/brand";
 
 function Highlighted({ text, query }: { text: string; query: string }) {
   return (
@@ -139,7 +140,7 @@ export function PredictiveSearch({
           role="combobox"
           aria-expanded={open}
           aria-controls="vs-search-results"
-          aria-label="Search VS Store"
+          aria-label="Search VS Associates"
           placeholder="Search products, collections, SKUs…"
           className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
@@ -249,7 +250,7 @@ export function PredictiveSearch({
                             <Highlighted text={n.title} query={debounced} />
                           </span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {n.productType || n.vendor || "VS Store"}
+                            {displayBrandName(n.productType || n.vendor || "VS Associates")}
                           </span>
                         </span>
                         <span className="shrink-0 text-sm font-semibold">

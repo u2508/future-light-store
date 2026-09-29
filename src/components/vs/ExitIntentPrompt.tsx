@@ -93,7 +93,7 @@ export function ExitIntentPrompt() {
           Find something worth taking home.
         </h2>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          Browse today’s value picks or keep exploring the full VS Store catalog whenever you’re
+          Browse today’s value picks or keep exploring the full VS Associates catalog whenever you’re
           ready.
         </p>
         <div className="mt-6 grid gap-2 sm:grid-cols-2">

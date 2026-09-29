@@ -8,10 +8,10 @@ export const SHOPIFY_ACCOUNT_URL = "https://shopify.com/106570088529/account";
 export const Route = createFileRoute("/account")({
   head: () => ({
     meta: [
-      { title: "Account — VS Store" },
-      { name: "description", content: "Manage your VS Store profile, orders, tracking and saved items." },
-      { property: "og:title", content: "Account — VS Store" },
-      { property: "og:description", content: "Manage your VS Store profile, orders and saved items." },
+      { title: "Account — VS Associates" },
+      { name: "description", content: "Manage your VS Associates profile, orders, tracking and saved items." },
+      { property: "og:title", content: "Account — VS Associates" },
+      { property: "og:description", content: "Manage your VS Associates profile, orders and saved items." },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

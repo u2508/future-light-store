@@ -18,12 +18,12 @@ const POLICY_LINKS = [
   {
     slug: SHOPIFY_POLICY_SLUGS.privacy,
     label: "Privacy policy",
-    detail: "How store and order information is used.",
+    detail: "How website and order information is used.",
   },
   {
     slug: SHOPIFY_POLICY_SLUGS.terms,
     label: "Terms of service",
-    detail: "The terms for browsing and shopping with VS Store.",
+    detail: "The terms for browsing and shopping with VS Associates.",
   },
   {
     slug: SHOPIFY_POLICY_SLUGS.contact,
@@ -33,17 +33,17 @@ const POLICY_LINKS = [
   {
     slug: SHOPIFY_POLICY_SLUGS["legal-notice"],
     label: "Legal notice",
-    detail: "Store operator and platform information.",
+    detail: "Company and platform information.",
   },
 ];
 
 export const Route = createFileRoute("/policies/")({
   head: () => ({
     meta: [
-      { title: "Policies & support — VS Store" },
+      { title: "Policies & support — VS Associates" },
       {
         name: "description",
-        content: "VS Store shipping, returns, privacy, terms and contact information.",
+        content: "VS Associates shipping, returns, privacy, terms and contact information.",
       },
     ],
     links: [{ rel: "canonical", href: canonicalUrl("/policies") }],
@@ -57,7 +57,7 @@ function PoliciesIndexPage() {
       <section className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="rounded-[2rem] vs-hero-gradient p-7 text-primary-foreground shadow-[var(--shadow-lift)] sm:p-10">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] opacity-70">
-            VS Store / Support
+            VS Associates / Support
           </p>
           <h1 className="mt-5 max-w-xl font-display text-3xl font-bold sm:text-5xl">
             Clear policies for a clearer checkout.
@@ -69,7 +69,7 @@ function PoliciesIndexPage() {
           <div className="mt-8 flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.16em]">
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              Store information
+              Company information
             </span>
           </div>
         </div>
@@ -108,7 +108,7 @@ function PoliciesIndexPage() {
               Policy library
             </p>
             <h2 id="policy-library" className="mt-2 font-display text-2xl font-bold sm:text-3xl">
-              Store information, organised.
+              Company information, organised.
             </h2>
           </div>
           <p className="max-w-sm text-sm leading-6 text-muted-foreground">

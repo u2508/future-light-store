@@ -1,5 +1,5 @@
 export const STORE_CONTACT = {
-  tradingName: "VS Store",
+  tradingName: "VS Associates",
   legalSeller: "VS Polymers, India",
   email: "UTKARSHGUPTA64825@GMAIL.COM",
   phoneDisplay: "+91 836 856 7872",

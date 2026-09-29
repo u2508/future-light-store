@@ -9,15 +9,15 @@ import { canonicalUrl } from "@/lib/seo";
 export const Route = createFileRoute("/offers")({
   head: () => ({
     meta: [
-      { title: "Offers — VS Store" },
+      { title: "Offers — VS Associates" },
       {
         name: "description",
-        content: "Live price drops and limited-time offers across the VS Store catalog.",
+        content: "Live price drops and limited-time offers across the VS Associates catalog.",
       },
-      { property: "og:title", content: "Offers — VS Store" },
+      { property: "og:title", content: "Offers — VS Associates" },
       {
         property: "og:description",
-        content: "Live price drops and limited-time offers at VS Store.",
+        content: "Live price drops and limited-time offers at VS Associates.",
       },
     ],
     links: [{ rel: "canonical", href: canonicalUrl("/offers") }],
@@ -65,7 +65,7 @@ function OffersPage() {
       <section className="grid gap-6 rounded-[2rem] vs-hero-gradient p-7 text-primary-foreground shadow-[var(--shadow-lift)] sm:p-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] opacity-75">
-            VS Store / Value edit
+            VS Associates / Value edit
           </p>
           <h1 className="mt-4 max-w-2xl font-display text-3xl font-bold sm:text-5xl">
             Better finds, while they last.

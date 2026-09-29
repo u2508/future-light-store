@@ -256,7 +256,10 @@ async function main() {
   process.exit(child.status ?? 1);
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error.stack || error.message}\n`);
-  process.exit(1);
-});
+if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename)) {
+  process.stderr.write(
+    "Legacy Future Light release launcher is disabled before reading credentials, syncing Shopify, or creating release files.\n",
+  );
+  process.stderr.write("No Shopify request or mutation was made.\n");
+  process.exitCode = 78;
+}

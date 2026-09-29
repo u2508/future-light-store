@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { US_SHIPPING_PROMISE } from "../src/lib/shipping-promise.mjs";
+import {
+  buildCollectionAnswer,
+  buildHomepageAnswer,
+  buildHomepageMetaDescription,
+  formatProductPriceRange,
+  resolveCollectionProducts,
+} from "./lib/future-light-seo-page-content.mjs";
 
 const rootDir = process.cwd();
 const distDir = resolve(rootDir, "dist");
@@ -11,77 +19,83 @@ const siteUrl = String(process.env.VITE_SITE_URL || "https://future-light-store.
   .replace(/\/+$/, "");
 const productIndexPath = resolve(publicDir, "data", "products.json");
 const collectionsPath = resolve(publicDir, "data", "collections.json");
+const collectionProductsPath = resolve(publicDir, "data", "collection-products.json");
 const knowledgePath = resolve(rootDir, "output", "product-knowledge.json");
 const productSeoPath = resolve(publicDir, "data", "product-seo.json");
 const WRITE_CONCURRENCY = Math.max(4, Math.min(32, Number(process.env.SEO_STATIC_WRITE_CONCURRENCY || 16)));
+const countFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 
 const STATIC_PAGES = [
   {
     path: "/",
-    title: "VS Store — Product Discovery Made Clear",
-    description: "Shop useful products across electronics, home, fashion, travel, wellness and more at VS Store with clear details and secure checkout.",
+    title: "VS Associates — Product Discovery Made Clear",
+    description: "Shop useful products across electronics, home, fashion, travel, wellness and more at VS Associates with clear details and secure checkout.",
     heading: "Discover products that fit your everyday life",
     summary: "Explore a carefully organized catalog with practical product details, transparent pricing and tracked fulfilment.",
     answerBlocks: [
       {
-        question: "What is VS Store?",
-        answer: "VS Store is a curated online marketplace for practical everyday essentials, future-ready tech and lifestyle accessories, with secure Shopify checkout and tracked fulfilment.",
+        question: "What is VS Associates?",
+        answer: "VS Associates is a curated online marketplace for practical everyday essentials, future-ready tech and lifestyle accessories, with secure Shopify checkout and tracked fulfilment.",
       },
       {
         question: "How can I find the right product?",
         answer: "Shop by collection, search the catalog, or compare products by price, availability, category, brand, size, colour and discount.",
       },
       {
-        question: "Can I track a VS Store order?",
+        question: "Can I track a VS Associates order?",
         answer: "Yes. Enter the order number and checkout email on the track-order page to view the latest fulfilment status and carrier tracking links.",
+      },
+      {
+        question: "How long does US shipping take?",
+        answer: `${US_SHIPPING_PROMISE.summary}. Shopify confirms the eligible service and final charge for the entered address and cart before payment.`,
       },
     ],
   },
   {
     path: "/shop",
-    title: "Shop All Products | VS Store",
-    description: "Browse the full VS Store catalog by product type, category, price and practical use.",
+    title: "Shop All Products | VS Associates",
+    description: "Browse the full VS Associates catalog by product type, category, price and practical use.",
     heading: "Shop all products",
     summary: "Search the full catalog and compare product details before you order.",
   },
   {
     path: "/collections",
-    title: "Product Collections | VS Store",
-    description: "Browse VS Store collections organized by product type, use case, price range and seasonal shopping intent.",
+    title: "Product Collections | VS Associates",
+    description: "Browse VS Associates collections organized by product type, use case, price range and seasonal shopping intent.",
     heading: "Browse collections",
     summary: "Find a focused starting point for your next purchase.",
   },
   {
     path: "/offers",
-    title: "Offers and Value Picks | VS Store",
-    description: "Find current VS Store offers and value picks with product details, pricing and delivery information.",
+    title: "Offers and Value Picks | VS Associates",
+    description: "Find current VS Associates offers and value picks with product details, pricing and delivery information.",
     heading: "Offers and value picks",
     summary: "Compare available value-focused products and current offers.",
   },
   {
     path: "/about",
-    title: "About VS Store",
-    description: "Learn how VS Store organizes useful products with clear information, secure checkout and tracked fulfilment.",
-    heading: "About VS Store",
-    summary: "VS Store helps shoppers discover practical products with clearer product information and a straightforward buying experience.",
+    title: "About VS Associates",
+    description: "Learn how VS Associates organizes useful products with clear information, secure checkout and tracked fulfilment.",
+    heading: "About VS Associates",
+    summary: "VS Associates helps shoppers discover practical products with clearer product information and a straightforward buying experience.",
   },
   {
     path: "/policies",
-    title: "Store Policies | VS Store",
-    description: "Read VS Store shipping, returns, privacy and terms information before placing an order.",
-    heading: "Store policies",
+    title: "Policies & Support | VS Associates",
+    description: "Read VS Associates shipping, returns, privacy and terms information before placing an order.",
+    heading: "Policies & support",
     summary: "Review shipping, returns, privacy and terms information before ordering.",
   },
   {
     path: "/help",
-    title: "Help and Shopping Information | VS Store",
-    description: "Get help with shopping, orders, delivery, returns and product questions at VS Store.",
+    title: "Help and Shopping Information | VS Associates",
+    description: "Get help with shopping, orders, delivery, returns and product questions at VS Associates.",
     heading: "How can we help?",
     summary: "Find answers before and after placing an order.",
     faqs: [
       {
         question: "How long does delivery take?",
-        answer: "Most orders ship within 1–2 business days; delivery estimates are shown at checkout.",
+        answer: `${US_SHIPPING_PROMISE.summary}. Shopify confirms the eligible service and final charge for the entered address and cart before payment.`,
       },
       {
         question: "Can I return an item?",
@@ -99,17 +113,17 @@ const STATIC_PAGES = [
   },
   {
     path: "/track-order",
-    title: "Track Your Order | VS Store",
-    description: "Use VS Store order information to check delivery progress and get help with an order.",
+    title: "Track Your Order | VS Associates",
+    description: "Use VS Associates order information to check delivery progress and get help with an order.",
     heading: "Track your order",
-    summary: "Check the status of your VS Store purchase.",
+    summary: "Check the status of your VS Associates purchase.",
   },
   ...["shipping", "returns", "privacy", "terms"].map((slug) => ({
     path: `/policies/${slug}`,
-    title: `${slug[0].toUpperCase()}${slug.slice(1)} Policy | VS Store`,
-    description: `Read the VS Store ${slug} policy and understand the terms that apply to your shopping experience.`,
+    title: `${slug[0].toUpperCase()}${slug.slice(1)} Policy | VS Associates`,
+    description: `Read the VS Associates ${slug} policy and understand the terms that apply to your shopping experience.`,
     heading: `${slug[0].toUpperCase()}${slug.slice(1)} policy`,
-    summary: `Review the VS Store ${slug} information before ordering.`,
+    summary: `Review the VS Associates ${slug} information before ordering.`,
   })),
 ];
 
@@ -362,7 +376,7 @@ function productMetaDescription(product, knowledge, seo) {
     .replace(new RegExp(`^${escapeRegExp(product.title)}\\s*`, "i"), "")
     .trim();
   const summary = /^is\b/i.test(summaryTail) ? `This product ${summaryTail}` : summaryTail;
-  const value = `Shop ${product.title} at VS Store. ${summary}`;
+  const value = `Shop ${product.title} at VS Associates. ${summary}`;
   return value.length <= 158 ? value : `${value.slice(0, 155).replace(/\s+\S*$/, "")}...`;
 }
 
@@ -371,6 +385,11 @@ function imageUrls(product) {
     .map((image) => image?.src || image?.url)
     .filter(Boolean)
     .slice(0, 8);
+}
+
+function primaryImage(product) {
+  return (Array.isArray(product.images) ? product.images : [])
+    .find((image) => image?.src || image?.url) || null;
 }
 
 function firstOffer(product) {
@@ -386,7 +405,7 @@ function firstOffer(product) {
   };
 }
 
-function productStructuredData(product, knowledge, seo) {
+function productStructuredData(product, knowledge, seo, catalogDate) {
   const url = canonicalUrl(`/products/${product.handle}`);
   const optimizedTitle = String(seo?.seoTitle || seo?.title || product.title).trim();
   const optimizedDescription = String(seo?.seoDescription || usefulProductSummary(product, knowledge)).trim();
@@ -398,6 +417,7 @@ function productStructuredData(product, knowledge, seo) {
       description: optimizedDescription,
       url,
       image: imageUrls(product),
+      dateModified: product.updated_at || catalogDate,
       ...(product.vendor ? { brand: { "@type": "Brand", name: product.vendor } } : {}),
       ...(offer ? { offers: offer } : {}),
     },
@@ -413,53 +433,90 @@ function productStructuredData(product, knowledge, seo) {
   return { "@context": "https://schema.org", "@graph": graph };
 }
 
-function collectionStructuredData(collection) {
+function collectionStructuredData(collection, products = [], catalogDate) {
   const url = canonicalUrl(`/collections/${collection.handle}`);
-  const featured = collection.customData?.featuredProducts || [];
-  return {
-    "@context": "https://schema.org",
-    "@type": "CollectionPage",
-    name: collection.title,
-    description: htmlToText(collection.description || collection.customData?.heroSummary || `Browse ${collection.title} at VS Store.`),
-    url,
-    mainEntity: {
-      "@type": "ItemList",
-      itemListElement: featured.slice(0, 12).map((product, index) => ({
-        "@type": "ListItem",
-        position: index + 1,
-        name: product.title,
-        url: canonicalUrl(`/products/${product.handle}`),
-      })),
-    },
-  };
-}
-
-function rootStructuredData() {
+  const faq = collectionFaqs(collection, products.length, catalogDate);
   return {
     "@context": "https://schema.org",
     "@graph": [
       {
-        "@type": "Organization",
-        name: "VS Store",
-        url: canonicalUrl("/"),
+        "@type": "CollectionPage",
+        name: collection.title,
+        description: htmlToText(collection.description || collection.customData?.heroSummary || `Browse ${collection.title} at VS Associates.`),
+        url,
+        dateModified: collection.updated_at || catalogDate,
+        ...(collection.image?.src ? { image: collection.image.src } : {}),
+        mainEntity: {
+          "@type": "ItemList",
+          numberOfItems: products.length,
+          itemListElement: products.slice(0, 12).map((product, index) => ({
+            "@type": "ListItem",
+            position: index + 1,
+            name: product.title,
+            url: canonicalUrl(`/products/${product.handle}`),
+          })),
+        },
       },
       {
-        "@type": "WebSite",
-        name: "VS Store",
-        url: canonicalUrl("/"),
-        potentialAction: {
-          "@type": "SearchAction",
-          target: `${canonicalUrl("/shop")}?q={search_term_string}`,
-          "query-input": "required name=search_term_string",
-        },
+        "@type": "FAQPage",
+        url,
+        mainEntity: faq.map(({ question, answer }) => ({
+          "@type": "Question",
+          name: question,
+          acceptedAnswer: { "@type": "Answer", text: answer },
+        })),
       },
     ],
   };
 }
 
+function rootStructuredData(homepage, modifiedAt) {
+  const graph = [
+    {
+      "@type": "Organization",
+      name: "VS Associates",
+      url: canonicalUrl("/"),
+      logo: canonicalUrl("/favicon.svg"),
+    },
+    {
+      "@type": "WebSite",
+      name: "VS Associates",
+      url: canonicalUrl("/"),
+      description: "A curated online marketplace for practical everyday essentials, home, tech and lifestyle products.",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: `${canonicalUrl("/search")}?q={search_term_string}`,
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@type": "WebPage",
+      name: homepage.title,
+      description: homepage.summary,
+      url: canonicalUrl("/"),
+      dateModified: modifiedAt,
+    },
+  ];
+  if (homepage.answerBlocks?.length) {
+    graph.push({
+      "@type": "FAQPage",
+      url: canonicalUrl("/"),
+      mainEntity: homepage.answerBlocks.map(({ question, answer }) => ({
+        "@type": "Question",
+        name: question,
+        acceptedAnswer: { "@type": "Answer", text: answer },
+      })),
+    });
+  }
+  return {
+    "@context": "https://schema.org",
+    "@graph": graph,
+  };
+}
+
 function answerBlocksMarkup(blocks = []) {
   if (!blocks.length) return "";
-  return `<section aria-labelledby="answer-guide"><h2 id="answer-guide">Quick answers</h2><dl>${blocks
+  return `<section aria-labelledby="answer-guide"><h2 id="answer-guide">Frequently asked questions</h2><dl>${blocks
     .map(({ question, answer }) => `<dt>${escapeHtml(question)}</dt><dd>${escapeHtml(answer)}</dd>`)
     .join("")}</dl></section>`;
 }
@@ -472,33 +529,72 @@ function faqMarkup(faqs = []) {
 }
 
 function staticBody(page) {
-  return `<main><h1>${escapeHtml(page.heading)}</h1><p>${escapeHtml(page.summary)}</p>${answerBlocksMarkup(page.answerBlocks)}${faqMarkup(page.faqs)}</main>`;
+  const collectionLinks = (page.collectionDirectory || []).map((collection) =>
+    `<tr><th scope="row"><a href="${escapeHtml(`/collections/${collection.handle}`)}">${escapeHtml(collection.title)}</a></th><td>${escapeHtml(countFormatter.format(collection.productCount))}</td></tr>`,
+  ).join("");
+  const directory = collectionLinks
+    ? `<section aria-labelledby="collection-directory"><h2 id="collection-directory">Browse collections</h2><table><thead><tr><th scope="col">Collection</th><th scope="col">Catalog listings</th></tr></thead><tbody>${collectionLinks}</tbody></table></section>`
+    : "";
+  const heroImage = page.heroImage
+    ? `<figure><img src="${escapeHtml(page.heroImage)}" alt="VS Associates — practical everyday essentials, home, tech and lifestyle finds" loading="eager" width="1200" height="640" style="max-width:100%;height:auto" /><figcaption>VS Associates product discovery and everyday essentials.</figcaption></figure>`
+    : "";
+  const shoppingSteps = page.path === "/"
+    ? `<section aria-labelledby="shopping-steps"><h2 id="shopping-steps">How to shop VS Associates</h2><ol><li>Choose a collection or search for the product you need.</li><li>Review product photos, listing details, available variants and listed prices.</li><li>Confirm the selected option, address-specific shipping and final total in Shopify checkout before payment.</li></ol></section>`
+    : "";
+  const internalLinks = page.path === "/" ? "" : `<nav aria-label="Company information"><a href="/shop">Shop all</a> · <a href="/collections">Collections</a> · <a href="/policies/shipping">Shipping</a> · <a href="/policies/returns">Returns</a> · <a href="/help">Help</a></nav>`;
+  return `<main><h1>${escapeHtml(page.heading)}</h1><p>${escapeHtml(page.summary)}</p>${heroImage}${internalLinks}${answerBlocksMarkup(page.answerBlocks)}${shoppingSteps}${faqMarkup(page.faqs)}${directory}</main>`;
 }
 
 function staticStructuredData(page) {
-  const webPage = { "@type": "WebPage", name: page.title, url: canonicalUrl(page.path) };
-  if (!page.faqs?.length) return { "@context": "https://schema.org", ...webPage };
+  const webPage = {
+    "@type": "WebPage",
+    name: page.title,
+    description: page.description,
+    url: canonicalUrl(page.path),
+    ...(page.dateModified ? { dateModified: page.dateModified } : {}),
+  };
+  const questions = [...(page.answerBlocks || []), ...(page.faqs || [])];
+  const graph = [
+    webPage,
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: canonicalUrl("/") },
+        ...(page.path === "/" ? [] : [{ "@type": "ListItem", position: 2, name: page.heading, item: canonicalUrl(page.path) }]),
+      ],
+    },
+  ];
+  if (!questions.length) return { "@context": "https://schema.org", "@graph": graph };
+  graph.push({
+    "@type": "FAQPage",
+    mainEntity: questions.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: { "@type": "Answer", text: faq.answer },
+    })),
+  });
   return {
     "@context": "https://schema.org",
-    "@graph": [
-      webPage,
-      {
-        "@type": "FAQPage",
-        mainEntity: page.faqs.map((faq) => ({
-          "@type": "Question",
-          name: faq.question,
-          acceptedAnswer: { "@type": "Answer", text: faq.answer },
-        })),
-      },
-    ],
+    "@graph": graph,
   };
 }
 
 function productBody(product, knowledge, seo) {
   const optimizedTitle = String(seo?.seoTitle || seo?.title || product.title).trim();
   const optimizedBody = sanitizeDescriptionHtml(seo?.descriptionHtml || "");
+  const productImage = primaryImage(product);
+  const image = productImage?.src || productImage?.url;
+  const imageMarkup = image
+    ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}" loading="eager" fetchpriority="high"${productImage.width ? ` width="${escapeHtml(productImage.width)}"` : ""}${productImage.height ? ` height="${escapeHtml(productImage.height)}"` : ""} style="max-width:100%;height:auto" />`
+    : "";
+  const listedPrice = formatProductPriceRange(product);
+  const priceMarkup = listedPrice
+    ? `<p><strong>Listed variant price (USD):</strong> ${escapeHtml(listedPrice)}. Product options and the final order total are confirmed at Shopify checkout.</p>`
+    : "";
+  const shoppingNotes = `<section aria-labelledby="shipping-and-returns"><h2 id="shipping-and-returns">Shipping and returns</h2><p>${escapeHtml(US_SHIPPING_PROMISE.summary)}. See the <a href="/policies/shipping">shipping policy</a> and <a href="/policies/returns">returns policy</a>; checkout confirms address-specific options and totals.</p></section><nav aria-label="Continue shopping"><a href="/collections">Browse collections</a> · <a href="/help">Shopping help</a></nav>`;
+  const breadcrumb = `<nav aria-label="Breadcrumb"><a href="/">Home</a> › <a href="/shop">Shop all</a></nav>`;
   if (optimizedBody) {
-    return `<main><article><h1>${escapeHtml(optimizedTitle)}</h1>${optimizedBody}</article></main>`;
+    return `<main>${breadcrumb}<article>${imageMarkup}<h1>${escapeHtml(optimizedTitle)}</h1>${optimizedBody}${priceMarkup}${shoppingNotes}</article></main>`;
   }
   const type = productType(product, knowledge);
   const listingFacts = relevantListingFacts(product, knowledge);
@@ -529,18 +625,52 @@ function productBody(product, knowledge, seo) {
     new RegExp(`^${escapeRegExp(product.title)}`),
     `The ${optimizedTitle}`,
   );
-  return `<main><article><h1>${escapeHtml(optimizedTitle)}</h1><p>${escapeHtml(summary)}</p><section aria-label="Product details"><h2>Product details</h2><dl>${factsMarkup}</dl></section>${optionsMarkup}<section aria-label="Before ordering"><h2>Before ordering</h2><p>${escapeHtml(orderingText)}</p></section></article></main>`;
+  return `<main>${breadcrumb}<article>${imageMarkup}<h1>${escapeHtml(optimizedTitle)}</h1><p>${escapeHtml(summary)}</p>${priceMarkup}<section aria-label="Product details"><h2>Product details</h2><dl>${factsMarkup}</dl></section>${optionsMarkup}<section aria-label="Before ordering"><h2>Before ordering</h2><p>${escapeHtml(orderingText)}</p></section>${shoppingNotes}</article></main>`;
 }
 
-function collectionBody(collection) {
-  const summary = htmlToText(collection.customData?.heroSummary || collection.description || `Browse ${collection.title} at VS Store.`);
-  const featured = (collection.customData?.featuredProducts || []).slice(0, 8);
-  const links = featured.map((product) => `<li><a href="${escapeHtml(`/products/${product.handle}`)}">${escapeHtml(product.title)}</a></li>`).join("");
-  return `<main><h1>${escapeHtml(collection.title)}</h1><p>${escapeHtml(summary)}</p>${links ? `<section aria-label="Featured products"><h2>Featured products</h2><ul>${links}</ul></section>` : ""}</main>`;
+function collectionFaqs(collection, productCount, catalogDate) {
+  const title = String(collection.title || "this").trim();
+  return [
+    {
+      question: `What products are in the ${title} collection?`,
+      answer: buildCollectionAnswer({ title, productCount, catalogDate }),
+    },
+    {
+      question: "How long does US shipping take?",
+      answer: `${US_SHIPPING_PROMISE.summary}. Shopify confirms the eligible service and final charge for the entered address and cart before payment.`,
+    },
+    {
+      question: "How can I check product options and prices?",
+      answer: "Open a product listing to review its available variants and listed prices. The selected option, availability and final order total are confirmed at Shopify checkout.",
+    },
+    {
+      question: "Where can I check returns information?",
+      answer: "Review the VS Associates returns policy for current eligibility, conditions and instructions before ordering.",
+    },
+  ];
 }
 
-function renderDocument(template, { path, title, description, body, structuredData, ogType = "website" }) {
+function collectionBody(collection, products, productCount, catalogDate) {
+  const description = htmlToText(collection.customData?.heroSummary || collection.description || `Browse ${collection.title} at VS Associates.`);
+  const examples = products.slice(0, 8);
+  const rows = examples.map((product) => {
+    const price = formatProductPriceRange(product);
+    return `<tr><th scope="row"><a href="${escapeHtml(`/products/${product.handle}`)}">${escapeHtml(product.title)}</a></th><td>${escapeHtml(price ? `${price} USD` : "See listing")}</td></tr>`;
+  }).join("");
+  const examplesMarkup = rows
+    ? `<section aria-labelledby="collection-examples"><h2 id="collection-examples">Products in this collection</h2><p>Examples from the Shopify catalog snapshot; visit a product page for its full details and options.</p><table><thead><tr><th scope="col">Product</th><th scope="col">Listed variant price</th></tr></thead><tbody>${rows}</tbody></table><h3>How to compare products</h3><ol><li>Open a listing to inspect its photos and product-specific details.</li><li>Review the available variant names and listed price range.</li><li>Confirm option availability, shipping and the final total at Shopify checkout.</li></ol></section>`
+    : "";
+  const answer = buildCollectionAnswer({ title: collection.title, productCount, catalogDate });
+  const faqs = collectionFaqs(collection, productCount, catalogDate);
+  const image = collection.image?.src
+    ? `<img src="${escapeHtml(collection.image.src)}" alt="${escapeHtml(collection.image.alt || `${collection.title} collection`)}" loading="eager" style="max-width:100%;height:auto" />`
+    : "";
+  return `<main><nav aria-label="Breadcrumb"><a href="/">Home</a> › <a href="/collections">Collections</a></nav>${image}<h1>${escapeHtml(collection.title)}</h1><p>${escapeHtml(answer)}</p><p>${escapeHtml(description)}</p>${examplesMarkup}<p>${escapeHtml(US_SHIPPING_PROMISE.summary)}. <a href="/policies/shipping">Shipping details</a> · <a href="/policies/returns">Returns</a> · <a href="/help">Shopping help</a>.</p>${faqMarkup(faqs)}</main>`;
+}
+
+function renderDocument(template, { path, title, description, body, structuredData, ogType = "website", ogImage }) {
   const canonical = canonicalUrl(path);
+  const socialImage = ogImage || canonicalUrl("/favicon.svg");
   const staticHeadAttr = ' data-vs-static-head="true"';
   // Preserve the closing tag on Vite's external module script. Matching only
   // through the first `>` turns `<script ...></script>` into an unclosed
@@ -569,8 +699,11 @@ function renderDocument(template, { path, title, description, body, structuredDa
     `<meta property="og:description" content="${escapeHtml(description)}"${staticHeadAttr} />`,
     `<meta property="og:type" content="${escapeHtml(ogType)}"${staticHeadAttr} />`,
     `<meta property="og:url" content="${escapeHtml(canonical)}"${staticHeadAttr} />`,
-    `<meta property="og:site_name" content="VS Store"${staticHeadAttr} />`,
+    `<meta property="og:site_name" content="VS Associates"${staticHeadAttr} />`,
+    `<meta property="og:image" content="${escapeHtml(socialImage)}"${staticHeadAttr} />`,
+    `<meta property="og:image:alt" content="${escapeHtml(title)}"${staticHeadAttr} />`,
     `<meta name="twitter:card" content="summary_large_image"${staticHeadAttr} />`,
+    `<meta name="twitter:image" content="${escapeHtml(socialImage)}"${staticHeadAttr} />`,
     `<title${staticHeadAttr}>${escapeHtml(title)}</title>`,
     `<link rel="icon" href="/favicon.svg" type="image/svg+xml" />`,
     ...assetTags,
@@ -635,28 +768,101 @@ function assertFreshLiveCatalog(productsManifest, collectionsPayload) {
   }
 }
 
+function assertFreshCollectionMembership(membershipPayload, productsManifest, collectionsPayload) {
+  const generatedAt = Date.parse(String(membershipPayload?.generatedAt || ""));
+  const maxAgeMs = Math.max(
+    60_000,
+    Number(process.env.SALT_WEB_BUILD_MAX_CATALOG_AGE_MS || 30 * 60 * 1000),
+  );
+  if (!Number.isFinite(generatedAt) || Date.now() - generatedAt > maxAgeMs) {
+    throw new Error("Live collection membership is missing or stale; refresh Shopify data before building.");
+  }
+
+  const expectedSourceHost = new URL(productsManifest.source).hostname;
+  for (const payload of [membershipPayload, collectionsPayload]) {
+    if (new URL(payload.source).hostname !== expectedSourceHost) {
+      throw new Error("Product, collection, and collection-membership snapshots must come from the same Shopify store.");
+    }
+  }
+  if (Number(membershipPayload.totalCollections) !== Number(collectionsPayload.total)) {
+    throw new Error("Live collection membership is incomplete; refusing to generate partial collection pages.");
+  }
+}
+
+async function defaultSocialImage() {
+  try {
+    const assets = await readdir(resolve(distDir, "assets"));
+    const file = assets.find((name) => /^vs-og[-.].+\.(?:jpe?g|png|webp)$/i.test(name));
+    if (file) return canonicalUrl(`/assets/${file}`);
+  } catch {
+    // The stable, crawlable brand mark remains available if the build has no OG asset.
+  }
+  return canonicalUrl("/favicon.svg");
+}
+
 async function main() {
   const template = (await readFile(resolve(distDir, "index.html"), "utf8"))
     .replace(/<div id="root">[\s\S]*?<\/div>/i, '<div id="root"></div>');
-  const [productsManifest, collectionsPayload, knowledge, seoPayload] = await Promise.all([
+  const [productsManifest, collectionsPayload, collectionMembership, knowledge, seoPayload, defaultOgImage] = await Promise.all([
     readFile(productIndexPath, "utf8").then(JSON.parse),
     readFile(collectionsPath, "utf8").then(JSON.parse),
+    readFile(collectionProductsPath, "utf8").then(JSON.parse),
     readFile(knowledgePath, "utf8").then(JSON.parse).catch(() => null),
     readFile(productSeoPath, "utf8").then(JSON.parse).catch(() => null),
+    defaultSocialImage(),
   ]);
   assertFreshLiveCatalog(productsManifest, collectionsPayload);
+  assertFreshCollectionMembership(collectionMembership, productsManifest, collectionsPayload);
   const products = await loadProducts();
   const knowledgeByHandle = productKnowledgeByHandle(knowledge);
   const seoByHandle = new Map((seoPayload?.products || []).map((record) => [record.handle, record]));
   const collections = collectionsPayload.collections || [];
+  const productsById = new Map(products.map((product) => [String(product.id), product]));
+  const membershipByHandle = collectionMembership.collections || {};
+  const catalogDate = new Date(productsManifest.generatedAt).toISOString().slice(0, 10);
+  const collectionProducts = new Map(collections.map((collection) => {
+    const ids = membershipByHandle[collection.handle]?.productIds || [];
+    const members = resolveCollectionProducts(ids, productsById);
+    return [collection.handle, members];
+  }));
+  const collectionDirectory = collections
+    .filter((collection) => collection?.handle)
+    .map((collection) => ({
+      handle: collection.handle,
+      title: collection.title,
+      productCount: collectionProducts.get(collection.handle)?.length || 0,
+    }))
+    .filter((collection) => collection.productCount > 0)
+    .sort((left, right) => left.title.localeCompare(right.title))
+    .slice(0, 12);
+  const homepage = {
+    ...STATIC_PAGES.find((page) => page.path === "/"),
+    description: buildHomepageMetaDescription({
+      productCount: products.length,
+      collectionCount: collections.length,
+    }),
+    summary: buildHomepageAnswer({
+      productCount: products.length,
+      collectionCount: collections.length,
+      catalogDate,
+      shippingSummary: `${US_SHIPPING_PROMISE.summary}. Shopify confirms the eligible service and final charge for the entered address and cart before payment.`,
+    }),
+    heroImage: defaultOgImage,
+    dateModified: productsManifest.generatedAt,
+    collectionDirectory,
+  };
 
   const tasks = [];
   for (const page of STATIC_PAGES) {
+    const currentPage = page.path === "/" ? homepage : page;
     const target = page.path === "/" ? resolve(distDir, "index.html") : resolve(distDir, page.path.slice(1), "index.html");
     tasks.push({ target, content: renderDocument(template, {
-      ...page,
-      structuredData: page.path === "/" ? rootStructuredData() : staticStructuredData(page),
-      body: staticBody(page),
+      ...currentPage,
+      structuredData: page.path === "/"
+        ? rootStructuredData(homepage, productsManifest.generatedAt)
+        : staticStructuredData(currentPage),
+      body: staticBody(currentPage),
+      ogImage: defaultOgImage,
     }) });
   }
 
@@ -667,10 +873,11 @@ async function main() {
     const seoRecord = seoByHandle.get(product.handle);
     tasks.push({ target, content: renderDocument(template, {
       path,
-      title: `${seoRecord?.seoTitle || seoRecord?.title || product.title} | VS Store`,
+      title: `${seoRecord?.seoTitle || seoRecord?.title || product.title} | VS Associates`,
       description: productMetaDescription(product, knowledgeRecord, seoRecord),
       body: productBody(product, knowledgeRecord, seoRecord),
-      structuredData: productStructuredData(product, knowledgeRecord, seoRecord),
+      structuredData: productStructuredData(product, knowledgeRecord, seoRecord, catalogDate),
+      ogImage: imageUrls(product)[0] || defaultOgImage,
       ogType: "product",
     }) });
   }
@@ -678,13 +885,19 @@ async function main() {
   for (const collection of collections.filter((entry) => entry?.handle)) {
     const path = `/collections/${collection.handle}`;
     const target = resolve(distDir, "collections", collection.handle, "index.html");
-    const description = htmlToText(collection.customData?.heroSummary || collection.description || `Browse ${collection.title} at VS Store.`);
+    const members = collectionProducts.get(collection.handle) || [];
+    const description = buildCollectionAnswer({
+      title: collection.title,
+      productCount: members.length,
+      catalogDate,
+    });
     tasks.push({ target, content: renderDocument(template, {
       path,
-      title: `${collection.title} | VS Store`,
+      title: `${collection.title} | VS Associates`,
       description: description.length <= 158 ? description : `${description.slice(0, 155).replace(/\s+\S*$/, "")}...`,
-      body: collectionBody(collection),
-      structuredData: collectionStructuredData(collection),
+      body: collectionBody(collection, members, members.length, catalogDate),
+      structuredData: collectionStructuredData(collection, members, catalogDate),
+      ogImage: collection.image?.src || members.flatMap(imageUrls)[0] || defaultOgImage,
     }) });
   }
 

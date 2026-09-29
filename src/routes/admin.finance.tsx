@@ -7,7 +7,7 @@ export const Route = createFileRoute("/admin/finance")({
       { title: "Finance — VS Admin" },
       {
         name: "description",
-        content: "VS Store finance workspace: P&L, refunds, chargebacks and reconciliation.",
+        content: "VS Associates finance workspace: P&L, refunds, chargebacks and reconciliation.",
       },
       { name: "robots", content: "noindex" },
     ],

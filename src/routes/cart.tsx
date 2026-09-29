@@ -10,12 +10,12 @@ import { US_SHIPPING_PROMISE } from "@/lib/shipping-promise";
 export const Route = createFileRoute("/cart")({
   head: () => ({
     meta: [
-      { title: "Your bag — VS Store" },
+      { title: "Your bag — VS Associates" },
       {
         name: "description",
-        content: "Review the items in your VS Store bag and continue to secure checkout.",
+        content: "Review the items in your VS Associates bag and continue to secure checkout.",
       },
-      { property: "og:title", content: "Your bag — VS Store" },
+      { property: "og:title", content: "Your bag — VS Associates" },
       { property: "og:description", content: "Review your bag and continue to secure checkout." },
       { name: "robots", content: "noindex, nofollow" },
     ],
@@ -70,7 +70,7 @@ function CartPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-            VS Store / Checkout
+            VS Associates / Checkout
           </p>
           <h1 className="mt-2 font-display text-3xl font-bold">Your bag</h1>
         </div>

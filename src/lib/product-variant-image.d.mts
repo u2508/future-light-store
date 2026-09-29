@@ -3,6 +3,12 @@ export function selectVariantGalleryIndex(
   variantImageUrl: string | null | undefined,
 ): number;
 
+export function selectGalleryImageForDisplay<T extends { url?: string | null }>(
+  images: T[],
+  preferredIndex: number,
+  failedImageUrls?: Set<string>,
+): T | null;
+
 export type ShopifyProductImage = {
   id?: string | null;
   url: string;
@@ -24,6 +30,7 @@ export function getProductGalleryImages(
     media?: {
       edges?: Array<{
         node?: {
+          id?: string | null;
           mediaContentType?: string;
           alt?: string | null;
           image?: ShopifyProductImage | null;
@@ -56,9 +63,11 @@ export function mergePublishedProductMedia<
         node: {
           id: string;
           image?: ShopifyProductImage | null;
+          imageMappingStatus?: "assigned" | "reviewed" | "conflict" | "unverified";
           selectedOptions?: Array<{ name: string; value: string }>;
         };
       }>;
     };
+    options?: Array<{ name: string; values: string[] }>;
   },
 >(product: T, publishedMedia: PublishedProductMedia | null | undefined): T;
